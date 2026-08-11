@@ -30,11 +30,19 @@ export type EnrichedTask = {
 
 export type StatusBreakdown = { statusId: string; statusName: string; count: number; isFinal: boolean };
 export type PriorityBreakdown = { priorityId: string; priorityName: string; count: number };
+export type TaskTypeBreakdown = { taskTypeId: string; taskTypeName: string; count: number };
+export type AssigneeBreakdown = { userId: string; userName: string; count: number };
+/** Bucket mingguan untuk chart tren jatuh tempo (Fase 10) — `weekStart` format YYYY-MM-DD (Senin). */
+export type DueDateTrendBucket = { weekStart: string; weekLabel: string; count: number; overdueCount: number };
 
 export type TaskSummary = {
   total: number;
   overdue: number;
   dueSoon: number;
+  completed: number;
   byStatus: StatusBreakdown[];
   byPriority: PriorityBreakdown[];
+  byTaskType: TaskTypeBreakdown[];
+  byAssignee: AssigneeBreakdown[];
+  dueDateTrend: DueDateTrendBucket[];
 };

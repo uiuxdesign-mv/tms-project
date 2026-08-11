@@ -4,10 +4,50 @@ import { useEffect, useMemo, useState } from 'react';
 import type { EnrichedTask } from '@/lib/reports/types';
 import { summarizeTasks } from '@/lib/reports/summarize';
 import { apiFetch } from '@/lib/csrf-client';
+import { BarList } from '@/components/charts/bar-list';
+import { WeeklyTrendChart } from '@/components/charts/weekly-trend-chart';
 
 type Option = { value: string; label: string };
 
 const ALL = '';
+
+type PeriodPreset = 'all' | 'this-week' | 'this-month' | 'custom';
+
+/** Senin dari minggu yang memuat `date`, format YYYY-MM-DD. */
+function mondayOf(date: Date): string {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diffToMonday = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diffToMonday);
+  return d.toISOString().slice(0, 10);
+}
+
+function addDaysLocal(dateStr: string, days: number): string {
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+function firstOfMonth(date: Date): string {
+  return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10);
+}
+
+function lastOfMonth(date: Date): string {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().slice(0, 10);
+}
+
+/** Rentang [dari, sampai] untuk 1 preset Period (Fase 10). `custom` mengembalikan null (dikontrol manual lewat 2 input tanggal). */
+function periodRange(preset: PeriodPreset): { from: string; to: string } | null {
+  const now = new Date();
+  if (preset === 'this-week') {
+    const monday = mondayOf(now);
+    return { from: monday, to: addDaysLocal(monday, 6) };
+  }
+  if (preset === 'this-month') {
+    return { from: firstOfMonth(now), to: lastOfMonth(now) };
+  }
+  return null;
+}
 
 function uniqueOptions(tasks: EnrichedTask[], idKey: keyof EnrichedTask, nameKey: keyof EnrichedTask): Option[] {
   const map = new Map<string, string>();
@@ -42,6 +82,25 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
   const [dueFrom, setDueFrom] = useState('');
   const [dueTo, setDueTo] = useState('');
   const [onlyOverdue, setOnlyOverdue] = useState(false);
+  const [periodPreset, setPeriodPreset] = useState<PeriodPreset>('all');
+
+  // Fase 10: filter Period — preset "Minggu Ini"/"Bulan Ini" otomatis mengisi Jatuh Tempo
+  // Dari/Sampai; "Kustom" membiarkan kedua input tanggal itu dikontrol manual seperti sebelumnya;
+  // "Semua" mengosongkannya lagi.
+  function handlePeriodChange(preset: PeriodPreset) {
+    setPeriodPreset(preset);
+    if (preset === 'all') {
+      setDueFrom('');
+      setDueTo('');
+    } else if (preset === 'this-week' || preset === 'this-month') {
+      const range = periodRange(preset);
+      if (range) {
+        setDueFrom(range.from);
+        setDueTo(range.to);
+      }
+    }
+    // 'custom' — biarkan dueFrom/dueTo apa adanya, user isi manual di bawah.
+  }
 
   useEffect(() => {
     (async () => {
@@ -83,8 +142,6 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
   }, [tasks, search, clientId, projectId, priorityId, statusId, assignedTo, dueFrom, dueTo, onlyOverdue]);
 
   const summary = useMemo(() => summarizeTasks(filtered), [filtered]);
-  const maxStatusCount = Math.max(1, ...summary.byStatus.map((s) => s.count));
-  const maxPriorityCount = Math.max(1, ...summary.byPriority.map((p) => p.count));
 
   function resetFilters() {
     setSearch('');
@@ -96,122 +153,189 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
     setDueFrom('');
     setDueTo('');
     setOnlyOverdue(false);
+    setPeriodPreset('all');
   }
 
-  function exportCsv() {
-    const header = [
-      'Judul',
-      'Client',
-      'Project',
-      'Tipe Tugas',
-      'Prioritas',
-      'Status',
-      'Ditugaskan Ke',
-      'Ditugaskan Oleh',
-      'Jatuh Tempo',
-      'Selesai Pada',
-      'Terlambat',
-    ];
-    const lines = [header.map(toCsvValue).join(',')];
-    filtered.forEach((t) => {
-      lines.push(
-        [
-          t.title,
-          t.client_name,
-          t.project_name,
-          t.task_type_name,
-          t.priority_name,
-          t.status_name,
-          t.assigned_to_name,
-          t.assigned_by_name,
-          t.due_date,
-          t.completed_at,
-          t.is_overdue ? 'Ya' : 'Tidak',
-        ]
-          .map(toCsvValue)
-          .join(',')
-      );
-    });
-    const csv = '﻿' + lines.join('\n'); // BOM supaya Excel baca UTF-8 dengan benar
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const REPORT_HEADERS = [
+    'Judul',
+    'Client',
+    'Project',
+    'Tipe Tugas',
+    'Prioritas',
+    'Status',
+    'Ditugaskan Ke',
+    'Ditugaskan Oleh',
+    'Jatuh Tempo',
+    'Selesai Pada',
+    'Terlambat',
+  ];
+
+  function reportRows(): string[][] {
+    return filtered.map((t) => [
+      t.title,
+      t.client_name,
+      t.project_name,
+      t.task_type_name,
+      t.priority_name,
+      t.status_name,
+      t.assigned_to_name,
+      t.assigned_by_name,
+      t.due_date,
+      t.completed_at,
+      t.is_overdue ? 'Ya' : 'Tidak',
+    ]);
+  }
+
+  function downloadBlob(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `laporan-tugas-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
 
+  async function exportExcel() {
+    const XLSX = await import('xlsx');
+    const sheet = XLSX.utils.aoa_to_sheet([REPORT_HEADERS, ...reportRows()]);
+    sheet['!cols'] = REPORT_HEADERS.map(() => ({ wch: 20 }));
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, sheet, 'Laporan Tugas');
+    const arrayBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
+    downloadBlob(
+      new Blob([arrayBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+      `laporan-tugas-${new Date().toISOString().slice(0, 10)}.xlsx`
+    );
+  }
+
+  async function exportPdf() {
+    const { jsPDF } = await import('jspdf');
+    const autoTable = (await import('jspdf-autotable')).default;
+    const doc = new jsPDF({ orientation: 'landscape' });
+    doc.setFontSize(14);
+    doc.text('Laporan Tugas — TMS', 14, 16);
+    doc.setFontSize(9);
+    doc.text(
+      `Dicetak: ${new Date().toLocaleString('id-ID')} — Total: ${summary.total}, Terlambat: ${summary.overdue}, Selesai: ${summary.completed}`,
+      14,
+      22
+    );
+    autoTable(doc, {
+      startY: 27,
+      head: [REPORT_HEADERS],
+      body: reportRows(),
+      styles: { fontSize: 7, cellPadding: 2 },
+      headStyles: { fillColor: [17, 24, 39] },
+    });
+    doc.save(`laporan-tugas-${new Date().toISOString().slice(0, 10)}.pdf`);
+  }
+
+  function handlePrint() {
+    window.print();
+  }
+
+  function exportCsv() {
+    const lines = [REPORT_HEADERS.map(toCsvValue).join(',')];
+    reportRows().forEach((row) => lines.push(row.map(toCsvValue).join(',')));
+    const csv = '﻿' + lines.join('\n'); // BOM supaya Excel baca UTF-8 dengan benar
+    downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8;' }), `laporan-tugas-${new Date().toISOString().slice(0, 10)}.csv`);
+  }
+
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
         <h1 className="text-xl font-semibold text-gray-900">Report Tugas</h1>
-        {canExport && (
+        <div className="flex flex-wrap gap-2">
           <button
-            onClick={exportCsv}
-            disabled={filtered.length === 0}
-            className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+            onClick={handlePrint}
+            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
           >
-            Export CSV
+            Print
           </button>
-        )}
+          {canExport && (
+            <>
+              <button
+                onClick={exportCsv}
+                disabled={filtered.length === 0}
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Export CSV
+              </button>
+              <button
+                onClick={exportExcel}
+                disabled={filtered.length === 0}
+                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              >
+                Export Excel
+              </button>
+              <button
+                onClick={exportPdf}
+                disabled={filtered.length === 0}
+                className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+              >
+                Export PDF
+              </button>
+            </>
+          )}
+        </div>
       </div>
 
       {error && <div className="rounded-md border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
       {/* Ringkasan */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
         <SummaryCard label="Total Tugas" value={summary.total} />
         <SummaryCard label="Terlambat" value={summary.overdue} tone="red" />
         <SummaryCard label="Jatuh Tempo 7 Hari" value={summary.dueSoon} tone="amber" />
+        <SummaryCard label="Selesai" value={summary.completed} tone="green" />
         <SummaryCard label="Ditampilkan" value={filtered.length} />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold text-gray-900">Berdasarkan Status</h2>
-          <div className="space-y-2">
-            {summary.byStatus.length === 0 && <p className="text-sm text-gray-400">Tidak ada data.</p>}
-            {summary.byStatus.map((s) => (
-              <div key={s.statusId}>
-                <div className="mb-0.5 flex justify-between text-xs text-gray-600">
-                  <span>{s.statusName}</span>
-                  <span>{s.count}</span>
-                </div>
-                <div className="h-2 w-full rounded bg-gray-100">
-                  <div
-                    className={`h-2 rounded ${s.isFinal ? 'bg-green-500' : 'bg-gray-900'}`}
-                    style={{ width: `${(s.count / maxStatusCount) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
+          <BarList
+            items={summary.byStatus.map((s) => ({
+              key: s.statusId,
+              label: s.statusName,
+              count: s.count,
+              colorClassName: s.isFinal ? 'bg-green-500' : 'bg-gray-900',
+            }))}
+          />
         </div>
 
         <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold text-gray-900">Berdasarkan Prioritas</h2>
-          <div className="space-y-2">
-            {summary.byPriority.length === 0 && <p className="text-sm text-gray-400">Tidak ada data.</p>}
-            {summary.byPriority.map((p) => (
-              <div key={p.priorityId}>
-                <div className="mb-0.5 flex justify-between text-xs text-gray-600">
-                  <span>{p.priorityName}</span>
-                  <span>{p.count}</span>
-                </div>
-                <div className="h-2 w-full rounded bg-gray-100">
-                  <div className="h-2 rounded bg-blue-500" style={{ width: `${(p.count / maxPriorityCount) * 100}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
+          <BarList
+            items={summary.byPriority.map((p) => ({ key: p.priorityId, label: p.priorityName, count: p.count, colorClassName: 'bg-blue-500' }))}
+          />
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold text-gray-900">Berdasarkan Tipe Tugas</h2>
+          <BarList
+            items={summary.byTaskType.map((t) => ({ key: t.taskTypeId, label: t.taskTypeName, count: t.count, colorClassName: 'bg-purple-500' }))}
+          />
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+          <h2 className="mb-3 text-sm font-semibold text-gray-900">Top Assignee</h2>
+          <BarList
+            items={summary.byAssignee.map((a) => ({ key: a.userId, label: a.userName, count: a.count, colorClassName: 'bg-indigo-500' }))}
+            maxItems={8}
+          />
+        </div>
+
+        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm lg:col-span-2">
+          <h2 className="mb-3 text-sm font-semibold text-gray-900">Tren Jatuh Tempo Mingguan</h2>
+          <WeeklyTrendChart buckets={summary.dueDateTrend} />
         </div>
       </div>
 
       {/* Filter */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm print:hidden">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900">Filter</h2>
           <button onClick={resetFilters} className="text-xs text-gray-500 hover:text-gray-700">
@@ -219,6 +343,19 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
           </button>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-gray-700">Period</label>
+            <select
+              value={periodPreset}
+              onChange={(e) => handlePeriodChange(e.target.value as PeriodPreset)}
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+            >
+              <option value="all">Semua</option>
+              <option value="this-week">Minggu Ini</option>
+              <option value="this-month">Bulan Ini</option>
+              <option value="custom">Kustom</option>
+            </select>
+          </div>
           <div>
             <label className="mb-1 block text-xs font-medium text-gray-700">Cari Judul</label>
             <input
@@ -238,8 +375,9 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
             <input
               type="date"
               value={dueFrom}
+              disabled={periodPreset !== 'all' && periodPreset !== 'custom'}
               onChange={(e) => setDueFrom(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
             />
           </div>
           <div>
@@ -247,8 +385,9 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
             <input
               type="date"
               value={dueTo}
+              disabled={periodPreset !== 'all' && periodPreset !== 'custom'}
               onChange={(e) => setDueTo(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
             />
           </div>
         </div>
@@ -311,8 +450,8 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
   );
 }
 
-function SummaryCard({ label, value, tone }: { label: string; value: number; tone?: 'red' | 'amber' }) {
-  const toneClass = tone === 'red' ? 'text-red-600' : tone === 'amber' ? 'text-amber-600' : 'text-gray-900';
+function SummaryCard({ label, value, tone }: { label: string; value: number; tone?: 'red' | 'amber' | 'green' }) {
+  const toneClass = tone === 'red' ? 'text-red-600' : tone === 'amber' ? 'text-amber-600' : tone === 'green' ? 'text-green-600' : 'text-gray-900';
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
       <p className="text-xs font-medium text-gray-500">{label}</p>

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { apiFetch } from '@/lib/csrf-client';
 import { TimeTrackingControls, type TimeTrackingState } from '@/components/time-tracking-controls';
+import { useToast } from '@/components/toast-provider';
 
 type TaskRow = {
   id: string;
@@ -51,6 +52,7 @@ export default function KanbanBoard({
   isAdmin: boolean;
   permissions: { canEdit: boolean };
 }) {
+  const toast = useToast();
   const [rows, setRows] = useState<TaskRow[]>([]);
   const [opts, setOpts] = useState<OptionsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -111,12 +113,12 @@ export default function KanbanBoard({
       });
       const json = await res.json();
       if (!res.ok) {
-        alert(json.fieldErrors?.status_id || json.error || 'Gagal memindahkan task.');
+        toast.error(json.fieldErrors?.status_id || json.error || 'Gagal memindahkan task.');
         return;
       }
       await load();
     } catch {
-      alert('Terjadi kesalahan jaringan.');
+      toast.error('Terjadi kesalahan jaringan.');
     }
   }
 

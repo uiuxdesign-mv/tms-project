@@ -3,9 +3,11 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/csrf-client';
+import { useLanguage } from '@/components/language-provider';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { t } = useLanguage();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -39,12 +41,12 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
       <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
         <h1 className="mb-1 text-xl font-semibold text-gray-900">Enterprise Task Management</h1>
-        <p className="mb-6 text-sm text-gray-500">Masuk ke akun Anda</p>
+        <p className="mb-6 text-sm text-gray-500">{t('login_title')}</p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label htmlFor="email" className="mb-1 block text-sm font-medium text-gray-700">
-              Email
+              {t('login_email')}
             </label>
             <input
               id="email"
@@ -58,7 +60,7 @@ export default function LoginPage() {
           </div>
           <div>
             <label htmlFor="password" className="mb-1 block text-sm font-medium text-gray-700">
-              Password
+              {t('login_password')}
             </label>
             <input
               id="password"
@@ -78,7 +80,7 @@ export default function LoginPage() {
             disabled={loading}
             className="w-full rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
           >
-            {loading ? 'Memproses...' : 'Masuk'}
+            {loading ? t('login_submitting') : t('login_submit')}
           </button>
         </form>
       </div>

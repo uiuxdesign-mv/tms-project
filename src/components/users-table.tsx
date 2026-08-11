@@ -3,6 +3,10 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { apiFetch } from '@/lib/csrf-client';
 import { parseCsv, buildCsv, downloadCsv } from '@/lib/csv';
+import { useToast } from '@/components/toast-provider';
+import { useConfirm } from '@/components/confirm-provider';
+import { useTableControls } from '@/lib/hooks/use-table-controls';
+import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/table-controls';
 
 type UserRow = {
   id: string;
@@ -42,6 +46,8 @@ export default function UsersTable({
   currentUserId: string;
   permissions: Permissions;
 }) {
+  const toast = useToast();
+  const confirmDialog = useConfirm();
   const [rows, setRows] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [employmentTypes, setEmploymentTypes] = useState<EmploymentTypeOption[]>([]);
@@ -146,19 +152,23 @@ export default function UsersTable({
   }
 
   async function handleDelete(row: UserRow) {
-    if (!confirm(`Nonaktifkan user "${row.name}"?`)) return;
+    const ok = await confirmDialog({ message: `Nonaktifkan user "${row.name}"?`, confirmLabel: 'Nonaktifkan', danger: true });
+    if (!ok) return;
     try {
       const res = await apiFetch(`/api/users/${row.id}`, { method: 'DELETE' });
       const json = await res.json();
       if (!res.ok) {
-        alert(json.error || 'Gagal menghapus data.');
+        toast.error(json.error || 'Gagal menghapus data.');
         return;
       }
       await load();
     } catch {
-      alert('Terjadi kesalahan jaringan.');
+      toast.error('Terjadi kesalahan jaringan.');
     }
   }
+
+  // Fase 10: search/sort/pagination — search di kolom teks (nama, email, telepon, departemen).
+  const table = useTableControls(rows, { searchFields: ['name', 'email', 'phone', 'department'] });
 
   function roleLabel(roleId: string) {
     return roles.find((r) => r.value === roleId)?.label || '-';
@@ -291,6 +301,7 @@ export default function UsersTable({
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 p-4">
         <h1 className="text-lg font-semibold text-gray-900">Master Users</h1>
         <div className="flex flex-wrap items-center gap-2">
+          <TableSearchBox value={table.search} onChange={table.setSearch} placeholder="Cari nama, email, telepon..." />
           <button
             onClick={handleExportCsv}
             disabled={rows.length === 0}
@@ -341,12 +352,12 @@ export default function UsersTable({
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <th className="px-4 py-2 font-medium">Nama</th>
-              <th className="px-4 py-2 font-medium">Email</th>
+              <SortableHeader label="Nama" active={table.sortKey === 'name'} dir={table.sortDir} onClick={() => table.toggleSort('name')} />
+              <SortableHeader label="Email" active={table.sortKey === 'email'} dir={table.sortDir} onClick={() => table.toggleSort('email')} />
               <th className="px-4 py-2 font-medium">Role</th>
               <th className="px-4 py-2 font-medium">Tipe Kepegawaian</th>
               <th className="px-4 py-2 font-medium">Boleh Menugaskan</th>
-              <th className="px-4 py-2 font-medium">Status</th>
+              <SortableHeader label="Status" active={table.sortKey === 'status'} dir={table.sortDir} onClick={() => table.toggleSort('status')} />
               <th className="px-4 py-2 font-medium">Aksi</th>
             </tr>
           </thead>
@@ -358,8 +369,15 @@ export default function UsersTable({
                 </td>
               </tr>
             )}
+            {!loading && rows.length > 0 && table.paged.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
+                  Tidak ada data yang cocok dengan pencarian.
+                </td>
+              </tr>
+            )}
             {!loading &&
-              rows.map((row) => (
+              table.paged.map((row) => (
                 <tr key={row.id}>
                   <td className="px-4 py-2 text-gray-700">
                     {row.name}
@@ -396,6 +414,14 @@ export default function UsersTable({
           </tbody>
         </table>
       </div>
+
+      <PaginationBar
+        page={table.page}
+        totalPages={table.totalPages}
+        totalCount={table.totalCount}
+        pageSize={table.pageSize}
+        onPageChange={table.setPage}
+      />
 
       {modalOpen && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30 p-4">

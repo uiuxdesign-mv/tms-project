@@ -1,8 +1,65 @@
 @import "tailwindcss";
 
+/*
+ * Dark mode (Fase 10) — dikontrol manual lewat toggle di topbar (bukan otomatis mengikuti OS),
+ * jadi kita definisikan custom variant `dark:` yang aktif berdasarkan class `.dark` di elemen
+ * <html> (ditambahkan/dilepas oleh ThemeProvider, lihat src/components/theme-provider.tsx).
+ */
+@custom-variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /*
+   * Salinan tetap ("base") dari token warna Tailwind asli yang dipakai untuk membangun palet
+   * dark mode di bawah. WAJIB terpisah dari --color-* asli (bukan referensi langsung ke
+   * --color-gray-900 dkk) — kalau langsung saling mereferensi, saat `.dark` menimpa --color-gray-50
+   * DAN --color-gray-900 sekaligus, resolusi CSS custom property akan mengikuti rantai nilai
+   * TERBARU (bukan nilai asli saat rule ditulis), sehingga tukar-posisi A<->B akan salah/muter balik.
+   * Base tokens ini tidak pernah ditimpa oleh `.dark`, jadi aman dipakai sebagai sumber kebenaran.
+   */
+  --tms-white: #ffffff;
+  --tms-gray-50: oklch(98.5% 0.002 247.839);
+  --tms-gray-100: oklch(96.7% 0.003 264.542);
+  --tms-gray-200: oklch(92.8% 0.006 264.531);
+  --tms-gray-300: oklch(87.2% 0.01 258.338);
+  --tms-gray-400: oklch(70.7% 0.022 261.325);
+  --tms-gray-500: oklch(55.1% 0.027 264.364);
+  --tms-gray-600: oklch(44.6% 0.03 256.802);
+  --tms-gray-700: oklch(37.3% 0.034 259.733);
+  --tms-gray-800: oklch(27.8% 0.033 256.848);
+  --tms-gray-900: oklch(21% 0.034 264.665);
+  --tms-gray-950: oklch(13% 0.028 261.692);
+
+  --tms-red-50: oklch(97.1% 0.013 17.38);
+  --tms-red-100: oklch(93.6% 0.032 17.717);
+  --tms-red-200: oklch(88.5% 0.062 18.334);
+  --tms-red-300: oklch(80.8% 0.114 19.571);
+  --tms-red-400: oklch(70.4% 0.191 22.216);
+  --tms-red-900: oklch(39.6% 0.141 25.723);
+  --tms-red-950: oklch(25.8% 0.092 26.042);
+
+  --tms-amber-50: oklch(98.7% 0.022 95.277);
+  --tms-amber-100: oklch(96.2% 0.059 95.617);
+  --tms-amber-200: oklch(92.4% 0.12 95.746);
+  --tms-amber-400: oklch(82.8% 0.189 84.429);
+  --tms-amber-900: oklch(41.4% 0.112 45.904);
+  --tms-amber-950: oklch(27.9% 0.077 45.635);
+
+  --tms-green-50: oklch(98.2% 0.018 155.826);
+  --tms-green-100: oklch(96.2% 0.044 156.743);
+  --tms-green-200: oklch(92.5% 0.084 155.995);
+  --tms-green-400: oklch(79.2% 0.209 151.711);
+  --tms-green-900: oklch(39.3% 0.095 152.535);
+  --tms-green-950: oklch(26.6% 0.065 152.934);
+
+  --tms-blue-50: oklch(97% 0.014 254.604);
+  --tms-blue-100: oklch(93.2% 0.032 255.585);
+  --tms-blue-200: oklch(88.2% 0.059 254.128);
+  --tms-blue-400: oklch(70.7% 0.165 254.624);
+  --tms-blue-900: oklch(37.9% 0.146 265.522);
+  --tms-blue-950: oklch(28.2% 0.091 267.935);
 }
 
 @theme inline {
@@ -12,15 +69,71 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/*
+ * Seluruh UI aplikasi ini dibangun HANYA dari palet gray/white Tailwind (bg-white,
+ * bg-gray-50..900, text-gray-*, border-gray-*) ditambah beberapa warna aksen
+ * (red/amber/green/blue/purple/indigo) — bukan warna custom di luar itu. Tailwind v4
+ * meng-compile setiap utility jadi referensi ke CSS variable design token (mis.
+ * `.bg-white{background-color:var(--color-white)}`), BUKAN nilai statis. Artinya kalau
+ * token-token itu ditimpa di scope `.dark` (memakai --tms-* base di atas, BUKAN saling
+ * mereferensi --color-* asli), SELURUH komponen yang sudah dibangun dari Fase 0-9 otomatis
+ * ikut berubah ke versi dark mode yang koheren — tanpa perlu mengedit className di setiap
+ * komponen satu per satu. Peta di bawah pada dasarnya membalik ramp abu-abu (terang<->gelap)
+ * dan menggeser tint warna aksen -50/-100/-200 (dipakai sebagai background lembut kotak
+ * alert/badge) ke ujung -900/-950 yang gelap, supaya tetap kontras & terbaca di atas latar gelap.
+ */
+.dark {
+  --color-white: var(--tms-gray-900);
+  --color-gray-50: var(--tms-gray-950);
+  --color-gray-100: var(--tms-gray-800);
+  --color-gray-200: var(--tms-gray-700);
+  --color-gray-300: var(--tms-gray-600);
+  --color-gray-400: var(--tms-gray-500);
+  --color-gray-500: var(--tms-gray-400);
+  --color-gray-600: var(--tms-gray-300);
+  --color-gray-700: var(--tms-gray-200);
+  --color-gray-800: var(--tms-gray-100);
+  --color-gray-900: var(--tms-gray-50);
+  --color-gray-950: var(--tms-white);
+
+  --color-red-50: var(--tms-red-950);
+  --color-red-100: var(--tms-red-900);
+  --color-red-200: var(--tms-red-400);
+  --color-red-600: var(--tms-red-400);
+  --color-red-700: var(--tms-red-300);
+  --color-red-800: var(--tms-red-200);
+
+  --color-amber-50: var(--tms-amber-950);
+  --color-amber-100: var(--tms-amber-900);
+  --color-amber-200: var(--tms-amber-400);
+  --color-amber-600: var(--tms-amber-400);
+  --color-amber-700: var(--tms-amber-200);
+  --color-amber-800: var(--tms-amber-100);
+
+  --color-green-50: var(--tms-green-950);
+  --color-green-100: var(--tms-green-900);
+  --color-green-200: var(--tms-green-400);
+  --color-green-600: var(--tms-green-400);
+  --color-green-700: var(--tms-green-200);
+  --color-green-800: var(--tms-green-100);
+
+  --color-blue-50: var(--tms-blue-950);
+  --color-blue-100: var(--tms-blue-900);
+  --color-blue-200: var(--tms-blue-400);
+  --color-blue-600: var(--tms-blue-400);
+  --color-blue-700: var(--tms-blue-200);
+
+  --background: #0a0a0a;
+  --foreground: #ededed;
+}
+
+.dark img,
+.dark video {
+  filter: brightness(0.92) contrast(1.05);
 }

@@ -4,6 +4,10 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import type { EntityConfig, FieldConfig } from '@/lib/master-data/config';
 import { parseCsv, buildCsv, downloadCsv } from '@/lib/csv';
 import { apiFetch } from '@/lib/csrf-client';
+import { useToast } from '@/components/toast-provider';
+import { useConfirm } from '@/components/confirm-provider';
+import { useTableControls } from '@/lib/hooks/use-table-controls';
+import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/table-controls';
 
 type Row = Record<string, string>;
 type SelectOption = { value: string; label: string };
@@ -20,6 +24,8 @@ export default function MasterDataTable({
   config: EntityConfig;
   permissions: Permissions;
 }) {
+  const toast = useToast();
+  const confirmDialog = useConfirm();
   const [rows, setRows] = useState<Row[]>([]);
   const [options, setOptions] = useState<Record<string, SelectOption[]>>({});
   const [loading, setLoading] = useState(true);
@@ -114,7 +120,12 @@ export default function MasterDataTable({
 
   async function handleDelete(row: Row) {
     const title = row[config.titleField] || row.id;
-    if (!confirm(`Hapus "${title}"? Data akan ditandai terhapus (soft-delete).`)) return;
+    const ok = await confirmDialog({
+      message: `Hapus "${title}"? Data akan ditandai terhapus (soft-delete).`,
+      confirmLabel: 'Hapus',
+      danger: true,
+    });
+    if (!ok) return;
     try {
       const res = await apiFetch(`/api/master/${entityKey}/${row.id}`, { method: 'DELETE' });
       const json = await res.json();
@@ -123,13 +134,13 @@ export default function MasterDataTable({
           setDeleteBlocked({ row, message: json.error, reassignable: true });
           setReassignToId('');
         } else {
-          alert(json.error || 'Gagal menghapus data.');
+          toast.error(json.error || 'Gagal menghapus data.');
         }
         return;
       }
       await load();
     } catch {
-      alert('Terjadi kesalahan jaringan.');
+      toast.error('Terjadi kesalahan jaringan.');
     }
   }
 
@@ -144,13 +155,13 @@ export default function MasterDataTable({
       });
       const json = await res.json();
       if (!res.ok) {
-        alert(json.error || 'Gagal memindahkan & menghapus data.');
+        toast.error(json.error || 'Gagal memindahkan & menghapus data.');
         return;
       }
       setDeleteBlocked(null);
       await load();
     } catch {
-      alert('Terjadi kesalahan jaringan.');
+      toast.error('Terjadi kesalahan jaringan.');
     } finally {
       setReassigning(false);
     }
@@ -255,11 +266,19 @@ export default function MasterDataTable({
 
   const tableFields = config.fields.filter((f) => f.showInTable !== false);
 
+  // Fase 10: search/sort/pagination — search dibatasi ke kolom teks (text/email/textarea) supaya
+  // tidak mencocokkan ID mentah dari kolom select yang tidak berarti apa-apa bagi user.
+  const searchFields = tableFields
+    .filter((f) => f.type === 'text' || f.type === 'email' || f.type === 'textarea')
+    .map((f) => f.key);
+  const table = useTableControls(rows, { searchFields: searchFields.length > 0 ? searchFields : [config.titleField] });
+
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 p-4">
         <h1 className="text-lg font-semibold text-gray-900">Master {config.labelPlural}</h1>
         <div className="flex flex-wrap items-center gap-2">
+          <TableSearchBox value={table.search} onChange={table.setSearch} placeholder={`Cari ${config.labelPlural.toLowerCase()}...`} />
           {permissions.canExport && (
             <button
               onClick={handleExportCsv}
@@ -313,9 +332,13 @@ export default function MasterDataTable({
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
               {tableFields.map((f) => (
-                <th key={f.key} className="px-4 py-2 font-medium">
-                  {f.label}
-                </th>
+                <SortableHeader
+                  key={f.key}
+                  label={f.label}
+                  active={table.sortKey === f.key}
+                  dir={table.sortDir}
+                  onClick={() => table.toggleSort(f.key)}
+                />
               ))}
               <th className="px-4 py-2 font-medium">Aksi</th>
             </tr>
@@ -335,8 +358,15 @@ export default function MasterDataTable({
                 </td>
               </tr>
             )}
+            {!loading && rows.length > 0 && table.paged.length === 0 && (
+              <tr>
+                <td colSpan={tableFields.length + 1} className="px-4 py-6 text-center text-gray-400">
+                  Tidak ada data yang cocok dengan pencarian.
+                </td>
+              </tr>
+            )}
             {!loading &&
-              rows.map((row) => {
+              table.paged.map((row) => {
                 const isSystemRow = !!(config.systemFlagField && row[config.systemFlagField] === 'Ya');
                 return (
                   <tr key={row.id}>
@@ -376,6 +406,14 @@ export default function MasterDataTable({
           </tbody>
         </table>
       </div>
+
+      <PaginationBar
+        page={table.page}
+        totalPages={table.totalPages}
+        totalCount={table.totalCount}
+        pageSize={table.pageSize}
+        onPageChange={table.setPage}
+      />
 
       {modalOpen && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30 p-4">

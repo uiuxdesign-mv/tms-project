@@ -4,6 +4,10 @@ import { useEffect, useState, useCallback } from 'react';
 import { apiFetch } from '@/lib/csrf-client';
 import { TimeTrackingControls, type TimeTrackingState } from '@/components/time-tracking-controls';
 import TaskComments from '@/components/task-comments';
+import { useToast } from '@/components/toast-provider';
+import { useConfirm } from '@/components/confirm-provider';
+import { useTableControls } from '@/lib/hooks/use-table-controls';
+import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/table-controls';
 
 type TaskRow = {
   id: string;
@@ -63,6 +67,8 @@ export default function TasksTable({
   isAdmin: boolean;
   permissions: Permissions;
 }) {
+  const toast = useToast();
+  const confirmDialog = useConfirm();
   const [rows, setRows] = useState<TaskRow[]>([]);
   const [opts, setOpts] = useState<OptionsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -151,23 +157,30 @@ export default function TasksTable({
   }
 
   async function handleDelete(row: TaskRow) {
-    if (!confirm(`Hapus task "${row.title}"?`)) return;
+    const ok = await confirmDialog({ message: `Hapus task "${row.title}"?`, confirmLabel: 'Hapus', danger: true });
+    if (!ok) return;
     try {
       const res = await apiFetch(`/api/tasks/${row.id}`, { method: 'DELETE' });
       const json = await res.json();
       if (!res.ok) {
-        alert(json.error || 'Gagal menghapus data.');
+        toast.error(json.error || 'Gagal menghapus data.');
         return;
       }
       await load();
     } catch {
-      alert('Terjadi kesalahan jaringan.');
+      toast.error('Terjadi kesalahan jaringan.');
     }
   }
 
   function label(list: Option[] | undefined, value: string) {
     return list?.find((o) => o.value === value)?.label || '-';
   }
+
+  // Fase 10: search/sort/pagination — search di judul & deskripsi (satu-satunya kolom teks bebas
+  // di Task; kolom lain seperti Client/Priority/Status berupa ID yang di-resolve ke label lewat
+  // `opts`, jadi tidak ikut disertakan supaya pencarian tidak mencocokkan ID mentah yang tidak
+  // berarti apa-apa bagi user).
+  const table = useTableControls(rows, { searchFields: ['title', 'description'], pageSize: 20 });
 
   // Fase 7: disamakan dengan aturan visibilitas server (src/lib/models/tasks.ts) — Admin dan
   // user yang canAssignOthers (setara "Manager" di aplikasi lama) bebas kelola semua task;
@@ -184,8 +197,9 @@ export default function TasksTable({
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-gray-200 p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 p-4">
         <h1 className="text-lg font-semibold text-gray-900">Tasks</h1>
+        <TableSearchBox value={table.search} onChange={table.setSearch} placeholder="Cari judul/deskripsi task..." />
         {permissions.canCreate && (
           <button
             onClick={openCreateModal}
@@ -202,13 +216,18 @@ export default function TasksTable({
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <th className="px-4 py-2 font-medium">Judul</th>
+              <SortableHeader label="Judul" active={table.sortKey === 'title'} dir={table.sortDir} onClick={() => table.toggleSort('title')} />
               <th className="px-4 py-2 font-medium">Client</th>
               <th className="px-4 py-2 font-medium">Project</th>
               <th className="px-4 py-2 font-medium">Priority</th>
               <th className="px-4 py-2 font-medium">Status</th>
               <th className="px-4 py-2 font-medium">Assignee</th>
-              <th className="px-4 py-2 font-medium">Due Date</th>
+              <SortableHeader
+                label="Due Date"
+                active={table.sortKey === 'due_date'}
+                dir={table.sortDir}
+                onClick={() => table.toggleSort('due_date')}
+              />
               <th className="px-4 py-2 font-medium">Time Tracking</th>
               <th className="px-4 py-2 font-medium">Aksi</th>
             </tr>
@@ -228,8 +247,15 @@ export default function TasksTable({
                 </td>
               </tr>
             )}
+            {!loading && rows.length > 0 && table.paged.length === 0 && (
+              <tr>
+                <td colSpan={9} className="px-4 py-6 text-center text-gray-400">
+                  Tidak ada task yang cocok dengan pencarian.
+                </td>
+              </tr>
+            )}
             {!loading &&
-              rows.map((row) => (
+              table.paged.map((row) => (
                 <tr key={row.id}>
                   <td className="px-4 py-2 text-gray-700">{row.title}</td>
                   <td className="px-4 py-2 text-gray-700">{row.client_id ? label(opts?.clients, row.client_id) : '-'}</td>
@@ -264,6 +290,14 @@ export default function TasksTable({
           </tbody>
         </table>
       </div>
+
+      <PaginationBar
+        page={table.page}
+        totalPages={table.totalPages}
+        totalCount={table.totalCount}
+        pageSize={table.pageSize}
+        onPageChange={table.setPage}
+      />
 
       {modalOpen && opts && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30 p-4">

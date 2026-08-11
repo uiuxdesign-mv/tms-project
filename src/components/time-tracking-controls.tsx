@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { apiFetch } from '@/lib/csrf-client';
+import { useToast } from '@/components/toast-provider';
 
 export type TimeTrackingState = {
   state: 'idle' | 'running' | 'paused';
@@ -45,6 +46,7 @@ export function TimeTrackingControls({
   /** Kanban card lebih sempit dari baris tabel — pakai layout wrap. */
   compact?: boolean;
 }) {
+  const toast = useToast();
   const [busy, setBusy] = useState(false);
   // `nowMs` (bukan langsung Date.now() di body render, yang dianggap impure oleh React) di-refresh
   // oleh interval di bawah setiap 1 detik selama sesi berjalan, supaya badge durasi live-ticking.
@@ -82,12 +84,12 @@ export function TimeTrackingControls({
       });
       const json = await res.json();
       if (!res.ok) {
-        alert(json.error || 'Gagal menjalankan aksi Time Tracking.');
+        toast.error(json.error || 'Gagal menjalankan aksi Time Tracking.');
         return;
       }
       onChanged();
     } catch {
-      alert('Terjadi kesalahan jaringan.');
+      toast.error('Terjadi kesalahan jaringan.');
     } finally {
       setBusy(false);
     }

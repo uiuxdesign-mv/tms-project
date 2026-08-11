@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { apiFetch } from '@/lib/csrf-client';
+import { useToast } from '@/components/toast-provider';
+import { useConfirm } from '@/components/confirm-provider';
 
 type Attachment = { category: string; mimeType: string; originalName: string; fileSize: number };
 type Comment = {
@@ -51,6 +53,9 @@ export default function TaskComments({
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+
+  const toast = useToast();
+  const confirmDialog = useConfirm();
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -123,19 +128,20 @@ export default function TaskComments({
       setEditingId(null);
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Gagal menyimpan perubahan.');
+      toast.error(e instanceof Error ? e.message : 'Gagal menyimpan perubahan.');
     }
   }
 
   async function handleDelete(commentId: string) {
-    if (!confirm('Hapus komentar ini?')) return;
+    const ok = await confirmDialog({ message: 'Hapus komentar ini?', confirmLabel: 'Hapus', danger: true });
+    if (!ok) return;
     try {
       const res = await apiFetch(`/api/tasks/${taskId}/comments/${commentId}`, { method: 'DELETE' });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Gagal menghapus komentar.');
       await load();
     } catch (e) {
-      alert(e instanceof Error ? e.message : 'Gagal menghapus komentar.');
+      toast.error(e instanceof Error ? e.message : 'Gagal menghapus komentar.');
     }
   }
 
