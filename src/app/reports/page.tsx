@@ -1,0 +1,39 @@
+import Link from 'next/link';
+import { redirect } from 'next/navigation';
+import { getSession } from '@/lib/auth/get-session';
+import { hasMenuPermission } from '@/lib/menu-access/permissions';
+import ReportsView from '@/components/reports-view';
+
+export default async function ReportsPage() {
+  const session = await getSession();
+  if (!session) redirect('/login');
+
+  // Fase 7: Report sekarang digerbang Menu Access (sebelumnya terbuka untuk siapa saja yang login).
+  const [canView, canExport] = await Promise.all([
+    hasMenuPermission(session, 'report', 'view'),
+    hasMenuPermission(session, 'report', 'export'),
+  ]);
+
+  if (!canView) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="mx-auto max-w-2xl rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
+          Anda tidak punya akses ke halaman Report.
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-8">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-4">
+          <Link href="/dashboard" className="text-sm text-gray-500 hover:text-gray-700">
+            ← Kembali ke Dashboard
+          </Link>
+        </div>
+        <ReportsView canExport={canExport} />
+      </div>
+    </div>
+  );
+}
