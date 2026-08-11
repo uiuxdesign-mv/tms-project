@@ -96,6 +96,44 @@ Tindak lanjut bagian "Fase 8 — Modul Besar yang Hilang" di roadmap audit. 4 su
   - **Degradasi aman**: kalau sheet `task_time_logs` belum ada/tidak terkonfigurasi, daftar Task/Kanban/Calendar tetap jalan normal (fallback ke state "idle" untuk semua Task) — tidak ikut error 500, cuma Time Tracking-nya belum aktif.
 - ✅ **Self-service Profile** (`/profile`, `src/app/api/profile/route.ts`) — user mengubah nama/email/telepon/departemen sendiri (kolom baru `users.phone` & `users.department`), plus ganti password sendiri (`/api/auth/change-password`, wajib tahu password lama — endpoint ini sudah ada sejak Fase 7 untuk alur paksa-ganti-password, sekarang dipakai juga di sini). Perubahan nama/email langsung diterbitkan ulang ke sesi JWT (tidak perlu logout/login manual). Admin juga bisa mengisi telepon/departemen dari Master Users. **Sengaja tidak termasuk** upload foto profil (alasan arsitektural — Google Sheets/serverless tanpa persistent blob storage, dicatat di audit sebagai gap yang sah) dan Forgot/Reset Password lewat email (butuh keputusan layanan email terpisah).
 
+### Fase 9 (Comments + Lampiran) — selesai
+
+Tindak lanjut bagian "Fase 9 — Comments (dengan lampiran file)" di roadmap audit. Keputusan penyimpanan lampiran dikonfirmasi langsung ke stakeholder sebelum implementasi: **tetap pakai Google Drive** (bukan Vercel Blob/GCS), lewat **OAuth2 ke akun Google pribadi** (bukan service account — service account yang dipakai untuk Sheets terbukti tidak punya kuota storage Drive, sama seperti temuan Fase 6 & 8).
+
+- ✅ **Sheet baru `task_comments`** (`src/lib/google/spreadsheet-ids.ts` — `SHEET_ID_TASK_COMMENTS`) — 1 baris per komentar: `id`, `task_id`, `user_id`, `comment`, `attachment_drive_file_id`, `attachment_category`, `attachment_mime_type`, `attachment_original_name`, `attachment_file_size`, `created_at`, `updated_at`, `deleted_at` (soft-delete, konsisten dengan tabel lain).
+- ✅ **OAuth2 Google Drive** (`src/lib/google/drive-oauth.ts`) — beda dari koneksi Sheets (service account, Fase 0), lampiran pakai `google.auth.OAuth2` yang diotorisasi manual sekali oleh Admin ke akun Google **pribadi** Admin (scope `drive.file` — aplikasi hanya bisa mengakses file yang **dibuatnya sendiri**, tidak bisa melihat/mengubah file lain di Drive Admin). Alur satu kali:
+  1. Admin login ke aplikasi, buka `/api/auth/google-drive/connect` (admin-only) → diarahkan ke halaman consent Google.
+  2. Karena app belum diverifikasi Google (status "Testing" di OAuth Consent Screen), akan muncul peringatan "Google hasn't verified this app" — klik **Advanced/Continue** → **Allow**. Ini normal untuk app buatan sendiri, bukan tanda bahaya.
+  3. Google redirect ke `/api/auth/google-drive/callback`, yang menukar `code` menjadi `refresh_token`, otomatis membuat folder "TMS Comment Attachments" di Drive Admin, lalu menampilkan **2 nilai** untuk disalin manual ke environment variable: `GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN` dan `GOOGLE_DRIVE_ATTACHMENTS_FOLDER_ID`.
+  4. Refresh token ini **statis** (tidak expired kecuali di-revoke manual dari Google Account atau tidak dipakai 6 bulan) — server memakainya untuk minta access token baru tiap kali ada upload/download, tidak perlu login ulang.
+- ✅ **Magic-byte MIME sniffing** (`src/lib/mime-sniff.ts`) — tipe file divalidasi dari **isi file** (signature/magic bytes), bukan dari `Content-Type` header atau ekstensi nama file yang dikirim browser (keduanya bisa dipalsukan client). Kategori: image (maks 5MB), video (maks 25MB), file dokumen/pdf/teks (maks 10MB) — kategori & limit di `SIZE_LIMITS_BYTES`.
+- ✅ **Proxy download, bukan link Drive langsung** — lampiran **tidak pernah** dibagikan lewat link publik/shareable Drive. Satu-satunya jalan mengunduh adalah `/api/tasks/[id]/comments/[commentId]/attachment`, yang mengecek ulang hak visibilitas Task (sama seperti mengedit Task) sebelum men-stream isi file dari Drive — jadi aturan "siapa boleh lihat Task ini" otomatis berlaku juga untuk lampirannya.
+- ✅ **Otorisasi komentar** (`src/lib/models/comments.ts`, sesuai spesifikasi audit): **Tambah** komentar butuh izin `edit` pada menu Tasking **dan** hak kelola Task yang sama seperti mengedit Task (`canManageTask` — Member cuma boleh komentar di Task miliknya). **Edit** teks komentar **hanya penulis sendiri**, tanpa pengecualian role apa pun — Admin sekalipun tidak bisa mengedit komentar user lain (meniru persis aplikasi lama). **Hapus** boleh oleh penulis sendiri, ATAU siapa pun dengan izin `delete` pada Tasking.
+- ✅ **Hapus komentar ikut membersihkan Drive** — soft-delete baris di sheet, sekaligus file lampiran di Drive dihapus permanen (best-effort), supaya tidak menumpuk file yatim selamanya di Drive pribadi Admin untuk komentar yang sudah dihapus.
+- ✅ **Degradasi aman** (pola sama seperti Time Tracking Fase 8) — kalau sheet `task_comments` atau OAuth Drive belum dikonfigurasi, endpoint Comments & feed Dashboard menampilkan pesan 503 yang jelas ("belum dikonfigurasi, hubungi admin") alih-alih 500 mentah; komentar teks-saja (tanpa lampiran) tetap bisa jalan meski Drive belum tersambung.
+- ✅ Widget **Komentar** ditambahkan di modal Edit Task (`src/components/task-comments.tsx`) — daftar komentar urut lama→baru, form kirim komentar (teks + opsional 1 lampiran), tombol Edit (kalau penulis) & Hapus (kalau penulis atau berhak).
+- ✅ Dashboard menampilkan feed **"Komentar Terbaru"** (5 komentar terakhir dari Task yang visible ke sesi yang login), dibungkus try/catch untuk degradasi aman yang sama.
+- ✅ **Sudah diuji end-to-end di production** (`tms-project-topaz.vercel.app`), memakai kredensial OAuth Drive asli: upload komentar + lampiran gambar → berhasil tersimpan sungguhan di folder "TMS Comment Attachments" milik Admin; list komentar menampilkan metadata lampiran yang benar; download lewat endpoint proxy menghasilkan byte yang identik dengan file asli; hapus komentar berhasil membersihkan baris sheet **dan** file di Drive (diverifikasi folder kosong kembali setelahnya lewat Drive API). Seluruh data uji sudah dibersihkan, tidak ada sisa di sheet maupun Drive.
+
+## Yang perlu dilakukan setelah deploy Fase 9 (setup OAuth Drive — sekali saja)
+
+Berbeda dari koneksi Google Sheets (service account, otomatis), koneksi Google Drive untuk lampiran **wajib diotorisasi manual sekali oleh Admin** setelah setiap deploy pertama ke project Vercel baru (atau kalau refresh token pernah di-revoke). Langkah lengkap:
+
+1. **Buat OAuth Client ID** di [Google Cloud Console](https://console.cloud.google.com/apis/credentials) (project yang sama dengan service account Sheets, atau project baru) → APIs & Services → Credentials → Create OAuth Client ID → tipe **Web application**.
+   - Authorized redirect URI: `https://<domain-production-Anda>/api/auth/google-drive/callback` (pakai domain stabil/production, **jangan** domain preview per-deployment).
+   - Pastikan **Google Drive API** sudah di-enable di project tersebut.
+   - Di OAuth Consent Screen, tambahkan akun Google yang akan dipakai sebagai Test User (kalau app masih status "Testing").
+2. Tambahkan 3 environment variable dasar di Vercel (Project Settings → Environment Variables), lalu redeploy:
+   - `GOOGLE_DRIVE_OAUTH_CLIENT_ID`
+   - `GOOGLE_DRIVE_OAUTH_CLIENT_SECRET`
+   - `GOOGLE_DRIVE_OAUTH_REDIRECT_URI` — **wajib diisi eksplisit** dengan domain production yang stabil (jangan andalkan fallback otomatis ke `VERCEL_URL`, karena itu resolve ke domain unik per-deployment dan akan menyebabkan error `redirect_uri_mismatch` di Google).
+   - Tambahkan juga `SHEET_ID_TASK_COMMENTS` (ID sheet "Task Comments" — dibuat manual oleh Anda di folder Drive "TMS Database", sama seperti sheet Audit Log/Task Time Log di fase-fase sebelumnya, karena service account tidak punya kuota storage untuk membuat file sendiri).
+3. Login ke aplikasi sebagai Admin, buka `https://<domain-production-Anda>/api/auth/google-drive/connect`, selesaikan consent flow (lihat langkah di bagian Fase 9 di atas).
+4. Salin **2 nilai** yang ditampilkan halaman callback ke environment variable Vercel, lalu **redeploy sekali lagi**:
+   - `GOOGLE_DRIVE_OAUTH_REFRESH_TOKEN`
+   - `GOOGLE_DRIVE_ATTACHMENTS_FOLDER_ID`
+5. **Kalau punya lebih dari satu project Vercel yang ter-deploy dari repo GitHub yang sama** (bisa terjadi tanpa disadari kalau repo pernah di-import ke Vercel lebih dari sekali) — pastikan environment variable di atas ditambahkan ke project yang domainnya benar-benar dipakai (cek Vercel → project → Settings → Domains), bukan project duplikat yang tidak dipakai. Ini pernah jadi sumber kebingungan "kenapa env var belum diset padahal sudah ditambahkan" saat setup Fase 9 di project ini.
+
 ## Yang perlu dilakukan setelah deploy Fase 7 + Fase 8
 
 1. **Schema Google Sheets produksi sudah dimigrasi otomatis** oleh proses pengembangan ini — kolom baru Fase 7 (`roles.is_system`, `statuses.is_default`, `statuses.workflow_level`, `menu_access.can_export`, `users.must_change_password`) dan Fase 8 (`statuses.is_review`, `tasks.actual_duration_seconds`, `users.phone`, `users.department`) sudah ditambahkan & diisi nilai default yang wajar. **Tidak perlu edit manual di sheet-sheet yang sudah ada.**
@@ -147,6 +185,7 @@ Lihat dokumen skema master data yang sudah dikirim terpisah untuk detail kolom t
 | Tasks | Data tugas (transaksi utama) |
 | Audit Log | Jejak aksi Tambah/Ubah/Hapus di semua modul (Fase 6) |
 | Task Time Log | Event log Time Tracking (start/pause/resume/stop) per Task (Fase 8) |
+| Task Comments | Komentar & lampiran per Task (Fase 9) — file lampiran sendiri disimpan di Google Drive (folder terpisah "TMS Comment Attachments"), sheet ini hanya menyimpan teks komentar + referensi ke file Drive |
 
 Setiap tabel = 1 file spreadsheet terpisah, semua berada di folder Google Drive "TMS Database" yang di-share ke service account.
 
@@ -165,6 +204,10 @@ Setiap tabel = 1 file spreadsheet terpisah, semua berada di folder Google Drive 
 - `src/components/kanban-board.tsx`, `src/components/calendar-view.tsx`, `src/components/profile-view.tsx` (Fase 8) — komponen client untuk papan Kanban, Calendar, dan Self-service Profile.
 - `src/lib/master-data/validate.ts` — validasi generik dari config di atas.
 - `src/lib/master-data/references.ts` — pengecekan "masih dipakai data lain atau tidak" sebelum sebuah master data dihapus.
+- `src/lib/google/drive-oauth.ts` (Fase 9) — koneksi OAuth2 ke Google Drive **pribadi Admin** (terpisah dari service account Sheets): `getConsentUrl()`/`exchangeCodeForTokens()` untuk alur otorisasi sekali, `uploadAttachment()`/`downloadAttachment()`/`deleteAttachment()` untuk operasi file sehari-hari, `findOrCreateAttachmentsFolder()` untuk folder tujuan upload.
+- `src/lib/mime-sniff.ts` (Fase 9) — deteksi tipe file dari magic bytes (bukan percaya `Content-Type`/nama file dari client), dipakai untuk validasi lampiran komentar.
+- `src/lib/models/comments.ts` (Fase 9) — logika Comments: otorisasi tambah/edit/hapus, CRUD ke sheet `task_comments`, orkestrasi upload/hapus file ke Drive.
+- `src/components/task-comments.tsx` (Fase 9) — widget Komentar di modal Edit Task.
 
 Karena Google Sheets tidak punya foreign key/transaction seperti MySQL, semua validasi relasi antar tabel (mis. `role_id` di Users harus ada di Roles) ditangani di kode aplikasi, bukan di level database.
 
