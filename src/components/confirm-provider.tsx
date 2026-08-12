@@ -53,23 +53,23 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
               <h3 className="text-lg font-semibold text-gray-900">{pending.title || 'Konfirmasi'}</h3>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
-              <p className="mb-6 text-sm text-gray-500">{pending.message}</p>
-              <div className="flex justify-end gap-3">
-                <button
-                  onClick={() => respond(false)}
-                  className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
-                >
-                  {pending.cancelLabel || 'Batal'}
-                </button>
-                <button
-                  onClick={() => respond(true)}
-                  className={`focus-ring rounded-lg px-4 py-2 text-sm font-medium text-white ${
-                    pending.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'
-                  }`}
-                >
-                  {pending.confirmLabel || 'Ya'}
-                </button>
-              </div>
+              <p className="text-sm text-gray-500">{pending.message}</p>
+            </div>
+            <div className="flex shrink-0 justify-end gap-3 border-t border-gray-200 px-5 py-4">
+              <button
+                onClick={() => respond(false)}
+                className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
+              >
+                {pending.cancelLabel || 'Batal'}
+              </button>
+              <button
+                onClick={() => respond(true)}
+                className={`focus-ring rounded-lg px-4 py-2 text-sm font-medium text-white ${
+                  pending.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'
+                }`}
+              >
+                {pending.confirmLabel || 'Ya'}
+              </button>
             </div>
           </div>
         </div>

@@ -276,7 +276,7 @@ export default function TasksTable({
                   <select
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus-ring"
+                    className="select-field-sm w-full appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-2.5 pr-7 text-sm text-gray-900 focus-ring"
                   >
                     <option value="">Semua status</option>
                     {opts?.statuses.map((s) => (
@@ -291,7 +291,7 @@ export default function TasksTable({
                   <select
                     value={filterPriority}
                     onChange={(e) => setFilterPriority(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus-ring"
+                    className="select-field-sm w-full appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-2.5 pr-7 text-sm text-gray-900 focus-ring"
                   >
                     <option value="">Semua priority</option>
                     {opts?.priorities.map((p) => (
@@ -306,7 +306,7 @@ export default function TasksTable({
                   <select
                     value={filterAssignee}
                     onChange={(e) => setFilterAssignee(e.target.value)}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus-ring"
+                    className="select-field-sm w-full appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-2.5 pr-7 text-sm text-gray-900 focus-ring"
                   >
                     <option value="">Semua assignee</option>
                     {opts?.assignees.map((a) => (
@@ -436,8 +436,12 @@ export default function TasksTable({
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
               <h2 className="text-lg font-semibold text-gray-900">Tambah Task</h2>
             </div>
+            {/* Bugfix (Fase 14): tombol aksi (Batal/Simpan) dipindah ke footer `shrink-0` di luar
+                area scroll — sebelumnya ikut di dalam `overflow-y-auto`, jadi tombolnya ikut
+                ter-scroll ke bawah dan hilang dari layar kalau field form-nya banyak/panjang. */}
+            <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
             <div className="flex-1 overflow-y-auto p-5">
-            <form onSubmit={handleSave} className="space-y-3">
+            <div className="space-y-3">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700">Judul *</label>
                 <input
@@ -464,7 +468,7 @@ export default function TasksTable({
                   <select
                     value={form.project_id}
                     onChange={(e) => setForm((f) => ({ ...f, project_id: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
+                    className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                   >
                     <option value="">-- Tidak ada --</option>
                     {/* Fase 12: Project & Client independen (sesuai video) — Project master data
@@ -482,7 +486,7 @@ export default function TasksTable({
                   <select
                     value={form.client_id}
                     onChange={(e) => setForm((f) => ({ ...f, client_id: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
+                    className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                   >
                     <option value="">-- Tidak ada --</option>
                     {opts.clients.map((c) => (
@@ -500,7 +504,7 @@ export default function TasksTable({
                   <select
                     value={form.priority_id}
                     onChange={(e) => setForm((f) => ({ ...f, priority_id: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
+                    className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                   >
                     <option value="">-- Pilih --</option>
                     {opts.priorities.map((p) => (
@@ -516,7 +520,7 @@ export default function TasksTable({
                   <select
                     value={form.task_type_id}
                     onChange={(e) => setForm((f) => ({ ...f, task_type_id: e.target.value, related_task_id: '' }))}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
+                    className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                   >
                     <option value="">-- Pilih Task Type --</option>
                     {opts.taskTypes.map((t) => (
@@ -535,7 +539,7 @@ export default function TasksTable({
                   <select
                     value={form.related_task_id}
                     onChange={(e) => setForm((f) => ({ ...f, related_task_id: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
+                    className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                   >
                     <option value="">-- Pilih Task --</option>
                     {opts.relatedTasks
@@ -558,7 +562,7 @@ export default function TasksTable({
                   <select
                     value={form.assigned_to}
                     onChange={(e) => setForm((f) => ({ ...f, assigned_to: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
+                    className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                   >
                     <option value="">-- Diri sendiri --</option>
                     {opts.assignees.map((a) => (
@@ -617,25 +621,25 @@ export default function TasksTable({
                   {fieldErrors.estimated_hours && <p className="mt-1 text-xs text-red-600">{fieldErrors.estimated_hours}</p>}
                 </div>
               </div>
-
-              <div className="mt-5 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {saving ? 'Menyimpan...' : 'Simpan'}
-                </button>
-              </div>
-            </form>
             </div>
+            </div>
+            <div className="flex shrink-0 justify-end gap-2 border-t border-gray-200 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {saving ? 'Menyimpan...' : 'Simpan'}
+              </button>
+            </div>
+            </form>
           </div>
         </div>
       )}

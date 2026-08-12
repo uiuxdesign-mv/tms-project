@@ -137,7 +137,7 @@ export default function AuditLogView() {
             <select
               value={entityType}
               onChange={(e) => setEntityType(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
+              className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
             >
               <option value="">-- Semua --</option>
               {entityTypeOptions.map((v) => (
@@ -152,7 +152,7 @@ export default function AuditLogView() {
             <select
               value={action}
               onChange={(e) => setAction(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
+              className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
             >
               <option value="">-- Semua --</option>
               <option value="create">Tambah</option>
@@ -165,7 +165,7 @@ export default function AuditLogView() {
             <select
               value={actorName}
               onChange={(e) => setActorName(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
+              className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
             >
               <option value="">-- Semua --</option>
               {actorOptions.map((v) => (

@@ -444,37 +444,42 @@ export default function MasterDataTable({
                 {editingRow ? `Edit ${config.label}` : `Add ${config.label}`}
               </h2>
             </div>
-            <div className="flex-1 overflow-y-auto p-5">
-              <form onSubmit={handleSave} className="space-y-3">
-                {config.fields.map((f) => (
-                  <FieldInput
-                    key={f.key}
-                    field={f}
-                    value={formValues[f.key] ?? ''}
-                    error={fieldErrors[f.key]}
-                    options={options[f.key]}
-                    disabled={!!(f.lockOnEdit && editingRow)}
-                    onChange={(v) => setFormValues((prev) => ({ ...prev, [f.key]: v }))}
-                  />
-                ))}
-                <div className="mt-5 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setModalOpen(false)}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                  >
-                    {saving ? 'Saving...' : editingRow ? 'Save Changes' : `Create ${config.label}`}
-                  </button>
+            {/* Bugfix (Fase 14): tombol aksi (Cancel/Save) dipindah ke footer `shrink-0` di luar
+                area scroll — sebelumnya ikut di dalam `overflow-y-auto`, jadi tombolnya ikut
+                ter-scroll ke bawah dan hilang dari layar kalau field form-nya banyak/panjang. */}
+            <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
+              <div className="flex-1 overflow-y-auto p-5">
+                <div className="space-y-3">
+                  {config.fields.map((f) => (
+                    <FieldInput
+                      key={f.key}
+                      field={f}
+                      value={formValues[f.key] ?? ''}
+                      error={fieldErrors[f.key]}
+                      options={options[f.key]}
+                      disabled={!!(f.lockOnEdit && editingRow)}
+                      onChange={(v) => setFormValues((prev) => ({ ...prev, [f.key]: v }))}
+                    />
+                  ))}
                 </div>
-              </form>
-            </div>
+              </div>
+              <div className="flex shrink-0 justify-end gap-2 border-t border-gray-200 px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {saving ? 'Saving...' : editingRow ? 'Save Changes' : `Create ${config.label}`}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
@@ -494,14 +499,14 @@ export default function MasterDataTable({
                   </div>
                 ))}
               </dl>
-              <div className="mt-5 flex justify-end">
-                <button
-                  onClick={() => setViewingRow(null)}
-                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  Close
-                </button>
-              </div>
+            </div>
+            <div className="flex shrink-0 justify-end border-t border-gray-200 px-5 py-4">
+              <button
+                onClick={() => setViewingRow(null)}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -538,14 +543,14 @@ export default function MasterDataTable({
                   </tbody>
                 </table>
               </div>
-              <div className="mt-4 flex justify-end">
-                <button
-                  onClick={() => setImportResults(null)}
-                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
-                >
-                  Tutup
-                </button>
-              </div>
+            </div>
+            <div className="flex shrink-0 justify-end border-t border-gray-200 px-5 py-4">
+              <button
+                onClick={() => setImportResults(null)}
+                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+              >
+                Tutup
+              </button>
             </div>
           </div>
         </div>
@@ -563,7 +568,7 @@ export default function MasterDataTable({
               <select
                 value={reassignToId}
                 onChange={(e) => setReassignToId(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
+                className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
               >
                 <option value="">-- Pilih {config.label} pengganti --</option>
                 {rows
@@ -583,22 +588,22 @@ export default function MasterDataTable({
                 Semua data yang masih memakai &quot;{deleteBlocked.row[config.titleField]}&quot; akan dipindahkan ke
                 pilihan di atas, baru kemudian &quot;{deleteBlocked.row[config.titleField]}&quot; dihapus.
               </p>
-              <div className="mt-5 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDeleteBlocked(null)}
-                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  Batal
-                </button>
-                <button
-                  onClick={handleReassignAndDelete}
-                  disabled={!reassignToId || reassigning}
-                  className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
-                >
-                  {reassigning ? 'Memproses...' : 'Ganti & Hapus'}
-                </button>
-              </div>
+            </div>
+            <div className="flex shrink-0 justify-end gap-2 border-t border-gray-200 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setDeleteBlocked(null)}
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+              >
+                Batal
+              </button>
+              <button
+                onClick={handleReassignAndDelete}
+                disabled={!reassignToId || reassigning}
+                className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+              >
+                {reassigning ? 'Memproses...' : 'Ganti & Hapus'}
+              </button>
             </div>
           </div>
         </div>
@@ -695,7 +700,7 @@ function FieldInput({
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
+          className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
         >
           <option value="">-- Pilih --</option>
           {(options || []).map((opt) => (
@@ -711,7 +716,7 @@ function FieldInput({
           value={value === 'Ya' ? (field.selectLabels || ['Active', 'Inactive'])[0] : (field.selectLabels || ['Active', 'Inactive'])[1]}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value === (field.selectLabels || ['Active', 'Inactive'])[0] ? 'Ya' : 'Tidak')}
-          className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
+          className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
         >
           {(field.selectLabels || ['Active', 'Inactive']).map((label) => (
             <option key={label} value={label}>

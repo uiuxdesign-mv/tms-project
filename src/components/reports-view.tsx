@@ -321,7 +321,7 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
             <select
               value={draftUserId}
               onChange={(e) => setDraftUserId(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
+              className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
             >
               <option value={ALL}>All Users</option>
               {userOptions.map((o) => (
@@ -336,7 +336,7 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
             <select
               value={draftPeriodType}
               onChange={(e) => handlePeriodTypeChange(e.target.value as PeriodType)}
-              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
+              className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
             >
               <option value="daily">Daily</option>
               <option value="weekly">Weekly</option>

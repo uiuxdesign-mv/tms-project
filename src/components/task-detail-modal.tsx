@@ -472,7 +472,10 @@ export default function TaskDetailModal({
 
               {/* Kolom kanan: form + komentar */}
               <div>
-                <form onSubmit={handleSave} className="space-y-3">
+                {/* Bugfix (Fase 14): id di sini dipakai tombol "Save changes" di footer bawah
+                    (di luar area scroll) lewat atribut `form=` — supaya tombolnya tidak ikut
+                    hilang ke-scroll padahal secara DOM sudah dipindah keluar dari <form> ini. */}
+                <form id="task-edit-form" onSubmit={handleSave} className="space-y-3">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-gray-700">Title</label>
                     <input
@@ -502,7 +505,7 @@ export default function TaskDetailModal({
                         value={form.project_id}
                         disabled={!canManage}
                         onChange={(e) => setForm((f) => (f ? { ...f, project_id: e.target.value } : f))}
-                        className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                        className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
                         <option value="">-- Tidak ada --</option>
                         {/* Fase 12: Project & Client independen (sesuai video) — Project master
@@ -521,7 +524,7 @@ export default function TaskDetailModal({
                         value={form.client_id}
                         disabled={!canManage}
                         onChange={(e) => setForm((f) => (f ? { ...f, client_id: e.target.value } : f))}
-                        className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                        className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
                         <option value="">-- Tidak ada --</option>
                         {opts.clients.map((c) => (
@@ -540,7 +543,7 @@ export default function TaskDetailModal({
                         value={form.priority_id}
                         disabled={!canManage}
                         onChange={(e) => setForm((f) => (f ? { ...f, priority_id: e.target.value } : f))}
-                        className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                        className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
                         <option value="">-- Pilih --</option>
                         {opts.priorities.map((p) => (
@@ -557,7 +560,7 @@ export default function TaskDetailModal({
                         value={form.task_type_id}
                         disabled={!canManage}
                         onChange={(e) => setForm((f) => (f ? { ...f, task_type_id: e.target.value, related_task_id: '' } : f))}
-                        className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                        className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
                         <option value="">-- Pilih Task Type --</option>
                         {opts.taskTypes.map((t) => (
@@ -577,7 +580,7 @@ export default function TaskDetailModal({
                         value={form.related_task_id}
                         disabled={!canManage}
                         onChange={(e) => setForm((f) => (f ? { ...f, related_task_id: e.target.value } : f))}
-                        className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                        className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
                         <option value="">-- Pilih Task --</option>
                         {opts.relatedTasks
@@ -598,7 +601,7 @@ export default function TaskDetailModal({
                       value={form.status_id}
                       disabled={!canManage}
                       onChange={(e) => setForm((f) => (f ? { ...f, status_id: e.target.value } : f))}
-                      className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                      className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                     >
                       <option value="">-- Pilih --</option>
                       {opts.statuses.map((s) => (
@@ -617,7 +620,7 @@ export default function TaskDetailModal({
                         value={form.assigned_to}
                         disabled={!canManage}
                         onChange={(e) => setForm((f) => (f ? { ...f, assigned_to: e.target.value } : f))}
-                        className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                        className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
                         <option value="">-- Diri sendiri --</option>
                         {opts.assignees.map((a) => (
@@ -679,18 +682,6 @@ export default function TaskDetailModal({
                       {fieldErrors.estimated_hours && <p className="mt-1 text-xs text-red-600">{fieldErrors.estimated_hours}</p>}
                     </div>
                   </div>
-
-                  {canManage && (
-                    <div className="flex justify-end gap-2 pt-1">
-                      <button
-                        type="submit"
-                        disabled={saving}
-                        className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                      >
-                        {saving ? 'Menyimpan...' : 'Save changes'}
-                      </button>
-                    </div>
-                  )}
                 </form>
 
                 <TaskComments taskId={taskId} currentUserId={currentUserId} canDeleteAny={permissions.canDelete} />
@@ -705,12 +696,24 @@ export default function TaskDetailModal({
               {task.created_at && <p>Created: {formatLogTimestamp(task.created_at)}</p>}
               {task.updated_at && <p>Last updated: {formatLogTimestamp(task.updated_at)}</p>}
             </div>
-            <button
-              onClick={onClose}
-              className="rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Close
-            </button>
+            <div className="flex items-center gap-2">
+              {canManage && (
+                <button
+                  type="submit"
+                  form="task-edit-form"
+                  disabled={saving}
+                  className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                >
+                  {saving ? 'Menyimpan...' : 'Save changes'}
+                </button>
+              )}
+              <button
+                onClick={onClose}
+                className="rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+              >
+                Close
+              </button>
+            </div>
           </div>
         )}
       </div>

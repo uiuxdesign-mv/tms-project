@@ -123,6 +123,30 @@ body {
 }
 
 /*
+ * Ikon panah <select> custom (permintaan user — jarak border->teks di kiri dan border->ikon di
+ * kanan harus seimbang). Ikon panah bawaan browser (appearance default) jaraknya ke border field
+ * TIDAK konsisten dengan padding teks yang kita atur sendiri di kiri (beda-beda pula antar
+ * browser/OS) — makanya semua <select> di aplikasi ini dipasang `appearance-none` lalu ikon panah
+ * digambar ulang lewat class ini, diposisikan PERSIS meniru jarak padding teks di sisi kiri:
+ * `.select-field` untuk field ukuran normal (padding kiri teks `pl-3.5` = 0.875rem, disandingkan
+ * `pr-9` supaya teks panjang tidak tertindih ikon), `.select-field-sm` untuk field ukuran ringkas
+ * seperti dropdown filter (padding kiri teks `pl-2.5` = 0.625rem, disandingkan `pr-7`).
+ */
+.select-field,
+.select-field-sm {
+  background-repeat: no-repeat;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%239ca3af' stroke-width='1.5'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' d='M5.25 7.5 10 12.25l4.75-4.75'/%3E%3C/svg%3E");
+}
+.select-field {
+  background-position: right 0.875rem center;
+  background-size: 1rem 1rem;
+}
+.select-field-sm {
+  background-position: right 0.625rem center;
+  background-size: 0.875rem 0.875rem;
+}
+
+/*
  * Seluruh UI aplikasi ini dibangun HANYA dari palet gray/white Tailwind (bg-white,
  * bg-gray-50..900, text-gray-*, border-gray-*) ditambah beberapa warna aksen
  * (red/amber/green/blue/purple/indigo) — bukan warna custom di luar itu. Tailwind v4

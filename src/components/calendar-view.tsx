@@ -285,20 +285,20 @@ export default function CalendarView({
                   <dd className="font-medium text-gray-900">{selectedTask.due_date || '-'}</dd>
                 </div>
               </dl>
-              <div className="mt-6 flex justify-end gap-3">
-                <button
-                  onClick={() => setSelectedTask(null)}
-                  className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
-                >
-                  Tutup
-                </button>
-                <Link
-                  href="/tasks"
-                  className="focus-ring rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-                >
-                  Ubah di List →
-                </Link>
-              </div>
+            </div>
+            <div className="flex shrink-0 justify-end gap-3 border-t border-gray-200 px-5 py-4">
+              <button
+                onClick={() => setSelectedTask(null)}
+                className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
+              >
+                Tutup
+              </button>
+              <Link
+                href="/tasks"
+                className="focus-ring rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+              >
+                Ubah di List →
+              </Link>
             </div>
           </div>
         </div>

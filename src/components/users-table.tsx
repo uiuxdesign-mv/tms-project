@@ -467,8 +467,12 @@ export default function UsersTable({
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
               <h2 className="text-lg font-semibold text-gray-900">{editingId ? 'Edit User' : 'Add User'}</h2>
             </div>
+            {/* Bugfix (Fase 14): tombol aksi (Cancel/Save) dipindah ke footer `shrink-0` di luar
+                area scroll — sebelumnya ikut di dalam `overflow-y-auto`, jadi tombolnya ikut
+                ter-scroll ke bawah dan hilang dari layar kalau field form-nya banyak/panjang. */}
+            <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
             <div className="flex-1 overflow-y-auto p-5">
-            <form onSubmit={handleSave} className="space-y-3">
+            <div className="space-y-3">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700">Full Name *</label>
                 <input
@@ -543,7 +547,7 @@ export default function UsersTable({
                     onChange={(e) =>
                       setForm((f) => ({ ...f, role_id: e.target.value, employment_type_id: '', can_assign_others: 'Tidak' }))
                     }
-                    className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
+                    className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors"
                   >
                     <option value="">-- Pilih Role --</option>
                     {roleOptionsForForm.map((r) => (
@@ -561,7 +565,7 @@ export default function UsersTable({
                   <select
                     value={form.status}
                     onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                    className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
+                    className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors"
                   >
                     <option value="Active">Active</option>
                     <option value="Inactive">Inactive</option>
@@ -575,7 +579,7 @@ export default function UsersTable({
                   <select
                     value={form.employment_type_id}
                     onChange={(e) => setForm((f) => ({ ...f, employment_type_id: e.target.value, can_assign_others: 'Tidak' }))}
-                    className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
+                    className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors"
                   >
                     <option value="">-- Select an employment type... --</option>
                     {employmentTypeOptionsForForm.map((e) => (
@@ -632,25 +636,25 @@ export default function UsersTable({
                 />
                 {fieldErrors.password && <p className="mt-1 text-xs text-red-600">{fieldErrors.password}</p>}
               </div>
-
-              <div className="mt-5 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="focus-ring rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-                >
-                  {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Create User'}
-                </button>
-              </div>
-            </form>
             </div>
+            </div>
+            <div className="flex shrink-0 justify-end gap-2 border-t border-gray-200 px-5 py-4">
+              <button
+                type="button"
+                onClick={() => setModalOpen(false)}
+                className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                className="focus-ring rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Create User'}
+              </button>
+            </div>
+            </form>
           </div>
         </div>
       )}
@@ -693,14 +697,14 @@ export default function UsersTable({
                   <dd className="text-right"><StatusBadge value={viewingRow.status} /></dd>
                 </div>
               </dl>
-              <div className="mt-5 flex justify-end">
-                <button
-                  onClick={() => setViewingRow(null)}
-                  className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
-                >
-                  Close
-                </button>
-              </div>
+            </div>
+            <div className="flex shrink-0 justify-end border-t border-gray-200 px-5 py-4">
+              <button
+                onClick={() => setViewingRow(null)}
+                className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
+              >
+                Close
+              </button>
             </div>
           </div>
         </div>
@@ -738,14 +742,14 @@ export default function UsersTable({
                 </tbody>
               </table>
             </div>
-            <div className="mt-4 flex justify-end">
+            </div>
+            <div className="flex shrink-0 justify-end border-t border-gray-200 px-5 py-4">
               <button
                 onClick={() => setImportResults(null)}
                 className="focus-ring rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
               >
                 Tutup
               </button>
-            </div>
             </div>
           </div>
         </div>
