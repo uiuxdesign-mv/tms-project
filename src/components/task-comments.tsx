@@ -145,131 +145,172 @@ export default function TaskComments({
     }
   }
 
+  function initialOf(name: string) {
+    return (name || '?').trim().charAt(0).toUpperCase() || '?';
+  }
+
   return (
-    <div className="mt-4 border-t border-gray-200 pt-4">
-      <h3 className="mb-3 text-sm font-semibold text-gray-900">Komentar</h3>
+    <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4">
+      <h3 className="mb-3 text-sm font-semibold text-gray-900">
+        Komentar <span className="font-normal text-gray-400">({comments.length})</span>
+      </h3>
 
-      {error && <div className="mb-3 rounded-md bg-red-50 p-2 text-xs text-red-700">{error}</div>}
+      {error && <div className="mb-3 rounded-lg bg-red-50 p-2 text-xs text-red-700">{error}</div>}
 
-      <div className="max-h-64 space-y-3 overflow-y-auto">
-        {loading && <p className="text-xs text-gray-400">Memuat komentar...</p>}
-        {!loading && comments.length === 0 && <p className="text-xs text-gray-400">Belum ada komentar.</p>}
-        {!loading &&
-          comments.map((c) => (
-            <div key={c.id} className="rounded-md border border-gray-100 bg-gray-50 p-2.5 text-sm">
-              <div className="mb-1 flex items-center justify-between">
-                <span className="font-medium text-gray-800">{c.user_name}</span>
-                <span className="text-[11px] text-gray-400">
-                  {formatDate(c.created_at)}
-                  {c.edited && ' (edited)'}
+      <div className="max-h-64 overflow-y-auto">
+        {loading && <p className="py-2 text-sm text-gray-400">Memuat komentar...</p>}
+        {!loading && comments.length === 0 && <p className="py-2 text-sm text-gray-400">Belum ada komentar.</p>}
+        {!loading && comments.length > 0 && (
+          <ul className="space-y-4">
+            {comments.map((c) => (
+              <li key={c.id} className="flex gap-3">
+                <span
+                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700"
+                  title={c.user_name}
+                >
+                  {initialOf(c.user_name)}
                 </span>
-              </div>
-
-              {editingId === c.id ? (
-                <div className="space-y-1.5">
-                  <textarea
-                    value={editText}
-                    onChange={(e) => setEditText(e.target.value)}
-                    rows={2}
-                    className="w-full rounded-md border border-gray-300 px-2 py-1 text-sm"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => saveEdit(c.id)}
-                      className="rounded-md bg-gray-900 px-2 py-1 text-xs font-medium text-white hover:bg-gray-800"
-                    >
-                      Simpan
-                    </button>
-                    <button
-                      onClick={() => setEditingId(null)}
-                      className="rounded-md border border-gray-300 px-2 py-1 text-xs text-gray-700 hover:bg-gray-50"
-                    >
-                      Batal
-                    </button>
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-gray-900">{c.user_name}</span>
+                    <span className="text-xs text-gray-400">{formatDate(c.created_at)}</span>
+                    {c.edited && <span className="text-xs italic text-gray-400">(diedit)</span>}
                   </div>
-                </div>
-              ) : (
-                <>
-                  {c.comment && <p className="whitespace-pre-wrap text-gray-700">{c.comment}</p>}
 
-                  {c.attachment && (
-                    <div className="mt-1.5">
-                      {c.attachment.category === 'image' ? (
-                        <a
-                          href={`/api/tasks/${taskId}/comments/${c.id}/attachment`}
-                          target="_blank"
-                          rel="noreferrer"
+                  {editingId === c.id ? (
+                    <div className="mt-1 space-y-1.5">
+                      <textarea
+                        value={editText}
+                        onChange={(e) => setEditText(e.target.value)}
+                        rows={2}
+                        className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors"
+                      />
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => saveEdit(c.id)}
+                          className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
                         >
-                          <img
-                            src={`/api/tasks/${taskId}/comments/${c.id}/attachment`}
-                            alt={c.attachment.originalName}
-                            className="max-h-40 rounded-md border border-gray-200"
-                          />
-                        </a>
-                      ) : c.attachment.category === 'video' ? (
-                        <video
-                          controls
-                          className="max-h-48 rounded-md border border-gray-200"
-                          src={`/api/tasks/${taskId}/comments/${c.id}/attachment`}
-                        />
-                      ) : (
-                        <a
-                          href={`/api/tasks/${taskId}/comments/${c.id}/attachment`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-xs text-blue-600 underline"
+                          Simpan
+                        </button>
+                        <button
+                          onClick={() => setEditingId(null)}
+                          className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-900"
                         >
-                          📎 {c.attachment.originalName} ({formatSize(c.attachment.fileSize)})
-                        </a>
-                      )}
+                          Batal
+                        </button>
+                      </div>
                     </div>
-                  )}
+                  ) : (
+                    <>
+                      {c.comment && <p className="mt-1 whitespace-pre-wrap text-sm text-gray-900">{c.comment}</p>}
 
-                  <div className="mt-1 flex gap-3">
-                    {c.user_id === currentUserId && (
-                      <button onClick={() => startEdit(c)} className="text-[11px] text-gray-500 hover:text-gray-800">
-                        Edit
-                      </button>
-                    )}
-                    {(c.user_id === currentUserId || canDeleteAny) && (
-                      <button
-                        onClick={() => handleDelete(c.id)}
-                        className="text-[11px] text-red-500 hover:text-red-700"
-                      >
-                        Hapus
-                      </button>
-                    )}
-                  </div>
-                </>
-              )}
-            </div>
-          ))}
+                      {c.attachment && (
+                        <div className="mt-2">
+                          {c.attachment.category === 'image' ? (
+                            <a href={`/api/tasks/${taskId}/comments/${c.id}/attachment`} target="_blank" rel="noreferrer">
+                              <img
+                                src={`/api/tasks/${taskId}/comments/${c.id}/attachment`}
+                                alt={c.attachment.originalName}
+                                className="max-h-48 rounded-lg border border-gray-200 object-cover"
+                              />
+                            </a>
+                          ) : c.attachment.category === 'video' ? (
+                            <video
+                              controls
+                              preload="metadata"
+                              className="max-h-56 max-w-full rounded-lg border border-gray-200"
+                              src={`/api/tasks/${taskId}/comments/${c.id}/attachment`}
+                            />
+                          ) : (
+                            <a
+                              href={`/api/tasks/${taskId}/comments/${c.id}/attachment`}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm text-gray-900 hover:bg-gray-100"
+                            >
+                              <svg className="h-4 w-4 shrink-0 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
+                              </svg>
+                              <span className="max-w-[180px] truncate">{c.attachment.originalName}</span>
+                              <span className="shrink-0 text-xs text-gray-400">({formatSize(c.attachment.fileSize)})</span>
+                            </a>
+                          )}
+                        </div>
+                      )}
+
+                      <div className="mt-1 flex items-center gap-3">
+                        {c.user_id === currentUserId && (
+                          <button onClick={() => startEdit(c)} className="text-xs font-medium text-gray-500 hover:text-gray-900">
+                            Edit
+                          </button>
+                        )}
+                        {(c.user_id === currentUserId || canDeleteAny) && (
+                          <button onClick={() => handleDelete(c.id)} className="text-xs font-medium text-red-600 hover:text-red-700">
+                            Hapus
+                          </button>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </div>
 
-      <form onSubmit={handleSubmit} className="mt-3 space-y-2">
+      <form onSubmit={handleSubmit} className="mt-3 border-t border-gray-100 pt-3">
         <textarea
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={2}
           placeholder="Tulis komentar..."
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+          className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
         />
-        <div className="flex items-center justify-between gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            onChange={(e) => setFile(e.target.files?.[0] || null)}
-            className="text-xs text-gray-500"
-          />
+
+        {file && (
+          <div className="mt-2 flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-500">
+            <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+            </svg>
+            <span className="flex-1 truncate">{file.name}</span>
+            <button
+              type="button"
+              onClick={() => {
+                setFile(null);
+                if (fileInputRef.current) fileInputRef.current.value = '';
+              }}
+              className="shrink-0 text-gray-400 hover:text-red-600"
+              aria-label="Hapus lampiran"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+
+        <div className="mt-2 flex items-center justify-between">
+          <label className="flex cursor-pointer items-center gap-1.5 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-900">
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+            </svg>
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              className="hidden"
+            />
+          </label>
           <button
             type="submit"
             disabled={submitting}
-            className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
             {submitting ? 'Mengirim...' : 'Kirim'}
           </button>
         </div>
-        <p className="text-[11px] text-gray-400">Maks 1 lampiran per komentar — Gambar 5MB, Video 25MB, File lain 10MB.</p>
+        <p className="mt-1.5 text-xs text-gray-400">Maks 1 lampiran per komentar — Gambar 5MB, Video 25MB, File lain 10MB.</p>
       </form>
     </div>
   );

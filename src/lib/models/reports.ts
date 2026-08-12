@@ -36,6 +36,8 @@ export async function getVisibleEnrichedTasks(session: SessionPayload): Promise<
     const status = statusMap.get(t.status_id);
     const isFinal = status?.is_final === 'Ya';
     const isOverdue = !!t.due_date && t.due_date < todayStr && !isFinal;
+    const isDefault = status?.is_default === 'Ya';
+    const isReview = status?.is_review === 'Ya';
 
     return {
       id: t.id,
@@ -51,6 +53,8 @@ export async function getVisibleEnrichedTasks(session: SessionPayload): Promise<
       status_id: t.status_id,
       status_name: status?.status_name || '',
       is_final: isFinal,
+      is_default: isDefault,
+      is_review: isReview,
       assigned_to: t.assigned_to,
       assigned_to_name: userMap.get(t.assigned_to)?.name || '',
       assigned_by: t.assigned_by,

@@ -18,16 +18,16 @@ type ToastApi = {
 
 const ToastContext = createContext<ToastApi | null>(null);
 
-const TYPE_STYLES: Record<ToastType, string> = {
-  success: 'border-green-200 bg-green-50 text-green-800',
-  error: 'border-red-200 bg-red-50 text-red-800',
-  info: 'border-gray-200 bg-white text-gray-800',
+const TYPE_BORDER: Record<ToastType, string> = {
+  success: 'border-emerald-500/30',
+  error: 'border-red-500/30',
+  info: 'border-blue-500/30',
 };
 
-const TYPE_ICON: Record<ToastType, string> = {
-  success: '✓',
-  error: '✕',
-  info: 'ℹ',
+const TYPE_DOT: Record<ToastType, string> = {
+  success: 'bg-emerald-500',
+  error: 'bg-red-500',
+  info: 'bg-blue-500',
 };
 
 const AUTO_DISMISS_MS: Record<ToastType, number> = {
@@ -66,21 +66,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={api}>
       {children}
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[100] flex w-full max-w-sm flex-col gap-2">
+      <div className="pointer-events-none fixed top-4 right-4 z-[100] flex w-full max-w-sm flex-col gap-2">
         {toasts.map((t) => (
           <div
             key={t.id}
             role="alert"
-            className={`pointer-events-auto flex items-start gap-2 rounded-md border px-4 py-3 text-sm shadow-md ${TYPE_STYLES[t.type]}`}
+            className={`animate-toast-in pointer-events-auto flex items-start gap-3 rounded-xl border bg-white px-4 py-3 shadow-popover ${TYPE_BORDER[t.type]}`}
           >
-            <span className="mt-0.5">{TYPE_ICON[t.type]}</span>
-            <span className="flex-1">{t.message}</span>
-            <button
-              onClick={() => dismiss(t.id)}
-              className="ml-1 text-xs text-current opacity-60 hover:opacity-100"
-              aria-label="Tutup notifikasi"
-            >
-              ✕
+            <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${TYPE_DOT[t.type]}`} />
+            <p className="flex-1 text-sm text-gray-900">{t.message}</p>
+            <button onClick={() => dismiss(t.id)} className="text-gray-400 hover:text-gray-500" aria-label="Tutup notifikasi">
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
             </button>
           </div>
         ))}

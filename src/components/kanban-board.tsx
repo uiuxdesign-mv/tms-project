@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { apiFetch } from '@/lib/csrf-client';
 import { TimeTrackingControls, type TimeTrackingState } from '@/components/time-tracking-controls';
 import { useToast } from '@/components/toast-provider';
+import { Badge } from '@/components/badge';
 
 type TaskRow = {
   id: string;
@@ -19,7 +20,13 @@ type TaskRow = {
 };
 
 type Option = { value: string; label: string };
-type StatusOption = Option & { isFinal: boolean; isDefault: boolean; isReview: boolean; workflowLevel: number | null };
+type StatusOption = Option & {
+  isFinal: boolean;
+  isDefault: boolean;
+  isReview: boolean;
+  workflowLevel: number | null;
+  colorCode?: string | null;
+};
 
 type OptionsData = {
   canAssignOthers: boolean;
@@ -122,8 +129,8 @@ export default function KanbanBoard({
     }
   }
 
-  if (loading) return <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-gray-400 shadow-sm">Memuat...</div>;
-  if (error) return <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
+  if (loading) return <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center text-gray-400 shadow-card">Memuat...</div>;
+  if (error) return <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
   if (!opts) return null;
 
   const sortedStatuses = [...opts.statuses].sort((a, b) => {
@@ -151,13 +158,19 @@ export default function KanbanBoard({
                 e.preventDefault();
                 handleDrop(status);
               }}
-              className={`flex w-[280px] shrink-0 flex-col rounded-lg border bg-gray-50 ${
-                isDropTarget ? 'border-gray-900' : 'border-gray-200'
+              className={`flex w-[280px] shrink-0 flex-col rounded-xl border transition-colors ${
+                isDropTarget ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-gray-50'
               }`}
             >
-              <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2">
-                <h3 className="text-sm font-semibold text-gray-900">{status.label}</h3>
-                <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs text-gray-600">{columnTasks.length}</span>
+              <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
+                <div className="flex items-center gap-2">
+                  <span
+                    className="h-2.5 w-2.5 shrink-0 rounded-full"
+                    style={{ backgroundColor: status.colorCode || '#94a3b8' }}
+                  />
+                  <h3 className="text-sm font-semibold text-gray-900">{status.label}</h3>
+                </div>
+                <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">{columnTasks.length}</span>
               </div>
               <div className="flex-1 space-y-2 p-2">
                 {columnTasks.length === 0 && <p className="px-2 py-4 text-center text-xs text-gray-400">Tidak ada task.</p>}
@@ -173,18 +186,16 @@ export default function KanbanBoard({
                         setDragTaskId(null);
                         setDragOverStatusId(null);
                       }}
-                      className={`rounded-md border border-gray-200 bg-white p-2.5 shadow-sm ${
+                      className={`rounded-xl border border-gray-200 bg-white p-2.5 shadow-card transition-colors hover:border-indigo-300 ${
                         manageable ? 'cursor-grab active:cursor-grabbing' : ''
                       } ${dragTaskId === row.id ? 'opacity-50' : ''}`}
                     >
                       <p className="text-sm font-medium text-gray-900">{row.title}</p>
-                      <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-gray-500">
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1 text-xs text-gray-500">
                         {row.project_id && <span>{label(opts.projects, row.project_id)}</span>}
-                        {row.priority_id && (
-                          <span className="rounded bg-gray-100 px-1.5 py-0.5">{label(opts.priorities, row.priority_id)}</span>
-                        )}
+                        {row.priority_id && <Badge label={label(opts.priorities, row.priority_id)} tone="neutral" />}
                       </div>
-                      <div className="mt-1 flex items-center justify-between text-xs">
+                      <div className="mt-1.5 flex items-center justify-between text-xs">
                         <span className="text-gray-500">{label(opts.assignees, row.assigned_to)}</span>
                         {row.due_date && <span className={overdue ? 'font-medium text-red-600' : 'text-gray-400'}>{row.due_date}</span>}
                       </div>

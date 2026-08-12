@@ -127,117 +127,142 @@ export default function ProfileView() {
     }
   }
 
-  if (loading) return <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-gray-400 shadow-sm">Memuat...</div>;
+  if (loading)
+    return (
+      <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center text-gray-400 shadow-card">
+        Memuat...
+      </div>
+    );
   if (error && !profile) return <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
+
+  const initial = (profile?.name || '?').trim().slice(0, 1).toUpperCase();
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-4 text-sm font-semibold text-gray-900">Data Profil</h2>
-        <form onSubmit={handleSaveProfile} className="space-y-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Nama *</label>
-            <input
-              value={form.name}
-              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-            {fieldErrors.name && <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>}
-          </div>
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Email *</label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-            {fieldErrors.email && <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
+        <div className="border-b border-gray-200 p-4">
+          <h2 className="text-lg font-semibold text-gray-900">Data Profil</h2>
+        </div>
+        <div className="p-5">
+          <form onSubmit={handleSaveProfile} className="space-y-4">
+            <div className="flex items-center gap-4">
+              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xl font-medium text-indigo-700">
+                {initial}
+              </span>
+              <div className="text-sm text-gray-500">
+                <p className="font-medium text-gray-900">{profile?.name}</p>
+                <p>{profile?.email}</p>
+              </div>
+            </div>
+
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Telepon</label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">Nama *</label>
               <input
-                value={form.phone}
-                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
               />
+              {fieldErrors.name && <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>}
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Departemen</label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">Email *</label>
               <input
-                value={form.department}
-                onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
               />
+              {fieldErrors.email && <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>}
             </div>
-          </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Telepon</label>
+                <input
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
+                />
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Departemen</label>
+                <input
+                  value={form.department}
+                  onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
+                />
+              </div>
+            </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {savedMsg && <p className="text-sm text-green-700">{savedMsg}</p>}
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            {savedMsg && <p className="text-sm text-emerald-700">{savedMsg}</p>}
 
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-            >
-              {saving ? 'Menyimpan...' : 'Simpan Profil'}
-            </button>
-          </div>
-        </form>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={saving}
+                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {saving ? 'Menyimpan...' : 'Simpan Profil'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm">
-        <h2 className="mb-1 text-sm font-semibold text-gray-900">Ganti Password</h2>
-        <p className="mb-4 text-xs text-gray-500">Wajib memasukkan password saat ini untuk verifikasi.</p>
-        <form onSubmit={handleChangePassword} className="space-y-3">
-          <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Password Saat Ini</label>
-            <input
-              type="password"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-            />
-            {pwErrors.currentPassword && <p className="mt-1 text-xs text-red-600">{pwErrors.currentPassword}</p>}
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
+        <div className="border-b border-gray-200 p-4">
+          <h2 className="text-lg font-semibold text-gray-900">Ganti Password</h2>
+          <p className="mt-1 text-xs text-gray-500">Wajib memasukkan password saat ini untuk verifikasi.</p>
+        </div>
+        <div className="p-5">
+          <form onSubmit={handleChangePassword} className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Password Baru</label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">Password Saat Ini</label>
               <input
                 type="password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
               />
-              {pwErrors.newPassword && <p className="mt-1 text-xs text-red-600">{pwErrors.newPassword}</p>}
+              {pwErrors.currentPassword && <p className="mt-1 text-xs text-red-600">{pwErrors.currentPassword}</p>}
             </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-gray-700">Konfirmasi Password Baru</label>
-              <input
-                type="password"
-                value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
-                className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
-              />
-              {pwErrors.confirmPassword && <p className="mt-1 text-xs text-red-600">{pwErrors.confirmPassword}</p>}
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Password Baru</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
+                />
+                {pwErrors.newPassword && <p className="mt-1 text-xs text-red-600">{pwErrors.newPassword}</p>}
+              </div>
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Konfirmasi Password Baru</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
+                />
+                {pwErrors.confirmPassword && <p className="mt-1 text-xs text-red-600">{pwErrors.confirmPassword}</p>}
+              </div>
             </div>
-          </div>
 
-          {pwError && <p className="text-sm text-red-600">{pwError}</p>}
-          {pwSavedMsg && <p className="text-sm text-green-700">{pwSavedMsg}</p>}
+            {pwError && <p className="text-sm text-red-600">{pwError}</p>}
+            {pwSavedMsg && <p className="text-sm text-emerald-700">{pwSavedMsg}</p>}
 
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={pwSaving}
-              className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-            >
-              {pwSaving ? 'Menyimpan...' : 'Ganti Password'}
-            </button>
-          </div>
-        </form>
+            <div className="flex justify-end">
+              <button
+                type="submit"
+                disabled={pwSaving}
+                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              >
+                {pwSaving ? 'Menyimpan...' : 'Ganti Password'}
+              </button>
+            </div>
+          </form>
+        </div>
       </div>
     </div>
   );

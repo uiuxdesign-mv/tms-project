@@ -8,6 +8,7 @@ import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { useTableControls } from '@/lib/hooks/use-table-controls';
 import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/table-controls';
+import { StatusBadge } from '@/components/badge';
 
 type Row = Record<string, string>;
 type SelectOption = { value: string; label: string };
@@ -274,7 +275,7 @@ export default function MasterDataTable({
   const table = useTableControls(rows, { searchFields: searchFields.length > 0 ? searchFields : [config.titleField] });
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 p-4">
         <h1 className="text-lg font-semibold text-gray-900">Master {config.labelPlural}</h1>
         <div className="flex flex-wrap items-center gap-2">
@@ -283,7 +284,7 @@ export default function MasterDataTable({
             <button
               onClick={handleExportCsv}
               disabled={rows.length === 0}
-              className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+              className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
               Export CSV
             </button>
@@ -292,14 +293,14 @@ export default function MasterDataTable({
             <>
               <button
                 onClick={handleDownloadTemplate}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
               >
                 Template CSV
               </button>
               <button
                 onClick={openImportPicker}
                 disabled={importing}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
                 {importing ? `Mengimpor... (${importProgress.current}/${importProgress.total})` : 'Import CSV'}
               </button>
@@ -316,7 +317,7 @@ export default function MasterDataTable({
               />
               <button
                 onClick={openCreateModal}
-                className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800"
+                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
               >
                 + Tambah {config.label}
               </button>
@@ -372,7 +373,7 @@ export default function MasterDataTable({
                   <tr key={row.id}>
                     {tableFields.map((f, idx) => (
                       <td key={f.key} className="px-4 py-2 text-gray-700">
-                        {renderCellValue(f, row[f.key], options[f.key])}
+                        {f.key === 'status' ? <StatusBadge value={row[f.key]} /> : renderCellValue(f, row[f.key], options[f.key])}
                         {idx === 0 && isSystemRow && (
                           <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium uppercase text-gray-500">
                             Bawaan Sistem
@@ -416,123 +417,135 @@ export default function MasterDataTable({
       />
 
       {modalOpen && (
-        <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">
-              {editingRow ? `Edit ${config.label}` : `Tambah ${config.label}`}
-            </h2>
-            <form onSubmit={handleSave} className="space-y-3">
-              {config.fields.map((f) => (
-                <FieldInput
-                  key={f.key}
-                  field={f}
-                  value={formValues[f.key] ?? ''}
-                  error={fieldErrors[f.key]}
-                  options={options[f.key]}
-                  disabled={!!(f.lockOnEdit && editingRow)}
-                  onChange={(v) => setFormValues((prev) => ({ ...prev, [f.key]: v }))}
-                />
-              ))}
-              <div className="mt-5 flex justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalOpen(false)}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-                >
-                  {saving ? 'Menyimpan...' : 'Simpan'}
-                </button>
-              </div>
-            </form>
+        <div className="fixed inset-0 z-10 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
+            <div className="shrink-0 border-b border-gray-200 px-5 py-4">
+              <h2 className="text-lg font-semibold text-gray-900">
+                {editingRow ? `Edit ${config.label}` : `Tambah ${config.label}`}
+              </h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <form onSubmit={handleSave} className="space-y-3">
+                {config.fields.map((f) => (
+                  <FieldInput
+                    key={f.key}
+                    field={f}
+                    value={formValues[f.key] ?? ''}
+                    error={fieldErrors[f.key]}
+                    options={options[f.key]}
+                    disabled={!!(f.lockOnEdit && editingRow)}
+                    onChange={(v) => setFormValues((prev) => ({ ...prev, [f.key]: v }))}
+                  />
+                ))}
+                <div className="mt-5 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setModalOpen(false)}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={saving}
+                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                  >
+                    {saving ? 'Menyimpan...' : 'Simpan'}
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
         </div>
       )}
 
       {importResults && (
-        <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg">
-            <h2 className="mb-1 text-lg font-semibold text-gray-900">Hasil Import CSV</h2>
-            <p className="mb-4 text-sm text-gray-500">
-              {importResults.filter((r) => r.ok).length} berhasil, {importResults.filter((r) => !r.ok).length} gagal
-              dari {importResults.length} baris.
-            </p>
-            <div className="max-h-80 overflow-y-auto rounded-md border border-gray-200">
-              <table className="w-full text-left text-xs">
-                <thead className="bg-gray-50 uppercase text-gray-500">
-                  <tr>
-                    <th className="px-3 py-2 font-medium">Baris</th>
-                    <th className="px-3 py-2 font-medium">Data</th>
-                    <th className="px-3 py-2 font-medium">Keterangan</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {importResults.map((r, i) => (
-                    <tr key={i}>
-                      <td className="px-3 py-2 text-gray-500">{r.rowNumber || '-'}</td>
-                      <td className="px-3 py-2 text-gray-700">{r.title}</td>
-                      <td className={`px-3 py-2 ${r.ok ? 'text-green-700' : 'text-red-600'}`}>{r.message}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <div className="fixed inset-0 z-10 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
+            <div className="shrink-0 border-b border-gray-200 px-5 py-4">
+              <h2 className="text-lg font-semibold text-gray-900">Hasil Import CSV</h2>
+              <p className="mt-1 text-sm text-gray-500">
+                {importResults.filter((r) => r.ok).length} berhasil, {importResults.filter((r) => !r.ok).length} gagal
+                dari {importResults.length} baris.
+              </p>
             </div>
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={() => setImportResults(null)}
-                className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800"
-              >
-                Tutup
-              </button>
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="max-h-80 overflow-y-auto rounded-lg border border-gray-200">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-gray-50 uppercase text-gray-500">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Baris</th>
+                      <th className="px-3 py-2 font-medium">Data</th>
+                      <th className="px-3 py-2 font-medium">Keterangan</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-100">
+                    {importResults.map((r, i) => (
+                      <tr key={i}>
+                        <td className="px-3 py-2 text-gray-500">{r.rowNumber || '-'}</td>
+                        <td className="px-3 py-2 text-gray-700">{r.title}</td>
+                        <td className={`px-3 py-2 ${r.ok ? 'text-emerald-700' : 'text-red-600'}`}>{r.message}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <div className="mt-4 flex justify-end">
+                <button
+                  onClick={() => setImportResults(null)}
+                  className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
+                >
+                  Tutup
+                </button>
+              </div>
             </div>
           </div>
         </div>
       )}
 
       {deleteBlocked && (
-        <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-            <h2 className="mb-2 text-lg font-semibold text-gray-900">Tidak Bisa Dihapus Langsung</h2>
-            <p className="mb-4 text-sm text-gray-600">{deleteBlocked.message}</p>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Ganti dengan {config.label}</label>
-            <select
-              value={reassignToId}
-              onChange={(e) => setReassignToId(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
-            >
-              <option value="">-- Pilih {config.label} pengganti --</option>
-              {rows
-                .filter((r) => r.id !== deleteBlocked.row.id)
-                .map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r[config.titleField] || r.id}
-                  </option>
-                ))}
-            </select>
-            <p className="mt-2 text-xs text-gray-500">
-              Semua data yang masih memakai &quot;{deleteBlocked.row[config.titleField]}&quot; akan dipindahkan ke
-              pilihan di atas, baru kemudian &quot;{deleteBlocked.row[config.titleField]}&quot; dihapus.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setDeleteBlocked(null)}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+        <div className="fixed inset-0 z-10 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
+            <div className="shrink-0 border-b border-gray-200 px-5 py-4">
+              <h2 className="text-lg font-semibold text-gray-900">Tidak Bisa Dihapus Langsung</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <p className="mb-4 text-sm text-gray-600">{deleteBlocked.message}</p>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">Ganti dengan {config.label}</label>
+              <select
+                value={reassignToId}
+                onChange={(e) => setReassignToId(e.target.value)}
+                className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
               >
-                Batal
-              </button>
-              <button
-                onClick={handleReassignAndDelete}
-                disabled={!reassignToId || reassigning}
-                className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
-              >
-                {reassigning ? 'Memproses...' : 'Ganti & Hapus'}
-              </button>
+                <option value="">-- Pilih {config.label} pengganti --</option>
+                {rows
+                  .filter((r) => r.id !== deleteBlocked.row.id)
+                  .map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r[config.titleField] || r.id}
+                    </option>
+                  ))}
+              </select>
+              <p className="mt-2 text-xs text-gray-500">
+                Semua data yang masih memakai &quot;{deleteBlocked.row[config.titleField]}&quot; akan dipindahkan ke
+                pilihan di atas, baru kemudian &quot;{deleteBlocked.row[config.titleField]}&quot; dihapus.
+              </p>
+              <div className="mt-5 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setDeleteBlocked(null)}
+                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleReassignAndDelete}
+                  disabled={!reassignToId || reassigning}
+                  className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
+                >
+                  {reassigning ? 'Memproses...' : 'Ganti & Hapus'}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -576,7 +589,7 @@ function FieldInput({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-sm font-medium text-gray-700">
+      <label className="mb-1.5 block text-sm font-medium text-gray-700">
         {field.label}
         {field.required && <span className="text-red-500"> *</span>}
         {disabled && <span className="ml-1 text-xs font-normal text-gray-400">(tidak bisa diubah)</span>}
@@ -587,7 +600,7 @@ function FieldInput({
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none disabled:bg-gray-100 disabled:text-gray-500"
+          className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
         >
           <option value="">-- Pilih --</option>
           {(options || []).map((opt) => (
@@ -621,7 +634,7 @@ function FieldInput({
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
           rows={3}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none disabled:bg-gray-100 disabled:text-gray-500"
+          className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
         />
       )}
 
@@ -631,7 +644,7 @@ function FieldInput({
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
-          className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none disabled:bg-gray-100 disabled:text-gray-500"
+          className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
         />
       )}
 

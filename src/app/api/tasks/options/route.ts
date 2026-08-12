@@ -43,6 +43,7 @@ export async function GET() {
           isDefault: s.is_default === 'Ya',
           isReview: s.is_review === 'Ya',
           workflow_level: s.workflow_level,
+          colorCode: s.color_code || null,
         })),
       assignees: assigneeOptions,
       relatedTasks: visibleTasks.map((t) => ({ value: t.id, label: t.title })),

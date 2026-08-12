@@ -6,6 +6,7 @@ import { summarizeTasks } from '@/lib/reports/summarize';
 import { apiFetch } from '@/lib/csrf-client';
 import { BarList } from '@/components/charts/bar-list';
 import { WeeklyTrendChart } from '@/components/charts/weekly-trend-chart';
+import { Badge } from '@/components/badge';
 
 type Option = { value: string; label: string };
 
@@ -250,7 +251,7 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={handlePrint}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
           >
             Print
           </button>
@@ -259,21 +260,21 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
               <button
                 onClick={exportCsv}
                 disabled={filtered.length === 0}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
                 Export CSV
               </button>
               <button
                 onClick={exportExcel}
                 disabled={filtered.length === 0}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
                 Export Excel
               </button>
               <button
                 onClick={exportPdf}
                 disabled={filtered.length === 0}
-                className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
                 Export PDF
               </button>
@@ -282,73 +283,70 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
         </div>
       </div>
 
-      {error && <div className="rounded-md border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
       {/* Ringkasan */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-        <SummaryCard label="Total Tugas" value={summary.total} />
+        <SummaryCard label="Total Tugas" value={summary.total} tone="brand" />
         <SummaryCard label="Terlambat" value={summary.overdue} tone="red" />
         <SummaryCard label="Jatuh Tempo 7 Hari" value={summary.dueSoon} tone="amber" />
-        <SummaryCard label="Selesai" value={summary.completed} tone="green" />
-        <SummaryCard label="Ditampilkan" value={filtered.length} />
+        <SummaryCard label="Selesai" value={summary.completed} tone="emerald" />
+        <SummaryCard label="Ditampilkan" value={filtered.length} tone="neutral" />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">Berdasarkan Status</h2>
+        <ChartCard title="Berdasarkan Status">
           <BarList
             items={summary.byStatus.map((s) => ({
               key: s.statusId,
               label: s.statusName,
               count: s.count,
-              colorClassName: s.isFinal ? 'bg-green-500' : 'bg-gray-900',
+              colorClassName: s.isFinal ? 'bg-emerald-500' : 'bg-gray-900',
             }))}
           />
-        </div>
+        </ChartCard>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">Berdasarkan Prioritas</h2>
+        <ChartCard title="Berdasarkan Prioritas">
           <BarList
             items={summary.byPriority.map((p) => ({ key: p.priorityId, label: p.priorityName, count: p.count, colorClassName: 'bg-blue-500' }))}
           />
-        </div>
+        </ChartCard>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">Berdasarkan Tipe Tugas</h2>
+        <ChartCard title="Berdasarkan Tipe Tugas">
           <BarList
             items={summary.byTaskType.map((t) => ({ key: t.taskTypeId, label: t.taskTypeName, count: t.count, colorClassName: 'bg-purple-500' }))}
           />
-        </div>
+        </ChartCard>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">Top Assignee</h2>
+        <ChartCard title="Top Assignee">
           <BarList
             items={summary.byAssignee.map((a) => ({ key: a.userId, label: a.userName, count: a.count, colorClassName: 'bg-indigo-500' }))}
             maxItems={8}
           />
-        </div>
+        </ChartCard>
 
-        <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm lg:col-span-2">
-          <h2 className="mb-3 text-sm font-semibold text-gray-900">Tren Jatuh Tempo Mingguan</h2>
-          <WeeklyTrendChart buckets={summary.dueDateTrend} />
+        <div className="lg:col-span-2">
+          <ChartCard title="Tren Jatuh Tempo Mingguan">
+            <WeeklyTrendChart buckets={summary.dueDateTrend} />
+          </ChartCard>
         </div>
       </div>
 
       {/* Filter */}
-      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm print:hidden">
-        <div className="mb-3 flex items-center justify-between">
+      <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-card print:hidden">
+        <div className="mb-4 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900">Filter</h2>
           <button onClick={resetFilters} className="text-xs text-gray-500 hover:text-gray-700">
             Reset Filter
           </button>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">Period</label>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">Period</label>
             <select
               value={periodPreset}
               onChange={(e) => handlePeriodChange(e.target.value as PeriodPreset)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
             >
               <option value="all">Semua</option>
               <option value="this-week">Minggu Ini</option>
@@ -357,12 +355,12 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">Cari Judul</label>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">Cari Judul</label>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Ketik judul tugas..."
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
             />
           </div>
           <SelectFilter label="Client" value={clientId} onChange={setClientId} options={clientOptions} />
@@ -371,44 +369,49 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
           <SelectFilter label="Status" value={statusId} onChange={setStatusId} options={statusOptions} />
           <SelectFilter label="Ditugaskan Ke" value={assignedTo} onChange={setAssignedTo} options={assigneeOptions} />
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">Jatuh Tempo Dari</label>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">Jatuh Tempo Dari</label>
             <input
               type="date"
               value={dueFrom}
               disabled={periodPreset !== 'all' && periodPreset !== 'custom'}
               onChange={(e) => setDueFrom(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring disabled:bg-gray-50 disabled:text-gray-400"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">Jatuh Tempo Sampai</label>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">Jatuh Tempo Sampai</label>
             <input
               type="date"
               value={dueTo}
               disabled={periodPreset !== 'all' && periodPreset !== 'custom'}
               onChange={(e) => setDueTo(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none disabled:bg-gray-50 disabled:text-gray-400"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring disabled:bg-gray-50 disabled:text-gray-400"
             />
           </div>
         </div>
-        <label className="mt-3 flex items-center gap-2 text-sm text-gray-700">
-          <input type="checkbox" checked={onlyOverdue} onChange={(e) => setOnlyOverdue(e.target.checked)} />
+        <label className="mt-4 flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={onlyOverdue}
+            onChange={(e) => setOnlyOverdue(e.target.checked)}
+            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus-ring"
+          />
           Hanya tampilkan yang terlambat
         </label>
       </div>
 
       {/* Tabel */}
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-card">
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <th className="px-4 py-2 font-medium">Judul</th>
-              <th className="px-4 py-2 font-medium">Client</th>
-              <th className="px-4 py-2 font-medium">Project</th>
-              <th className="px-4 py-2 font-medium">Prioritas</th>
-              <th className="px-4 py-2 font-medium">Status</th>
-              <th className="px-4 py-2 font-medium">Ditugaskan Ke</th>
-              <th className="px-4 py-2 font-medium">Jatuh Tempo</th>
+              <th className="px-4 py-2.5 font-medium">Judul</th>
+              <th className="px-4 py-2.5 font-medium">Client</th>
+              <th className="px-4 py-2.5 font-medium">Project</th>
+              <th className="px-4 py-2.5 font-medium">Prioritas</th>
+              <th className="px-4 py-2.5 font-medium">Status</th>
+              <th className="px-4 py-2.5 font-medium">Ditugaskan Ke</th>
+              <th className="px-4 py-2.5 font-medium">Jatuh Tempo</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -428,18 +431,22 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
             )}
             {!loading &&
               filtered.map((t) => (
-                <tr key={t.id}>
-                  <td className="px-4 py-2 text-gray-700">{t.title}</td>
-                  <td className="px-4 py-2 text-gray-700">{t.client_name || '-'}</td>
-                  <td className="px-4 py-2 text-gray-700">{t.project_name || '-'}</td>
-                  <td className="px-4 py-2 text-gray-700">{t.priority_name || '-'}</td>
-                  <td className="px-4 py-2 text-gray-700">{t.status_name || '-'}</td>
-                  <td className="px-4 py-2 text-gray-700">{t.assigned_to_name || '-'}</td>
-                  <td className="px-4 py-2">
-                    <span className={t.is_overdue ? 'font-medium text-red-600' : 'text-gray-700'}>
-                      {t.due_date || '-'}
-                      {t.is_overdue && ' (terlambat)'}
-                    </span>
+                <tr key={t.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-2.5 text-gray-700">{t.title}</td>
+                  <td className="px-4 py-2.5 text-gray-700">{t.client_name || '-'}</td>
+                  <td className="px-4 py-2.5 text-gray-700">{t.project_name || '-'}</td>
+                  <td className="px-4 py-2.5">
+                    {t.priority_name ? <Badge label={t.priority_name} tone="neutral" /> : <span className="text-gray-700">-</span>}
+                  </td>
+                  <td className="px-4 py-2.5">
+                    {t.status_name ? <Badge label={t.status_name} tone={t.is_final ? 'success' : 'neutral'} /> : <span className="text-gray-700">-</span>}
+                  </td>
+                  <td className="px-4 py-2.5 text-gray-700">{t.assigned_to_name || '-'}</td>
+                  <td className="px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <span className={t.is_overdue ? 'font-medium text-red-600' : 'text-gray-700'}>{t.due_date || '-'}</span>
+                      {t.is_overdue && <Badge label="Terlambat" tone="danger" />}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -450,12 +457,45 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
   );
 }
 
-function SummaryCard({ label, value, tone }: { label: string; value: number; tone?: 'red' | 'amber' | 'green' }) {
-  const toneClass = tone === 'red' ? 'text-red-600' : tone === 'amber' ? 'text-amber-600' : tone === 'green' ? 'text-green-600' : 'text-gray-900';
+type SummaryTone = 'brand' | 'neutral' | 'amber' | 'red' | 'emerald';
+
+const SUMMARY_TONE_CHIP: Record<SummaryTone, string> = {
+  brand: 'bg-indigo-50 text-indigo-600',
+  neutral: 'bg-gray-100 text-gray-500',
+  amber: 'bg-amber-50 text-amber-600',
+  red: 'bg-red-50 text-red-600',
+  emerald: 'bg-emerald-50 text-emerald-600',
+};
+
+const SUMMARY_ICON_PATH: Record<SummaryTone, string> = {
+  brand: 'M9 12h6m-6 4h6M4.5 6.75A2.25 2.25 0 016.75 4.5h10.5A2.25 2.25 0 0119.5 6.75v10.5A2.25 2.25 0 0117.25 19.5H6.75A2.25 2.25 0 014.5 17.25V6.75z',
+  neutral: 'M12 6v6l4 2m6-2a9 9 0 11-18 0 9 9 0 0118 0z',
+  amber: 'M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-8.99 3.75h.008v.008h-.008v-.008z',
+  red: 'M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z',
+  emerald: 'M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z',
+};
+
+function SummaryCard({ label, value, tone = 'neutral' }: { label: string; value: number; tone?: SummaryTone }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
-      <p className="text-xs font-medium text-gray-500">{label}</p>
-      <p className={`mt-1 text-2xl font-semibold ${toneClass}`}>{value}</p>
+    <div className="flex items-start gap-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
+      <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${SUMMARY_TONE_CHIP[tone]}`}>
+        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+          <path strokeLinecap="round" strokeLinejoin="round" d={SUMMARY_ICON_PATH[tone]} />
+        </svg>
+      </span>
+      <div>
+        <p className="text-2xl font-semibold leading-tight text-gray-900">{value}</p>
+        <p className="text-sm text-gray-500">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
+      <h3 className="mb-4 text-sm font-semibold text-gray-900">{title}</h3>
+      {children}
     </div>
   );
 }
@@ -473,11 +513,11 @@ function SelectFilter({
 }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-gray-700">{label}</label>
+      <label className="mb-1.5 block text-sm font-medium text-gray-700">{label}</label>
       <select
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+        className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
       >
         <option value="">-- Semua --</option>
         {options.map((o) => (

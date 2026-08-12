@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/csrf-client';
+import { Badge } from '@/components/badge';
 
 type TaskRow = {
   id: string;
@@ -14,7 +15,7 @@ type TaskRow = {
 };
 
 type Option = { value: string; label: string };
-type StatusOption = Option & { isFinal: boolean };
+type StatusOption = Option & { isFinal: boolean; colorCode?: string | null };
 
 type OptionsData = {
   priorities: Option[];
@@ -78,8 +79,8 @@ export default function CalendarView({ initialYear, initialMonth }: { initialYea
     setMonth(d.getMonth() + 1);
   }
 
-  if (loading) return <div className="rounded-lg border border-gray-200 bg-white p-6 text-center text-gray-400 shadow-sm">Memuat...</div>;
-  if (error) return <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
+  if (loading) return <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center text-gray-400 shadow-card">Memuat...</div>;
+  if (error) return <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
 
   const tasksByDate = new Map<string, TaskRow[]>();
   const unscheduled: TaskRow[] = [];
@@ -106,16 +107,40 @@ export default function CalendarView({ initialYear, initialMonth }: { initialYea
 
   return (
     <div className="flex flex-col gap-4 lg:flex-row">
-      <div className="flex-1 rounded-lg border border-gray-200 bg-white shadow-sm">
-        <div className="flex items-center justify-between border-b border-gray-200 p-3">
-          <button onClick={() => goToMonth(-1)} className="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-700 hover:bg-gray-50">
-            ← Sebelumnya
-          </button>
-          <h2 className="text-sm font-semibold text-gray-900">
-            {MONTH_NAMES[month - 1]} {year}
-          </h2>
-          <button onClick={() => goToMonth(1)} className="rounded-md border border-gray-300 px-2 py-1 text-sm text-gray-700 hover:bg-gray-50">
-            Berikutnya →
+      <div className="flex-1 rounded-2xl border border-gray-200 bg-white shadow-card">
+        <div className="flex items-center justify-between border-b border-gray-200 p-4">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => goToMonth(-1)}
+              aria-label="Bulan sebelumnya"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-900"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            <h2 className="w-40 text-center text-base font-semibold text-gray-900">
+              {MONTH_NAMES[month - 1]} {year}
+            </h2>
+            <button
+              onClick={() => goToMonth(1)}
+              aria-label="Bulan berikutnya"
+              className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-900"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+          <button
+            onClick={() => {
+              const now = new Date();
+              setYear(now.getFullYear());
+              setMonth(now.getMonth() + 1);
+            }}
+            className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-900"
+          >
+            Hari Ini
           </button>
         </div>
         <div className="grid grid-cols-7 border-b border-gray-200 text-center text-xs font-medium text-gray-500">
@@ -133,29 +158,33 @@ export default function CalendarView({ initialYear, initialMonth }: { initialYea
             return (
               <div
                 key={i}
-                className={`min-h-[90px] border-b border-r border-gray-100 p-1.5 last:border-r-0 ${cell.date ? '' : 'bg-gray-50'}`}
+                className={`min-h-[7rem] border-b border-r border-gray-100 p-1.5 last:border-r-0 ${cell.date ? '' : 'bg-gray-50/60'}`}
               >
                 {cell.date && (
                   <>
-                    <p className={`mb-1 text-xs ${isToday ? 'font-bold text-gray-900' : 'text-gray-400'}`}>{cell.date.getDate()}</p>
-                    <div className="space-y-0.5">
+                    <span
+                      className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium ${
+                        isToday ? 'bg-indigo-600 text-white' : 'text-gray-500'
+                      }`}
+                    >
+                      {cell.date.getDate()}
+                    </span>
+                    <div className="mt-1 space-y-1">
                       {dayTasks.slice(0, 3).map((t) => {
                         const status = opts?.statuses.find((s) => s.value === t.status_id);
-                        const overdue = !status?.isFinal && dateKey! < todayKey;
                         return (
                           <button
                             key={t.id}
                             onClick={() => setSelectedTask(t)}
-                            className={`block w-full truncate rounded px-1 py-0.5 text-left text-[11px] ${
-                              overdue ? 'bg-red-50 text-red-700' : 'bg-gray-100 text-gray-700'
-                            } hover:opacity-75`}
+                            className="block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium text-gray-900 hover:bg-gray-100"
+                            style={{ borderLeft: `3px solid ${status?.colorCode || '#94a3b8'}` }}
                             title={t.title}
                           >
                             {t.title}
                           </button>
                         );
                       })}
-                      {dayTasks.length > 3 && <p className="px-1 text-[10px] text-gray-400">+{dayTasks.length - 3} lagi</p>}
+                      {dayTasks.length > 3 && <p className="px-1.5 text-[11px] text-gray-400">+{dayTasks.length - 3} lagi</p>}
                     </div>
                   </>
                 )}
@@ -165,18 +194,20 @@ export default function CalendarView({ initialYear, initialMonth }: { initialYea
         </div>
       </div>
 
-      <div className="w-full rounded-lg border border-gray-200 bg-white shadow-sm lg:w-64">
-        <div className="border-b border-gray-200 p-3">
-          <h3 className="text-sm font-semibold text-gray-900">Unscheduled ({unscheduled.length})</h3>
+      <div className="w-full rounded-2xl border border-gray-200 bg-white shadow-card lg:w-64">
+        <div className="border-b border-gray-200 p-4">
+          <h3 className="text-sm font-semibold text-gray-900">
+            Unscheduled <span className="font-normal text-gray-400">({unscheduled.length})</span>
+          </h3>
           <p className="text-xs text-gray-400">Task tanpa Due Date</p>
         </div>
-        <div className="max-h-[500px] space-y-1 overflow-y-auto p-2">
+        <div className="max-h-[500px] divide-y divide-gray-100 overflow-y-auto p-2">
           {unscheduled.length === 0 && <p className="p-2 text-center text-xs text-gray-400">Semua task sudah punya due date.</p>}
           {unscheduled.map((t) => (
             <button
               key={t.id}
               onClick={() => setSelectedTask(t)}
-              className="block w-full truncate rounded bg-gray-50 px-2 py-1 text-left text-xs text-gray-700 hover:bg-gray-100"
+              className="block w-full truncate px-2 py-2 text-left text-sm font-medium text-gray-900 hover:text-indigo-600"
               title={t.title}
             >
               {t.title}
@@ -186,40 +217,57 @@ export default function CalendarView({ initialYear, initialMonth }: { initialYea
       </div>
 
       {selectedTask && (
-        <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30 p-4" onClick={() => setSelectedTask(null)}>
-          <div className="w-full max-w-sm rounded-lg bg-white p-5 shadow-lg" onClick={(e) => e.stopPropagation()}>
-            <h3 className="text-base font-semibold text-gray-900">{selectedTask.title}</h3>
-            <dl className="mt-3 space-y-1 text-sm text-gray-600">
-              <div>
-                <dt className="inline font-medium text-gray-700">Status: </dt>
-                <dd className="inline">{label(opts?.statuses, selectedTask.status_id)}</dd>
+        <div
+          className="fixed inset-0 z-10 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm"
+          onClick={() => setSelectedTask(null)}
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-white shadow-modal"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="shrink-0 border-b border-gray-200 px-5 py-4">
+              <h3 className="text-lg font-semibold text-gray-900">{selectedTask.title}</h3>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <dl className="space-y-2.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <dt className="text-gray-500">Status</dt>
+                  <dd>
+                    <Badge
+                      label={label(opts?.statuses, selectedTask.status_id)}
+                      color={opts?.statuses.find((s) => s.value === selectedTask.status_id)?.colorCode}
+                    />
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-gray-500">Priority</dt>
+                  <dd>
+                    <Badge label={label(opts?.priorities, selectedTask.priority_id)} tone="neutral" />
+                  </dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-gray-500">Assignee</dt>
+                  <dd className="font-medium text-gray-900">{label(opts?.assignees, selectedTask.assigned_to)}</dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-gray-500">Due Date</dt>
+                  <dd className="font-medium text-gray-900">{selectedTask.due_date || '-'}</dd>
+                </div>
+              </dl>
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  onClick={() => setSelectedTask(null)}
+                  className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
+                >
+                  Tutup
+                </button>
+                <Link
+                  href="/tasks"
+                  className="focus-ring rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
+                >
+                  Ubah di List →
+                </Link>
               </div>
-              <div>
-                <dt className="inline font-medium text-gray-700">Priority: </dt>
-                <dd className="inline">{label(opts?.priorities, selectedTask.priority_id)}</dd>
-              </div>
-              <div>
-                <dt className="inline font-medium text-gray-700">Assignee: </dt>
-                <dd className="inline">{label(opts?.assignees, selectedTask.assigned_to)}</dd>
-              </div>
-              <div>
-                <dt className="inline font-medium text-gray-700">Due Date: </dt>
-                <dd className="inline">{selectedTask.due_date || '-'}</dd>
-              </div>
-            </dl>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                onClick={() => setSelectedTask(null)}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Tutup
-              </button>
-              <Link
-                href="/tasks"
-                className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800"
-              >
-                Ubah di List →
-              </Link>
             </div>
           </div>
         </div>

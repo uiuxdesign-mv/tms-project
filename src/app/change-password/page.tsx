@@ -54,7 +54,7 @@ export default function ChangePasswordPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-sm rounded-lg border border-gray-200 bg-white p-8 shadow-sm">
+      <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white p-8 shadow-card">
         <h1 className="mb-1 text-xl font-semibold text-gray-900">Ganti Password</h1>
         <p className="mb-6 text-sm text-gray-500">
           Akun Anda dibuat dengan password sementara. Silakan ganti dengan password pilihan Anda
@@ -63,37 +63,37 @@ export default function ChangePasswordPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Password Saat Ini</label>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">Password Saat Ini</label>
             <input
               type="password"
               required
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
             />
             {fieldErrors.currentPassword && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.currentPassword}</p>
             )}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Password Baru</label>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">Password Baru</label>
             <input
               type="password"
               required
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
             />
             {fieldErrors.newPassword && <p className="mt-1 text-xs text-red-600">{fieldErrors.newPassword}</p>}
           </div>
           <div>
-            <label className="mb-1 block text-sm font-medium text-gray-700">Konfirmasi Password Baru</label>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">Konfirmasi Password Baru</label>
             <input
               type="password"
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
             />
             {fieldErrors.confirmPassword && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.confirmPassword}</p>
@@ -105,7 +105,7 @@ export default function ChangePasswordPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full rounded-md bg-gray-900 px-3 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+            className="focus-ring w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-colors hover:bg-indigo-700 disabled:cursor-not-allowed disabled:bg-indigo-400"
           >
             {loading ? 'Menyimpan...' : 'Simpan & Lanjutkan'}
           </button>

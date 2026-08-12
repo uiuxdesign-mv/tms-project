@@ -99,17 +99,53 @@ export function TimeTrackingControls({
     return <span className="text-gray-500">{formatDuration(displaySeconds)}</span>;
   }
 
-  const btnClass = 'rounded border border-gray-300 px-2 py-0.5 text-xs text-gray-700 hover:bg-gray-50 disabled:opacity-50';
+  // Warna tombol meniru components/TimeTrackingWidget.php aplikasi lama: Start/Resume = filled
+  // indigo (brand), Pause = outline amber, Stop = outline merah, Back = outline netral,
+  // Done = filled emerald (success) — bukan flat abu-abu seperti sebelumnya.
+  const base = 'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40';
+  const startClass = `${base} bg-indigo-600 text-white hover:bg-indigo-700`;
+  const pauseClass = `${base} border border-amber-500/40 text-amber-600 hover:bg-amber-50`;
+  const stopClass = `${base} border border-red-500/40 text-red-600 hover:bg-red-50`;
+  const backClass = `${base} border border-gray-300 text-gray-900 hover:bg-gray-100`;
+  const doneClass = `${base} bg-emerald-600 text-white hover:bg-emerald-700`;
   const wrapClass = compact ? 'flex flex-wrap items-center gap-1.5' : 'flex items-center gap-1.5';
+
+  const IconPlay = (
+    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M8 5v14l11-7z" />
+    </svg>
+  );
+  const IconPause = (
+    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+      <path d="M6 5h4v14H6zm8 0h4v14h-4z" />
+    </svg>
+  );
+  const IconStop = (
+    <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
+      <rect x="6" y="6" width="12" height="12" />
+    </svg>
+  );
+  const IconBack = (
+    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+    </svg>
+  );
+  const IconDone = (
+    <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+    </svg>
+  );
 
   if (status.isReview) {
     return (
       <div className={wrapClass}>
         <span className="tabular-nums text-gray-600">{formatDuration(displaySeconds)}</span>
-        <button disabled={busy} onClick={(e) => runAction('back', e)} className={btnClass}>
+        <button disabled={busy} onClick={(e) => runAction('back', e)} className={backClass}>
+          {IconBack}
           Back
         </button>
-        <button disabled={busy} onClick={(e) => runAction('done', e)} className={btnClass}>
+        <button disabled={busy} onClick={(e) => runAction('done', e)} className={doneClass}>
+          {IconDone}
           Done
         </button>
       </div>
@@ -120,26 +156,31 @@ export function TimeTrackingControls({
     <div className={wrapClass}>
       <span className="tabular-nums text-gray-600">{formatDuration(displaySeconds)}</span>
       {tt.state === 'idle' && (
-        <button disabled={busy} onClick={(e) => runAction('start', e)} className={btnClass}>
+        <button disabled={busy} onClick={(e) => runAction('start', e)} className={startClass}>
+          {IconPlay}
           Start
         </button>
       )}
       {tt.state === 'running' && (
         <>
-          <button disabled={busy} onClick={(e) => runAction('pause', e)} className={btnClass}>
+          <button disabled={busy} onClick={(e) => runAction('pause', e)} className={pauseClass}>
+            {IconPause}
             Pause
           </button>
-          <button disabled={busy} onClick={(e) => runAction('stop', e)} className={btnClass}>
+          <button disabled={busy} onClick={(e) => runAction('stop', e)} className={stopClass}>
+            {IconStop}
             Stop
           </button>
         </>
       )}
       {tt.state === 'paused' && (
         <>
-          <button disabled={busy} onClick={(e) => runAction('resume', e)} className={btnClass}>
+          <button disabled={busy} onClick={(e) => runAction('resume', e)} className={startClass}>
+            {IconPlay}
             Resume
           </button>
-          <button disabled={busy} onClick={(e) => runAction('stop', e)} className={btnClass}>
+          <button disabled={busy} onClick={(e) => runAction('stop', e)} className={stopClass}>
+            {IconStop}
             Stop
           </button>
         </>

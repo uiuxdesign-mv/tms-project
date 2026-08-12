@@ -7,6 +7,44 @@
  */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/*
+ * Penyesuaian UI (permintaan user) — menyamakan "bahasa desain" dengan aplikasi PHP lama:
+ * radius lebih besar/lembut, shadow kartu/popover/modal yang lebih halus, dan animasi
+ * fade-in/slide-up/toast-in yang dipakai konsisten di seluruh halaman & modal. Warna aksen
+ * ("brand") aplikasi lama persis sama dengan skala indigo bawaan Tailwind (brand-600 = #4f46e5
+ * = indigo-600), begitu juga "success" persis sama dengan skala emerald (bukan green) dan
+ * "danger"/"warning"/"info" persis sama dengan red/amber/blue bawaan Tailwind — jadi tidak perlu
+ * token warna custom baru, cukup pakai utility indigo, emerald, red, amber, dan blue bawaan
+ * Tailwind langsung di komponen, dan biarkan radius/shadow/animasi ini yang menyamakan "rasa"
+ * visualnya.
+ */
+@theme {
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.875rem;
+  --radius-2xl: 1.125rem;
+
+  --shadow-card: 0 1px 2px 0 rgba(16, 24, 40, 0.04), 0 1px 3px 0 rgba(16, 24, 40, 0.06);
+  --shadow-popover: 0 4px 6px -2px rgba(16, 24, 40, 0.05), 0 12px 16px -4px rgba(16, 24, 40, 0.10);
+  --shadow-modal: 0 8px 8px -4px rgba(16, 24, 40, 0.04), 0 20px 24px -4px rgba(16, 24, 40, 0.10);
+
+  --animate-fade-in: fade-in 0.15s ease-out;
+  --animate-slide-up: slide-up 0.2s ease-out;
+  --animate-toast-in: toast-in 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+  @keyframes slide-up {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes toast-in {
+    from { opacity: 0; transform: translateY(-8px) scale(0.98); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -72,7 +110,16 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Focus ring konsisten meniru aplikasi lama (ring indigo + ring-offset). Dipakai lewat
+   className="focus-ring" pada tombol/input/select — pengganti focus:outline default browser. */
+.focus-ring:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-white), 0 0 0 4px var(--color-indigo-500, #6366f1);
 }
 
 /*
@@ -128,6 +175,19 @@ body {
   --color-blue-200: var(--tms-blue-400);
   --color-blue-600: var(--tms-blue-400);
   --color-blue-700: var(--tms-blue-200);
+
+  /* emerald dipakai sebagai warna "success" (meniru aplikasi lama) — remap sama seperti green. */
+  --color-emerald-50: var(--tms-green-950);
+  --color-emerald-100: var(--tms-green-900);
+  --color-emerald-200: var(--tms-green-400);
+  --color-emerald-600: var(--tms-green-400);
+  --color-emerald-700: var(--tms-green-200);
+  --color-emerald-800: var(--tms-green-100);
+
+  /* indigo dipakai sebagai warna "brand" (meniru aplikasi lama) — ramp -50/-100 (tint lembut untuk
+     badge/active-nav) ditukar ke ujung gelap yang sama seperti gray/red/amber/dst di atas. */
+  --color-indigo-50: oklch(20% 0.09 274 / 1);
+  --color-indigo-100: oklch(28% 0.11 274 / 1);
 
   --background: #0a0a0a;
   --foreground: #ededed;

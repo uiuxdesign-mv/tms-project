@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import { apiFetch } from '@/lib/csrf-client';
+import { Badge } from '@/components/badge';
 
 type AuditLogEntry = {
   id: string;
@@ -17,10 +18,10 @@ type AuditLogEntry = {
 };
 
 const ACTION_LABEL: Record<string, string> = { create: 'Tambah', update: 'Ubah', delete: 'Hapus' };
-const ACTION_TONE: Record<string, string> = {
-  create: 'bg-green-50 text-green-700',
-  update: 'bg-amber-50 text-amber-700',
-  delete: 'bg-red-50 text-red-700',
+const ACTION_TONE: Record<string, 'success' | 'warning' | 'danger'> = {
+  create: 'success',
+  update: 'warning',
+  delete: 'danger',
 };
 
 const PAGE_SIZE_STEP = 100;
@@ -106,15 +107,15 @@ export default function AuditLogView() {
         <button
           onClick={exportCsv}
           disabled={filtered.length === 0}
-          className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+          className="focus-ring rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
           Export CSV
         </button>
       </div>
 
-      {error && <div className="rounded-md border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      {error && <div className="rounded-2xl border border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
-      <div className="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-card">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-gray-900">Filter</h2>
           <button onClick={resetFilters} className="text-xs text-gray-500 hover:text-gray-700">
@@ -123,20 +124,20 @@ export default function AuditLogView() {
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <div className="lg:col-span-2">
-            <label className="mb-1 block text-xs font-medium text-gray-700">Cari (nama data)</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-700">Cari (nama data)</label>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Ketik nama data..."
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">Tipe Data</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-700">Tipe Data</label>
             <select
               value={entityType}
               onChange={(e) => setEntityType(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
             >
               <option value="">-- Semua --</option>
               {entityTypeOptions.map((v) => (
@@ -147,11 +148,11 @@ export default function AuditLogView() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">Aksi</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-700">Aksi</label>
             <select
               value={action}
               onChange={(e) => setAction(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
             >
               <option value="">-- Semua --</option>
               <option value="create">Tambah</option>
@@ -160,11 +161,11 @@ export default function AuditLogView() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">Pelaku</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-700">Pelaku</label>
             <select
               value={actorName}
               onChange={(e) => setActorName(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
             >
               <option value="">-- Semua --</option>
               {actorOptions.map((v) => (
@@ -175,29 +176,29 @@ export default function AuditLogView() {
             </select>
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">Dari Tanggal</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-700">Dari Tanggal</label>
             <input
               type="date"
               value={dateFrom}
               onChange={(e) => setDateFrom(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
             />
           </div>
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <div>
-            <label className="mb-1 block text-xs font-medium text-gray-700">Sampai Tanggal</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-700">Sampai Tanggal</label>
             <input
               type="date"
               value={dateTo}
               onChange={(e) => setDateTo(e.target.value)}
-              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+              className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
             />
           </div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-lg border border-gray-200 bg-white shadow-sm">
+      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-card">
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
@@ -226,13 +227,11 @@ export default function AuditLogView() {
             )}
             {!loading &&
               visible.map((e) => (
-                <tr key={e.id}>
+                <tr key={e.id} className="hover:bg-gray-50">
                   <td className="whitespace-nowrap px-4 py-2 text-gray-500">{e.created_at.replace('T', ' ').slice(0, 19)}</td>
                   <td className="px-4 py-2 text-gray-700">{e.actor_name || '-'}</td>
                   <td className="px-4 py-2">
-                    <span className={`rounded px-2 py-0.5 text-xs font-medium ${ACTION_TONE[e.action] || ''}`}>
-                      {ACTION_LABEL[e.action] || e.action}
-                    </span>
+                    <Badge label={ACTION_LABEL[e.action] || e.action} tone={ACTION_TONE[e.action] || 'neutral'} />
                   </td>
                   <td className="px-4 py-2 text-gray-700">{e.entity_type}</td>
                   <td className="px-4 py-2 text-gray-700">{e.entity_label}</td>
@@ -247,7 +246,7 @@ export default function AuditLogView() {
         <div className="flex justify-center">
           <button
             onClick={() => setVisibleCount((c) => c + PAGE_SIZE_STEP)}
-            className="rounded-md border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+            className="focus-ring rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
           >
             Muat {Math.min(PAGE_SIZE_STEP, filtered.length - visible.length)} lagi ({visible.length}/{filtered.length})
           </button>

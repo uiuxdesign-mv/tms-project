@@ -44,8 +44,17 @@ export async function POST(req: NextRequest) {
   const priorityId = String(body.priority_id || '');
   const statusId = String(body.status_id || '');
   const dueDate = String(body.due_date || '');
+  const startDate = String(body.start_date || '');
+  const estimatedHoursRaw = body.estimated_hours;
+  const estimatedHours =
+    estimatedHoursRaw === undefined || estimatedHoursRaw === null || estimatedHoursRaw === ''
+      ? ''
+      : String(Number(estimatedHoursRaw));
 
   if (!title) errors.title = 'Judul wajib diisi.';
+  if (estimatedHoursRaw !== undefined && estimatedHoursRaw !== null && estimatedHoursRaw !== '' && Number.isNaN(Number(estimatedHoursRaw))) {
+    errors.estimated_hours = 'Estimasi jam harus berupa angka.';
+  }
   if (!taskTypeId) errors.task_type_id = 'Task Type wajib dipilih.';
   if (!priorityId) errors.priority_id = 'Priority wajib dipilih.';
   if (!statusId) errors.status_id = 'Status wajib dipilih.';
@@ -99,6 +108,8 @@ export async function POST(req: NextRequest) {
     assigned_to: assignedTo,
     assigned_by: session.userId,
     due_date: dueDate,
+    start_date: startDate,
+    estimated_hours: estimatedHours,
     completed_at: completedAt,
   });
 

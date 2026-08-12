@@ -7,6 +7,7 @@ import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { useTableControls } from '@/lib/hooks/use-table-controls';
 import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/table-controls';
+import { Badge, StatusBadge } from '@/components/badge';
 
 type UserRow = {
   id: string;
@@ -173,6 +174,9 @@ export default function UsersTable({
   function roleLabel(roleId: string) {
     return roles.find((r) => r.value === roleId)?.label || '-';
   }
+  function roleIsAdmin(roleId: string) {
+    return roles.find((r) => r.value === roleId)?.roleKey === 'admin';
+  }
   function employmentTypeLabel(id: string) {
     return employmentTypes.find((e) => e.value === id)?.label || '-';
   }
@@ -297,7 +301,7 @@ export default function UsersTable({
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
       <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 p-4">
         <h1 className="text-lg font-semibold text-gray-900">Master Users</h1>
         <div className="flex flex-wrap items-center gap-2">
@@ -305,7 +309,7 @@ export default function UsersTable({
           <button
             onClick={handleExportCsv}
             disabled={rows.length === 0}
-            className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+            className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
             Export CSV
           </button>
@@ -313,14 +317,14 @@ export default function UsersTable({
             <>
               <button
                 onClick={handleDownloadTemplate}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
               >
                 Template CSV
               </button>
               <button
                 onClick={openImportPicker}
                 disabled={importing}
-                className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
                 {importing ? `Mengimpor... (${importProgress.current}/${importProgress.total})` : 'Import CSV'}
               </button>
@@ -337,7 +341,7 @@ export default function UsersTable({
               />
               <button
                 onClick={openCreateModal}
-                className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800"
+                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
               >
                 + Tambah User
               </button>
@@ -380,20 +384,27 @@ export default function UsersTable({
               table.paged.map((row) => (
                 <tr key={row.id}>
                   <td className="px-4 py-2 text-gray-700">
-                    {row.name}
+                    <div className="flex items-center gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-medium text-indigo-700">
+                        {(row.name || '?').slice(0, 1).toUpperCase()}
+                      </span>
+                      <span>{row.name}</span>
+                    </div>
                     {row.must_change_password === 'Ya' && (
-                      <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase text-amber-700">
+                      <span className="ml-11 mt-0.5 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase text-amber-700">
                         Belum ganti password
                       </span>
                     )}
                   </td>
-                  <td className="px-4 py-2 text-gray-700">{row.email}</td>
-                  <td className="px-4 py-2 text-gray-700">{roleLabel(row.role_id)}</td>
+                  <td className="px-4 py-2 text-gray-500">{row.email}</td>
                   <td className="px-4 py-2 text-gray-700">
+                    <Badge label={roleLabel(row.role_id)} tone={roleIsAdmin(row.role_id) ? 'info' : 'neutral'} />
+                  </td>
+                  <td className="px-4 py-2 text-gray-500">
                     {row.employment_type_id ? employmentTypeLabel(row.employment_type_id) : '-'}
                   </td>
-                  <td className="px-4 py-2 text-gray-700">{row.can_assign_others || 'Tidak'}</td>
-                  <td className="px-4 py-2 text-gray-700">{row.status}</td>
+                  <td className="px-4 py-2 text-gray-500">{row.can_assign_others || 'Tidak'}</td>
+                  <td className="px-4 py-2"><StatusBadge value={row.status} /></td>
                   <td className="px-4 py-2">
                     {permissions.canEdit && (
                       <button onClick={() => openEditModal(row)} className="mr-3 text-gray-600 hover:text-gray-900">
@@ -424,73 +435,74 @@ export default function UsersTable({
       />
 
       {modalOpen && (
-        <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-lg">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">
-              {editingId ? 'Edit User' : 'Tambah User'}
-            </h2>
+        <div className="fixed inset-0 z-10 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
+            <div className="shrink-0 border-b border-gray-200 px-5 py-4">
+              <h2 className="text-lg font-semibold text-gray-900">{editingId ? 'Edit User' : 'Tambah User'}</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
             <form onSubmit={handleSave} className="space-y-3">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Nama *</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Nama *</label>
                 <input
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                 />
                 {fieldErrors.name && <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>}
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Email *</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Email *</label>
                 <input
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                 />
                 {fieldErrors.email && <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>}
               </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Telepon</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Telepon</label>
                   <input
                     value={form.phone}
                     onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                   />
                 </div>
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Departemen</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Departemen</label>
                   <input
                     value={form.department}
                     onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
                   Password {editingId ? '(kosongkan jika tidak ingin diubah)' : '*'}
                 </label>
                 <input
                   type="password"
                   value={form.password}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                 />
                 {fieldErrors.password && <p className="mt-1 text-xs text-red-600">{fieldErrors.password}</p>}
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Role *</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Role *</label>
                 <select
                   value={form.role_id}
                   onChange={(e) =>
                     setForm((f) => ({ ...f, role_id: e.target.value, employment_type_id: '', can_assign_others: 'Tidak' }))
                   }
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
                 >
                   <option value="">-- Pilih Role --</option>
                   {roleOptionsForForm.map((r) => (
@@ -505,11 +517,11 @@ export default function UsersTable({
 
               {!isAdminRole && form.role_id && (
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Tipe Kepegawaian *</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Tipe Kepegawaian *</label>
                   <select
                     value={form.employment_type_id}
                     onChange={(e) => setForm((f) => ({ ...f, employment_type_id: e.target.value, can_assign_others: 'Tidak' }))}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                    className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
                   >
                     <option value="">-- Pilih Tipe Kepegawaian --</option>
                     {employmentTypeOptionsForForm.map((e) => (
@@ -527,7 +539,7 @@ export default function UsersTable({
 
               {showCanAssign && (
                 <div>
-                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">
                     Boleh Menugaskan ke User Lain *
                   </label>
                   <div className="flex gap-4">
@@ -538,6 +550,7 @@ export default function UsersTable({
                           name="can_assign_others"
                           checked={form.can_assign_others === opt}
                           onChange={() => setForm((f) => ({ ...f, can_assign_others: opt }))}
+                          className="text-indigo-600 focus-ring"
                         />
                         {opt}
                       </label>
@@ -550,11 +563,11 @@ export default function UsersTable({
               )}
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700">Status *</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Status *</label>
                 <select
                   value={form.status}
                   onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm"
+                  className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
@@ -565,33 +578,37 @@ export default function UsersTable({
                 <button
                   type="button"
                   onClick={() => setModalOpen(false)}
-                  className="rounded-md border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                  className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+                  className="focus-ring rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
                   {saving ? 'Menyimpan...' : 'Simpan'}
                 </button>
               </div>
             </form>
+            </div>
           </div>
         </div>
       )}
 
       {importResults && (
-        <div className="fixed inset-0 z-10 flex items-center justify-center bg-black/30 p-4">
-          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-lg">
-            <h2 className="mb-1 text-lg font-semibold text-gray-900">Hasil Import CSV</h2>
+        <div className="fixed inset-0 z-10 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
+            <div className="shrink-0 border-b border-gray-200 px-5 py-4">
+              <h2 className="text-lg font-semibold text-gray-900">Hasil Import CSV</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
             <p className="mb-4 text-sm text-gray-500">
               {importResults.filter((r) => r.ok).length} berhasil, {importResults.filter((r) => !r.ok).length} gagal
               dari {importResults.length} baris. Catat password sementara di bawah sebelum menutup jendela ini —
               tidak ditampilkan lagi setelahnya.
             </p>
-            <div className="max-h-80 overflow-y-auto rounded-md border border-gray-200">
+            <div className="max-h-80 overflow-y-auto rounded-lg border border-gray-200">
               <table className="w-full text-left text-xs">
                 <thead className="bg-gray-50 uppercase text-gray-500">
                   <tr>
@@ -605,7 +622,7 @@ export default function UsersTable({
                     <tr key={i}>
                       <td className="px-3 py-2 text-gray-500">{r.rowNumber || '-'}</td>
                       <td className="px-3 py-2 text-gray-700">{r.title}</td>
-                      <td className={`px-3 py-2 ${r.ok ? 'text-green-700' : 'text-red-600'}`}>{r.message}</td>
+                      <td className={`px-3 py-2 ${r.ok ? 'text-emerald-700' : 'text-red-600'}`}>{r.message}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -614,10 +631,11 @@ export default function UsersTable({
             <div className="mt-4 flex justify-end">
               <button
                 onClick={() => setImportResults(null)}
-                className="rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800"
+                className="focus-ring rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
               >
                 Tutup
               </button>
+            </div>
             </div>
           </div>
         </div>

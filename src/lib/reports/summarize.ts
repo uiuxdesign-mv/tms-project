@@ -65,9 +65,14 @@ export function summarizeTasks(tasks: EnrichedTask[]): TaskSummary {
   const priorityCounts = new Map<string, { priorityName: string; count: number }>();
   const taskTypeCounts = new Map<string, { taskTypeName: string; count: number }>();
   const assigneeCounts = new Map<string, { userName: string; count: number }>();
+  const projectCounts = new Map<string, { projectName: string; count: number }>();
+  const clientCounts = new Map<string, { clientName: string; count: number }>();
   let overdue = 0;
   let dueSoon = 0;
   let completed = 0;
+  let todo = 0;
+  let inProgress = 0;
+  let inReview = 0;
 
   for (const t of tasks) {
     const statusKey = t.status_id || '_none';
@@ -103,9 +108,37 @@ export function summarizeTasks(tasks: EnrichedTask[]): TaskSummary {
     assigneeEntry.count += 1;
     assigneeCounts.set(assigneeKey, assigneeEntry);
 
+    const projectKey = t.project_id || '_none';
+    const projectEntry = projectCounts.get(projectKey) || {
+      projectName: t.project_name || '(Tanpa Proyek)',
+      count: 0,
+    };
+    projectEntry.count += 1;
+    projectCounts.set(projectKey, projectEntry);
+
+    const clientKey = t.client_id || '_none';
+    const clientEntry = clientCounts.get(clientKey) || {
+      clientName: t.client_name || '(Tanpa Klien)',
+      count: 0,
+    };
+    clientEntry.count += 1;
+    clientCounts.set(clientKey, clientEntry);
+
     if (t.is_overdue) overdue += 1;
     if (t.is_final) completed += 1;
     if (!t.is_final && t.due_date && t.due_date >= todayStr && t.due_date <= in7Str) dueSoon += 1;
+
+    // Bucket status turunan flag workflow (Fase 11 — kartu ringkasan Dashboard To Do/In
+    // Progress/In Review/Complete). "Complete" sudah dihitung lewat `completed` di atas.
+    if (t.is_final) {
+      // sudah masuk `completed`
+    } else if (t.is_review) {
+      inReview += 1;
+    } else if (t.is_default) {
+      todo += 1;
+    } else {
+      inProgress += 1;
+    }
   }
 
   return {
@@ -113,6 +146,9 @@ export function summarizeTasks(tasks: EnrichedTask[]): TaskSummary {
     overdue,
     dueSoon,
     completed,
+    todo,
+    inProgress,
+    inReview,
     byStatus: Array.from(statusCounts.entries())
       .map(([statusId, v]) => ({ statusId, ...v }))
       .sort((a, b) => b.count - a.count),
@@ -124,6 +160,12 @@ export function summarizeTasks(tasks: EnrichedTask[]): TaskSummary {
       .sort((a, b) => b.count - a.count),
     byAssignee: Array.from(assigneeCounts.entries())
       .map(([userId, v]) => ({ userId, ...v }))
+      .sort((a, b) => b.count - a.count),
+    byProject: Array.from(projectCounts.entries())
+      .map(([projectId, v]) => ({ projectId, ...v }))
+      .sort((a, b) => b.count - a.count),
+    byClient: Array.from(clientCounts.entries())
+      .map(([clientId, v]) => ({ clientId, ...v }))
       .sort((a, b) => b.count - a.count),
     dueDateTrend: computeDueDateTrend(tasks),
   };

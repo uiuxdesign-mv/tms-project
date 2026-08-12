@@ -19,7 +19,7 @@ const ACTIONS: { key: keyof Omit<MatrixRow, 'menu_key'>; label: string }[] = [
   { key: 'can_create', label: 'Tambah' },
   { key: 'can_edit', label: 'Ubah' },
   { key: 'can_delete', label: 'Hapus' },
-  { key: 'can_export', label: 'Export' },
+  { key: 'can_export', label: 'Ekspor' },
 ];
 
 export default function MenuAccessTable() {
@@ -115,7 +115,7 @@ export default function MenuAccessTable() {
   }
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white shadow-sm">
+    <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
       <div className="border-b border-gray-200 p-4">
         <h1 className="text-lg font-semibold text-gray-900">Menu &amp; Access Control</h1>
         <p className="mt-1 text-sm text-gray-500">
@@ -125,7 +125,7 @@ export default function MenuAccessTable() {
       </div>
 
       <div className="border-b border-gray-200 p-4">
-        <label className="mb-1 block text-sm font-medium text-gray-700">Role</label>
+        <label className="mb-1.5 block text-sm font-medium text-gray-700">Role</label>
         {loadingRoles ? (
           <p className="text-sm text-gray-400">Memuat daftar role...</p>
         ) : roles.length === 0 ? (
@@ -134,7 +134,7 @@ export default function MenuAccessTable() {
           <select
             value={selectedRoleId}
             onChange={(e) => setSelectedRoleId(e.target.value)}
-            className="w-full max-w-xs rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-gray-500 focus:outline-none"
+            className="w-full max-w-xs rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
           >
             {roles.map((r) => (
               <option key={r.value} value={r.value}>
@@ -146,7 +146,7 @@ export default function MenuAccessTable() {
       </div>
 
       {error && <div className="border-b border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
-      {savedMsg && <div className="border-b border-green-100 bg-green-50 p-3 text-sm text-green-700">{savedMsg}</div>}
+      {savedMsg && <div className="border-b border-emerald-100 bg-emerald-50 p-3 text-sm text-emerald-700">{savedMsg}</div>}
 
       <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
@@ -170,8 +170,8 @@ export default function MenuAccessTable() {
             )}
             {!loadingMatrix &&
               matrix.map((row) => (
-                <tr key={row.menu_key}>
-                  <td className="px-4 py-2 text-gray-700">
+                <tr key={row.menu_key} className="hover:bg-gray-50">
+                  <td className="px-4 py-2 font-medium text-gray-700">
                     {menus.find((m) => m.key === row.menu_key)?.label || row.menu_key}
                   </td>
                   {ACTIONS.map((a) => (
@@ -180,7 +180,7 @@ export default function MenuAccessTable() {
                         type="checkbox"
                         checked={row[a.key]}
                         onChange={() => toggle(row.menu_key, a.key)}
-                        className="h-4 w-4"
+                        className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus-ring"
                       />
                     </td>
                   ))}
@@ -194,7 +194,7 @@ export default function MenuAccessTable() {
         <button
           onClick={handleSave}
           disabled={saving || loadingMatrix || !selectedRoleId}
-          className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800 disabled:opacity-50"
+          className="focus-ring rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
           {saving ? 'Menyimpan...' : 'Simpan Hak Akses'}
         </button>

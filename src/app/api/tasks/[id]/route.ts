@@ -28,8 +28,17 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const priorityId = String(body.priority_id ?? existing.priority_id);
   const statusId = String(body.status_id ?? existing.status_id);
   const dueDate = String(body.due_date ?? existing.due_date ?? '');
+  const startDate = String(body.start_date ?? existing.start_date ?? '');
+  const estimatedHoursRaw = body.estimated_hours ?? existing.estimated_hours;
+  const estimatedHours =
+    estimatedHoursRaw === undefined || estimatedHoursRaw === null || estimatedHoursRaw === ''
+      ? ''
+      : String(Number(estimatedHoursRaw));
 
   if (!title) errors.title = 'Judul wajib diisi.';
+  if (estimatedHoursRaw !== undefined && estimatedHoursRaw !== null && estimatedHoursRaw !== '' && Number.isNaN(Number(estimatedHoursRaw))) {
+    errors.estimated_hours = 'Estimasi jam harus berupa angka.';
+  }
   if (!taskTypeId) errors.task_type_id = 'Task Type wajib dipilih.';
   if (!priorityId) errors.priority_id = 'Priority wajib dipilih.';
   if (!statusId) errors.status_id = 'Status wajib dipilih.';
@@ -121,6 +130,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     status_id: statusId,
     assigned_to: assignedTo,
     due_date: dueDate,
+    start_date: startDate,
+    estimated_hours: estimatedHours,
     completed_at: completedAt,
   });
 
