@@ -78,8 +78,21 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
   // Foto profil (Fase 11) — di-fetch sekali di sini (bukan dari JWT session, yang tidak menyimpan
   // photo_url) supaya avatar di topbar langsung terlihat tanpa perlu logout/login setelah admin
   // mengganti foto lewat Master User atau user sendiri lewat Profile.
-  const userRow = await SheetTable.findById('users', session.userId);
-  const photoUrl = userRow?.photo_url ? `/api/users/${session.userId}/photo` : undefined;
+  //
+  // PENTING (Fase 12c — bugfix produksi): layout ini membungkus SEMUA halaman, jadi query ini
+  // berjalan di SETIAP navigasi. Sebelumnya tidak dibungkus try/catch — begitu Google Sheets API
+  // gagal sesaat (rate limit 429, network hiccup, dsb — sudah pernah terjadi saat testing berat),
+  // seluruh layout ikut melempar error tak tertangani dan SEMUA menu jadi "This page couldn't
+  // load" (React error #441 di production). Dibungkus try/catch dengan pola graceful-degradation
+  // yang sama seperti fetch lain di Dashboard — kalau gagal, avatar cukup fallback ke huruf awal
+  // nama (lihat app-shell.tsx), bukan menjatuhkan seluruh halaman.
+  let photoUrl: string | undefined;
+  try {
+    const userRow = await SheetTable.findById('users', session.userId);
+    photoUrl = userRow?.photo_url ? `/api/users/${session.userId}/photo` : undefined;
+  } catch {
+    photoUrl = undefined;
+  }
 
   return (
     <AppShell

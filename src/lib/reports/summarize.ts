@@ -39,8 +39,17 @@ function computeDueDateTrend(tasks: EnrichedTask[]): DueDateTrendBucket[] {
 
   for (const t of tasks) {
     if (!t.due_date) continue;
-    if (t.due_date < firstWeek || t.due_date > lastWeekEnd) continue;
-    const weekStart = mondayOf(new Date(t.due_date + 'T00:00:00Z'));
+    // Bugfix produksi (Fase 12c): `due_date` task DISIMPAN bisa berupa datetime-local penuh
+    // ("2026-08-13T13:21", dari input <input type="datetime-local"> di Add/Edit Task), bukan
+    // cuma "YYYY-MM-DD". Kalau langsung digabung jadi `t.due_date + 'T00:00:00Z'`, hasilnya
+    // string tanggal ganda-T yang tidak valid ("...T13:21T00:00:00Z") — `new Date(...)` jadi
+    // Invalid Date, lalu `.toISOString()` di mondayOf() melempar `RangeError: Invalid time
+    // value` yang menjatuhkan SELURUH render Dashboard & Report (dan lewat itu, layout React
+    // Server Component terkait) di production. Ambil 10 karakter pertama dulu (bagian tanggal
+    // saja) sebelum diproses — pola yang sama dengan calendar-view.tsx.
+    const dueDateOnly = t.due_date.slice(0, 10);
+    if (dueDateOnly < firstWeek || dueDateOnly > lastWeekEnd) continue;
+    const weekStart = mondayOf(new Date(dueDateOnly + 'T00:00:00Z'));
     const bucket = buckets.get(weekStart);
     if (!bucket) continue;
     bucket.count += 1;
