@@ -206,6 +206,16 @@ export default function MasterDataTable({
   // kolom lain). Mengirim SELURUH field baris lewat fullFieldPayload() -- bukan cuma
   // `{ sort_order }` -- karena PATCH generik di server tidak menerima partial update: field yang
   // tidak disertakan di body akan dianggap kosong dan menimpa nilai lama (lihat validateEntityPayload).
+  //
+  // Fase 16 (bugfix, sesuai laporan user): sort_order ("Urutan"/Kanban Order di tabel) TERNYATA
+  // bukan field yang dipakai Kanban board, Rule B transisi status, maupun Time Tracking — semua itu
+  // membaca workflow_level ("Urutan Workflow"). Kedua field ini di-seed sejajar (1,2,3,4,—) sehingga
+  // dulu terlihat "sama", tapi menukar sort_order saja TIDAK mengubah urutan kolom Kanban sama
+  // sekali. Perbaikan: saat kedua baris yang ditukar sama-sama punya workflow_level terisi, tukar
+  // JUGA workflow_level-nya bareng sort_order (supaya kedua field tetap sejajar/konsisten ke
+  // depannya). Kalau salah satu baris workflow_level-nya kosong (mis. "Cancelled", yang memang
+  // sengaja dikecualikan dari alur linear), workflow_level TIDAK disentuh — cuma sort_order yang
+  // ditukar, seperti semula.
   async function handleMoveStatus(row: Row, direction: 'up' | 'down') {
     const kanbanSorted = [...rows].sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
     const idx = kanbanSorted.findIndex((r) => r.id === row.id);
@@ -213,12 +223,20 @@ export default function MasterDataTable({
     if (idx === -1 || swapIdx < 0 || swapIdx >= kanbanSorted.length) return;
     const other = kanbanSorted[swapIdx];
 
+    const bothHaveWorkflowLevel = (row.workflow_level ?? '') !== '' && (other.workflow_level ?? '') !== '';
+    const rowPayload: Record<string, string> = { ...fullFieldPayload(row), sort_order: other.sort_order };
+    const otherPayload: Record<string, string> = { ...fullFieldPayload(other), sort_order: row.sort_order };
+    if (bothHaveWorkflowLevel) {
+      rowPayload.workflow_level = other.workflow_level;
+      otherPayload.workflow_level = row.workflow_level;
+    }
+
     setReorderingStatus(true);
     try {
       const res1 = await apiFetch(`/api/master/${entityKey}/${row.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...fullFieldPayload(row), sort_order: other.sort_order }),
+        body: JSON.stringify(rowPayload),
       });
       const json1 = await res1.json();
       if (!res1.ok) throw new Error(json1.error || 'Gagal mengubah urutan.');
@@ -226,7 +244,7 @@ export default function MasterDataTable({
       const res2 = await apiFetch(`/api/master/${entityKey}/${other.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...fullFieldPayload(other), sort_order: row.sort_order }),
+        body: JSON.stringify(otherPayload),
       });
       const json2 = await res2.json();
       if (!res2.ok) throw new Error(json2.error || 'Gagal mengubah urutan.');
