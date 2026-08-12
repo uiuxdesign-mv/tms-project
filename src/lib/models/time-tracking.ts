@@ -45,6 +45,10 @@ export type DerivedTimeState = {
   currentSessionIsReview: boolean;
   /** Detik yang sudah "closed" (dari interval start/resume->pause/stop yang sudah selesai). */
   closedSeconds: number;
+  /** Sama seperti closedSeconds, tapi dipecah per jenis sesi (kerja vs review) — dipakai kartu
+   *  Kanban & tabel Task untuk menampilkan "Work Time" / "Review Time" terpisah seperti aplikasi lama. */
+  closedWorkSeconds: number;
+  closedReviewSeconds: number;
   /** Timestamp ISO event start/resume terakhir kalau sedang running — dipakai client untuk live-ticking. */
   liveSince: string | null;
 };
@@ -63,7 +67,10 @@ async function getEventsForTask(taskId: string): Promise<TimeLogRow[]> {
  */
 export function deriveState(events: TimeLogRow[]): DerivedTimeState {
   let closedSeconds = 0;
+  let closedWorkSeconds = 0;
+  let closedReviewSeconds = 0;
   let openSince: string | null = null; // occurred_at dari start/resume terakhir yang belum ditutup pause/stop
+  let openIsReview = false; // flag is_review dari event start/resume yang membuka sesi openSince di atas
   let currentSessionNo: number | null = null;
   let currentSessionIsReview = false;
   let state: RunningState = 'idle';
@@ -72,22 +79,34 @@ export function deriveState(events: TimeLogRow[]): DerivedTimeState {
     const sessionNo = Number(ev.session_no);
     if (ev.action === 'start') {
       openSince = ev.occurred_at;
+      openIsReview = ev.is_review === 'Ya';
       currentSessionNo = sessionNo;
-      currentSessionIsReview = ev.is_review === 'Ya';
+      currentSessionIsReview = openIsReview;
       state = 'running';
     } else if (ev.action === 'resume') {
       openSince = ev.occurred_at;
+      openIsReview = ev.is_review === 'Ya';
       currentSessionNo = sessionNo;
-      currentSessionIsReview = ev.is_review === 'Ya';
+      currentSessionIsReview = openIsReview;
       state = 'running';
     } else if (ev.action === 'pause') {
-      if (openSince) closedSeconds += secondsBetween(openSince, ev.occurred_at);
+      if (openSince) {
+        const secs = secondsBetween(openSince, ev.occurred_at);
+        closedSeconds += secs;
+        if (openIsReview) closedReviewSeconds += secs;
+        else closedWorkSeconds += secs;
+      }
       openSince = null;
       currentSessionNo = sessionNo;
       currentSessionIsReview = ev.is_review === 'Ya';
       state = 'paused';
     } else if (ev.action === 'stop') {
-      if (openSince) closedSeconds += secondsBetween(openSince, ev.occurred_at);
+      if (openSince) {
+        const secs = secondsBetween(openSince, ev.occurred_at);
+        closedSeconds += secs;
+        if (openIsReview) closedReviewSeconds += secs;
+        else closedWorkSeconds += secs;
+      }
       openSince = null;
       currentSessionNo = null;
       currentSessionIsReview = false;
@@ -100,6 +119,8 @@ export function deriveState(events: TimeLogRow[]): DerivedTimeState {
     currentSessionNo,
     currentSessionIsReview,
     closedSeconds,
+    closedWorkSeconds,
+    closedReviewSeconds,
     liveSince: state === 'running' ? openSince : null,
   };
 }
@@ -313,6 +334,8 @@ export async function getTimeStatesForTasks(taskIds: string[]): Promise<Record<s
       currentSessionNo: null,
       currentSessionIsReview: false,
       closedSeconds: 0,
+      closedWorkSeconds: 0,
+      closedReviewSeconds: 0,
       liveSince: null,
     };
     return Object.fromEntries(taskIds.map((id) => [id, idleFallback]));

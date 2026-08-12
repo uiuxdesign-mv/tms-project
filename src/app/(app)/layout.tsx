@@ -30,16 +30,10 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
   ];
 
   if (visibleKeys.has('tasking')) {
-    navGroups.push({
-      key: 'tasking',
-      label: 'Tasking',
-      labelKey: 'nav_tasking',
-      links: [
-        { key: 'tasks-list', label: 'Daftar Tugas', labelKey: 'nav_tasks_list', href: '/tasks' },
-        { key: 'tasks-kanban', label: 'Kanban', labelKey: 'nav_tasks_kanban', href: '/tasks/kanban' },
-        { key: 'tasks-calendar', label: 'Calendar', labelKey: 'nav_tasks_calendar', href: '/tasks/calendar' },
-      ],
-    });
+    // Sesuai video aplikasi lama: sidebar cuma punya SATU item "Tasks" (bukan grup collapsible
+    // dengan anak List/Kanban/Calendar) — ketiga tampilan itu di-switch lewat tab di dalam
+    // halaman /tasks sendiri (lihat TasksViewSwitcher), bukan lewat submenu sidebar.
+    navGroups.push({ key: 'tasking', label: 'Tasks', labelKey: 'nav_tasking', href: '/tasks' });
   }
 
   if (visibleKeys.has('report')) {

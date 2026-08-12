@@ -9,6 +9,8 @@ export type TimeTrackingState = {
   currentSessionNo: number | null;
   currentSessionIsReview: boolean;
   closedSeconds: number;
+  closedWorkSeconds: number;
+  closedReviewSeconds: number;
   liveSince: string | null;
 };
 
@@ -64,6 +66,22 @@ export function TimeTrackingControls({
   if (!status || !tt) return <span className="text-gray-400">-</span>;
 
   if (status.isFinal) {
+    // Kartu Kanban (compact) menampilkan Work Time & Review Time sebagai dua baris terpisah,
+    // meniru tampilan kartu status Done/Canceled di aplikasi lama — bukan satu baris gabungan.
+    if (compact) {
+      return (
+        <div className="w-full space-y-0.5 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500">Work Time</span>
+            <span className="tabular-nums font-medium text-gray-700">{formatDuration(tt.closedWorkSeconds)}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-gray-500">Review Time</span>
+            <span className="tabular-nums font-medium text-amber-600">{formatDuration(tt.closedReviewSeconds)}</span>
+          </div>
+        </div>
+      );
+    }
     return <span className="text-gray-500">{formatDuration(tt.closedSeconds)} (selesai)</span>;
   }
 

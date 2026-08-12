@@ -1,9 +1,11 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import Link from 'next/link';
 import { apiFetch } from '@/lib/csrf-client';
 import { Badge } from '@/components/badge';
+import { TasksPageHeader } from '@/components/tasks-view-header';
+import { TableSearchBox } from '@/components/table-controls';
 
 type TaskRow = {
   id: string;
@@ -39,7 +41,15 @@ function isoDateOnly(d: Date): string {
  * langsung di sini) — klik task untuk lihat detail ringkas, arahkan ke List untuk ubah.
  * `year`/`month` (1-12) dikontrol lewat query string supaya bisa dibagikan/di-bookmark.
  */
-export default function CalendarView({ initialYear, initialMonth }: { initialYear: number; initialMonth: number }) {
+export default function CalendarView({
+  initialYear,
+  initialMonth,
+  canCreate = true,
+}: {
+  initialYear: number;
+  initialMonth: number;
+  canCreate?: boolean;
+}) {
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth); // 1-12
   const [rows, setRows] = useState<TaskRow[]>([]);
@@ -47,6 +57,7 @@ export default function CalendarView({ initialYear, initialMonth }: { initialYea
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<TaskRow | null>(null);
+  const [search, setSearch] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,9 +93,12 @@ export default function CalendarView({ initialYear, initialMonth }: { initialYea
   if (loading) return <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center text-gray-400 shadow-card">Memuat...</div>;
   if (error) return <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
 
+  const term = search.trim().toLowerCase();
+  const visibleRows = term ? rows.filter((t) => t.title.toLowerCase().includes(term)) : rows;
+
   const tasksByDate = new Map<string, TaskRow[]>();
   const unscheduled: TaskRow[] = [];
-  for (const t of rows) {
+  for (const t of visibleRows) {
     if (!t.due_date) {
       unscheduled.push(t);
       continue;
@@ -105,8 +119,25 @@ export default function CalendarView({ initialYear, initialMonth }: { initialYea
   for (let d = 1; d <= daysInMonth; d++) cells.push({ date: new Date(year, month - 1, d) });
   while (cells.length % 7 !== 0) cells.push({ date: null });
 
+  // "Total N tasks due this month" seperti video — jumlah task yang due_date-nya jatuh di bulan
+  // yang sedang ditampilkan (bukan total keseluruhan task, dan bukan unscheduled).
+  const monthPrefix = `${year}-${String(month).padStart(2, '0')}`;
+  const dueThisMonthCount = [...tasksByDate.entries()].reduce(
+    (sum, [dateKey, tasks]) => (dateKey.startsWith(monthPrefix) ? sum + tasks.length : sum),
+    0
+  );
+
   return (
-    <div className="flex flex-col gap-4 lg:flex-row">
+    <div>
+      <TasksPageHeader
+        subtitle={`Total ${dueThisMonthCount} task${dueThisMonthCount === 1 ? '' : 's'} due this month`}
+        addTaskHref="/tasks?new=1"
+        canCreate={canCreate}
+      />
+      <div className="mb-3">
+        <TableSearchBox value={search} onChange={setSearch} placeholder="Search title..." />
+      </div>
+      <div className="flex flex-col gap-4 lg:flex-row">
       <div className="flex-1 rounded-2xl border border-gray-200 bg-white shadow-card">
         <div className="flex items-center justify-between border-b border-gray-200 p-4">
           <div className="flex items-center gap-2">
@@ -272,6 +303,7 @@ export default function CalendarView({ initialYear, initialMonth }: { initialYea
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

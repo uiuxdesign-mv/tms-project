@@ -7,7 +7,10 @@ export default async function TasksCalendarPage() {
   const session = await getSession();
   if (!session) redirect('/login');
 
-  const canView = await hasMenuPermission(session, 'tasking', 'view');
+  const [canView, canCreate] = await Promise.all([
+    hasMenuPermission(session, 'tasking', 'view'),
+    hasMenuPermission(session, 'tasking', 'create'),
+  ]);
   if (!canView) {
     return (
       <div className="mx-auto max-w-2xl rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
@@ -20,8 +23,7 @@ export default async function TasksCalendarPage() {
 
   return (
     <div className="mx-auto max-w-[1200px]">
-      <h1 className="mb-4 text-xl font-semibold text-gray-900">Calendar</h1>
-      <CalendarView initialYear={now.getFullYear()} initialMonth={now.getMonth() + 1} />
+      <CalendarView initialYear={now.getFullYear()} initialMonth={now.getMonth() + 1} canCreate={canCreate} />
     </div>
   );
 }

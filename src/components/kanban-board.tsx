@@ -1,20 +1,25 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { apiFetch } from '@/lib/csrf-client';
 import { TimeTrackingControls, type TimeTrackingState } from '@/components/time-tracking-controls';
 import { useToast } from '@/components/toast-provider';
 import { Badge } from '@/components/badge';
+import { TasksPageHeader } from '@/components/tasks-view-header';
+import { TableSearchBox } from '@/components/table-controls';
 
 type TaskRow = {
   id: string;
   title: string;
+  description?: string;
   client_id: string;
   project_id: string;
+  task_type_id?: string;
   priority_id: string;
   status_id: string;
   assigned_to: string;
   due_date: string;
+  estimated_hours?: string;
   actual_duration_seconds?: string;
   timeTracking?: TimeTrackingState;
 };
@@ -32,10 +37,24 @@ type OptionsData = {
   canAssignOthers: boolean;
   clients: Option[];
   projects: Option[];
+  taskTypes: Option[];
   priorities: Option[];
   statuses: StatusOption[];
   assignees: Option[];
 };
+
+// Format tanggal "Jul 14" seperti video (kartu Kanban lebih sempit dari List, jadi tidak pakai
+// tahun supaya tetap muat satu baris).
+function formatShortDate(value: string): string {
+  if (!value) return '';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return value;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
+function initialOf(name: string): string {
+  return name.trim().slice(0, 1).toUpperCase() || '?';
+}
 
 function isOverdue(row: TaskRow, statuses: StatusOption[] | undefined): boolean {
   if (!row.due_date) return false;
@@ -66,6 +85,7 @@ export default function KanbanBoard({
   const [error, setError] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [dragOverStatusId, setDragOverStatusId] = useState<string | null>(null);
+  const [search, setSearch] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -97,6 +117,12 @@ export default function KanbanBoard({
   function label(list: Option[] | undefined, value: string) {
     return list?.find((o) => o.value === value)?.label || '-';
   }
+
+  const visibleRows = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return rows;
+    return rows.filter((r) => r.title.toLowerCase().includes(term));
+  }, [rows, search]);
 
   function canManage(row: TaskRow) {
     if (!permissions.canEdit) return false;
@@ -141,81 +167,127 @@ export default function KanbanBoard({
   });
 
   return (
-    <div className="overflow-x-auto pb-4">
-      <div className="flex gap-4" style={{ minWidth: `${sortedStatuses.length * 280}px` }}>
-        {sortedStatuses.map((status) => {
-          const columnTasks = rows.filter((r) => r.status_id === status.value);
-          const isDropTarget = dragOverStatusId === status.value;
-          return (
-            <div
-              key={status.value}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setDragOverStatusId(status.value);
-              }}
-              onDragLeave={() => setDragOverStatusId((cur) => (cur === status.value ? null : cur))}
-              onDrop={(e) => {
-                e.preventDefault();
-                handleDrop(status);
-              }}
-              className={`flex w-[280px] shrink-0 flex-col rounded-xl border transition-colors ${
-                isDropTarget ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-gray-50'
-              }`}
-            >
-              <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
-                <div className="flex items-center gap-2">
-                  <span
-                    className="h-2.5 w-2.5 shrink-0 rounded-full"
-                    style={{ backgroundColor: status.colorCode || '#94a3b8' }}
-                  />
-                  <h3 className="text-sm font-semibold text-gray-900">{status.label}</h3>
+    <div>
+      <TasksPageHeader
+        subtitle="Drag a card to another column to change its status. Click a card to view/edit."
+        addTaskHref="/tasks?new=1"
+        canCreate={permissions.canEdit}
+      />
+
+      <div className="mb-3">
+        <TableSearchBox value={search} onChange={setSearch} placeholder="Search title..." />
+      </div>
+
+      <div className="overflow-x-auto pb-4">
+        <div className="flex gap-4" style={{ minWidth: `${sortedStatuses.length * 280}px` }}>
+          {sortedStatuses.map((status) => {
+            const columnTasks = visibleRows.filter((r) => r.status_id === status.value);
+            const isDropTarget = dragOverStatusId === status.value;
+            return (
+              <div
+                key={status.value}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOverStatusId(status.value);
+                }}
+                onDragLeave={() => setDragOverStatusId((cur) => (cur === status.value ? null : cur))}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  handleDrop(status);
+                }}
+                className={`flex w-[280px] shrink-0 flex-col rounded-xl border transition-colors ${
+                  isDropTarget ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-gray-50'
+                }`}
+              >
+                <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ backgroundColor: status.colorCode || '#94a3b8' }}
+                    />
+                    <h3 className="text-sm font-semibold text-gray-900">{status.label}</h3>
+                  </div>
+                  <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">{columnTasks.length}</span>
                 </div>
-                <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">{columnTasks.length}</span>
+                <div className="flex-1 space-y-2 p-2">
+                  {columnTasks.length === 0 && <p className="px-2 py-4 text-center text-xs text-gray-400">No tasks</p>}
+                  {columnTasks.map((row) => {
+                    const manageable = canManage(row);
+                    const overdue = isOverdue(row, opts.statuses);
+                    // Meta line "Project · Task Type · Client" seperti video — bagian yang kosong
+                    // (mis. Client opsional tidak diisi) dilewati, bukan ditampilkan sebagai "-".
+                    const metaParts = [
+                      row.project_id ? label(opts.projects, row.project_id) : null,
+                      row.task_type_id ? label(opts.taskTypes, row.task_type_id) : null,
+                      row.client_id ? label(opts.clients, row.client_id) : null,
+                    ].filter(Boolean);
+                    const assigneeName = label(opts.assignees, row.assigned_to);
+                    return (
+                      <div
+                        key={row.id}
+                        draggable={manageable}
+                        onDragStart={() => setDragTaskId(row.id)}
+                        onDragEnd={() => {
+                          setDragTaskId(null);
+                          setDragOverStatusId(null);
+                        }}
+                        className={`rounded-xl border border-gray-200 bg-white p-2.5 shadow-card transition-colors hover:border-indigo-300 ${
+                          manageable ? 'cursor-grab active:cursor-grabbing' : ''
+                        } ${dragTaskId === row.id ? 'opacity-50' : ''}`}
+                      >
+                        <p className="text-sm font-medium text-gray-900">{row.title}</p>
+                        {metaParts.length > 0 && (
+                          <p className="mt-1 truncate text-xs text-gray-500" title={metaParts.join(' · ')}>
+                            {metaParts.join(' · ')}
+                          </p>
+                        )}
+                        {row.description && (
+                          <p className="mt-1 line-clamp-2 text-xs text-gray-500">{row.description}</p>
+                        )}
+
+                        <div className="mt-2 flex items-center justify-between gap-2">
+                          {row.priority_id ? (
+                            <Badge label={label(opts.priorities, row.priority_id)} tone="neutral" />
+                          ) : (
+                            <span />
+                          )}
+                          <span
+                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-medium text-white"
+                            title={assigneeName}
+                          >
+                            {initialOf(assigneeName)}
+                          </span>
+                        </div>
+
+                        {(row.due_date || row.estimated_hours) && (
+                          <div className="mt-1.5 flex items-center justify-between text-xs">
+                            <span className={overdue ? 'font-medium text-red-600' : 'text-gray-400'}>
+                              {row.due_date ? `Due ${formatShortDate(row.due_date)}` : ''}
+                            </span>
+                            <span className="text-gray-400">
+                              {row.estimated_hours ? `Est ${Number(row.estimated_hours).toFixed(2)} h` : ''}
+                            </span>
+                          </div>
+                        )}
+
+                        <div className="mt-1.5 border-t border-gray-100 pt-1.5">
+                          <TimeTrackingControls
+                            taskId={row.id}
+                            timeTracking={row.timeTracking}
+                            status={status}
+                            canManage={manageable}
+                            onChanged={load}
+                            compact
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="flex-1 space-y-2 p-2">
-                {columnTasks.length === 0 && <p className="px-2 py-4 text-center text-xs text-gray-400">Tidak ada task.</p>}
-                {columnTasks.map((row) => {
-                  const manageable = canManage(row);
-                  const overdue = isOverdue(row, opts.statuses);
-                  return (
-                    <div
-                      key={row.id}
-                      draggable={manageable}
-                      onDragStart={() => setDragTaskId(row.id)}
-                      onDragEnd={() => {
-                        setDragTaskId(null);
-                        setDragOverStatusId(null);
-                      }}
-                      className={`rounded-xl border border-gray-200 bg-white p-2.5 shadow-card transition-colors hover:border-indigo-300 ${
-                        manageable ? 'cursor-grab active:cursor-grabbing' : ''
-                      } ${dragTaskId === row.id ? 'opacity-50' : ''}`}
-                    >
-                      <p className="text-sm font-medium text-gray-900">{row.title}</p>
-                      <div className="mt-1.5 flex flex-wrap items-center gap-1 text-xs text-gray-500">
-                        {row.project_id && <span>{label(opts.projects, row.project_id)}</span>}
-                        {row.priority_id && <Badge label={label(opts.priorities, row.priority_id)} tone="neutral" />}
-                      </div>
-                      <div className="mt-1.5 flex items-center justify-between text-xs">
-                        <span className="text-gray-500">{label(opts.assignees, row.assigned_to)}</span>
-                        {row.due_date && <span className={overdue ? 'font-medium text-red-600' : 'text-gray-400'}>{row.due_date}</span>}
-                      </div>
-                      <div className="mt-1.5 border-t border-gray-100 pt-1.5">
-                        <TimeTrackingControls
-                          taskId={row.id}
-                          timeTracking={row.timeTracking}
-                          status={status}
-                          canManage={manageable}
-                          onChanged={load}
-                          compact
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

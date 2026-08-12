@@ -22,7 +22,6 @@ export default async function TasksKanbanPage() {
 
   return (
     <div className="mx-auto max-w-[1400px]">
-      <h1 className="mb-4 text-xl font-semibold text-gray-900">Papan Kanban</h1>
       <KanbanBoard currentUserId={session.userId} isAdmin={session.roleKey === 'admin'} permissions={{ canEdit }} />
     </div>
   );

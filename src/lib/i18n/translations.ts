@@ -12,11 +12,11 @@ export type Lang = 'id' | 'en';
 export const translations = {
   // Nav — sidebar & topbar
   nav_dashboard: { id: 'Dashboard', en: 'Dashboard' },
-  nav_tasking: { id: 'Tasking', en: 'Tasking' },
+  nav_tasking: { id: 'Tasks', en: 'Tasks' },
   nav_tasks_list: { id: 'Daftar Tugas', en: 'Task List' },
   nav_tasks_kanban: { id: 'Kanban', en: 'Kanban' },
   nav_tasks_calendar: { id: 'Calendar', en: 'Calendar' },
-  nav_report: { id: 'Report', en: 'Report' },
+  nav_report: { id: 'Report', en: 'Reports' },
   nav_master_data: { id: 'Master Data', en: 'Master Data' },
   nav_admin: { id: 'Administrasi', en: 'Administration' },
   nav_master_users: { id: 'Master User', en: 'Users' },

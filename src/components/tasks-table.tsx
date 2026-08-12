@@ -1,14 +1,16 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/lib/csrf-client';
-import { TimeTrackingControls, type TimeTrackingState } from '@/components/time-tracking-controls';
+import type { TimeTrackingState } from '@/components/time-tracking-controls';
 import TaskComments from '@/components/task-comments';
 import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { useTableControls } from '@/lib/hooks/use-table-controls';
 import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/table-controls';
 import { Badge } from '@/components/badge';
+import { TasksPageHeader } from '@/components/tasks-view-header';
 
 type TaskRow = {
   id: string;
@@ -74,6 +76,8 @@ export default function TasksTable({
 }) {
   const toast = useToast();
   const confirmDialog = useConfirm();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [rows, setRows] = useState<TaskRow[]>([]);
   const [opts, setOpts] = useState<OptionsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -84,6 +88,13 @@ export default function TasksTable({
   const [form, setForm] = useState({ ...emptyForm });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+
+  // Filter dropdown (Fase 10 — video-fidelity pass): ikon filter di sebelah search box video.
+  const [filterOpen, setFilterOpen] = useState(false);
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterPriority, setFilterPriority] = useState('');
+  const [filterAssignee, setFilterAssignee] = useState('');
+  const activeFilterCount = [filterStatus, filterPriority, filterAssignee].filter(Boolean).length;
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -105,6 +116,17 @@ export default function TasksTable({
   useEffect(() => {
     load();
   }, [load]);
+
+  // Kanban & Calendar (Fase 10) tidak punya form Tambah Task sendiri — tombol "+ Add Task" di
+  // sana mengarah ke /tasks?new=1 supaya modal yang sama (satu-satunya implementasi) langsung
+  // terbuka di sini, lalu query string dibersihkan supaya tidak terbuka lagi kalau halaman di-refresh.
+  useEffect(() => {
+    if (searchParams.get('new') === '1' && opts) {
+      openCreateModal();
+      router.replace('/tasks');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, opts]);
 
   const selectedTaskType = opts?.taskTypes.find((t) => t.value === form.task_type_id);
   const showRelatedTask = !!selectedTaskType?.requiresRelatedTask;
@@ -200,11 +222,22 @@ export default function TasksTable({
     return list?.find((o) => o.value === value)?.label || '-';
   }
 
+  // Filter dropdown (ikon filter di sebelah search box, seperti video) — diterapkan SEBELUM masuk
+  // ke useTableControls, jadi search/sort/pagination tetap bekerja di atas hasil yang sudah difilter.
+  const filteredRows = useMemo(() => {
+    return rows.filter((r) => {
+      if (filterStatus && r.status_id !== filterStatus) return false;
+      if (filterPriority && r.priority_id !== filterPriority) return false;
+      if (filterAssignee && r.assigned_to !== filterAssignee) return false;
+      return true;
+    });
+  }, [rows, filterStatus, filterPriority, filterAssignee]);
+
   // Fase 10: search/sort/pagination — search di judul & deskripsi (satu-satunya kolom teks bebas
   // di Task; kolom lain seperti Client/Priority/Status berupa ID yang di-resolve ke label lewat
   // `opts`, jadi tidak ikut disertakan supaya pencarian tidak mencocokkan ID mentah yang tidak
   // berarti apa-apa bagi user).
-  const table = useTableControls(rows, { searchFields: ['title', 'description'], pageSize: 20 });
+  const table = useTableControls(filteredRows, { searchFields: ['title', 'description'], pageSize: 20 });
 
   // Fase 7: disamakan dengan aturan visibilitas server (src/lib/models/tasks.ts) — Admin dan
   // user yang canAssignOthers (setara "Manager" di aplikasi lama) bebas kelola semua task;
@@ -219,116 +252,193 @@ export default function TasksTable({
     return isAdmin || !!opts?.canAssignOthers || row.assigned_to === currentUserId;
   }
 
+  // Format tanggal "Jul 14, 2026" seperti video (List/Kanban) — bukan ISO mentah.
+  function formatDate(value: string): string {
+    if (!value) return '-';
+    const d = new Date(value);
+    if (Number.isNaN(d.getTime())) return value;
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  }
+
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 p-4">
-        <h1 className="text-lg font-semibold text-gray-900">Tasks</h1>
-        <TableSearchBox value={table.search} onChange={table.setSearch} placeholder="Cari judul/deskripsi task..." />
-        {permissions.canCreate && (
-          <button
-            onClick={openCreateModal}
-            className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
-          >
-            + Tambah Task
-          </button>
-        )}
-      </div>
+    <div>
+      <TasksPageHeader
+        subtitle={`Total ${table.totalCount} task${table.totalCount === 1 ? '' : 's'}`}
+        onAddTask={permissions.canCreate ? openCreateModal : undefined}
+        canCreate={permissions.canCreate}
+      />
 
-      {error && <div className="border-b border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
+        <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 p-4">
+          <TableSearchBox value={table.search} onChange={table.setSearch} placeholder="Search title..." />
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setFilterOpen((v) => !v)}
+              className={`relative flex h-[34px] w-[38px] items-center justify-center rounded-lg border transition-colors ${
+                activeFilterCount > 0 ? 'border-indigo-300 bg-indigo-50 text-indigo-600' : 'border-gray-300 text-gray-500 hover:bg-gray-50'
+              }`}
+              title="Filter"
+              aria-label="Filter"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h18M6 9.75h12M10.5 15h3" />
+              </svg>
+              {activeFilterCount > 0 && (
+                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-medium text-white">
+                  {activeFilterCount}
+                </span>
+              )}
+            </button>
+            {filterOpen && (
+              <div className="absolute left-0 z-20 mt-2 w-64 space-y-3 rounded-lg border border-gray-200 bg-white p-3 shadow-popover">
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">Status</label>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus-ring"
+                  >
+                    <option value="">Semua status</option>
+                    {opts?.statuses.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">Priority</label>
+                  <select
+                    value={filterPriority}
+                    onChange={(e) => setFilterPriority(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus-ring"
+                  >
+                    <option value="">Semua priority</option>
+                    {opts?.priorities.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-medium text-gray-500">Assignee</label>
+                  <select
+                    value={filterAssignee}
+                    onChange={(e) => setFilterAssignee(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-sm text-gray-900 focus-ring"
+                  >
+                    <option value="">Semua assignee</option>
+                    {opts?.assignees.map((a) => (
+                      <option key={a.value} value={a.value}>
+                        {a.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                {activeFilterCount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFilterStatus('');
+                      setFilterPriority('');
+                      setFilterAssignee('');
+                    }}
+                    className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                  >
+                    Reset filter
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
-            <tr>
-              <SortableHeader label="Judul" active={table.sortKey === 'title'} dir={table.sortDir} onClick={() => table.toggleSort('title')} />
-              <th className="px-4 py-2 font-medium">Client</th>
-              <th className="px-4 py-2 font-medium">Project</th>
-              <th className="px-4 py-2 font-medium">Priority</th>
-              <th className="px-4 py-2 font-medium">Status</th>
-              <th className="px-4 py-2 font-medium">Assignee</th>
-              <SortableHeader
-                label="Due Date"
-                active={table.sortKey === 'due_date'}
-                dir={table.sortDir}
-                onClick={() => table.toggleSort('due_date')}
-              />
-              <th className="px-4 py-2 font-medium">Time Tracking</th>
-              <th className="px-4 py-2 font-medium">Aksi</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {loading && (
+        {error && <div className="border-b border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-gray-400">
-                  Memuat...
-                </td>
+                <SortableHeader label="Title" active={table.sortKey === 'title'} dir={table.sortDir} onClick={() => table.toggleSort('title')} />
+                <th className="px-4 py-2 font-medium">Project</th>
+                <th className="px-4 py-2 font-medium">Priority</th>
+                <th className="px-4 py-2 font-medium">Status</th>
+                <th className="px-4 py-2 font-medium">Assignee</th>
+                <SortableHeader
+                  label="Due Date"
+                  active={table.sortKey === 'due_date'}
+                  dir={table.sortDir}
+                  onClick={() => table.toggleSort('due_date')}
+                />
+                <th className="px-4 py-2 font-medium">Actions</th>
               </tr>
-            )}
-            {!loading && rows.length === 0 && (
-              <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-gray-400">
-                  Belum ada task.
-                </td>
-              </tr>
-            )}
-            {!loading && rows.length > 0 && table.paged.length === 0 && (
-              <tr>
-                <td colSpan={9} className="px-4 py-6 text-center text-gray-400">
-                  Tidak ada task yang cocok dengan pencarian.
-                </td>
-              </tr>
-            )}
-            {!loading &&
-              table.paged.map((row) => (
-                <tr key={row.id}>
-                  <td className="px-4 py-2 font-medium text-gray-900">{row.title}</td>
-                  <td className="px-4 py-2 text-gray-500">{row.client_id ? label(opts?.clients, row.client_id) : '-'}</td>
-                  <td className="px-4 py-2 text-gray-500">{row.project_id ? label(opts?.projects, row.project_id) : '-'}</td>
-                  <td className="px-4 py-2">
-                    <Badge label={label(opts?.priorities, row.priority_id)} tone="neutral" />
-                  </td>
-                  <td className="px-4 py-2">
-                    <Badge
-                      label={label(opts?.statuses, row.status_id)}
-                      color={opts?.statuses.find((s) => s.value === row.status_id)?.colorCode}
-                    />
-                  </td>
-                  <td className="px-4 py-2 text-gray-500">{label(opts?.assignees, row.assigned_to)}</td>
-                  <td className="px-4 py-2 text-gray-500">{row.due_date || '-'}</td>
-                  <td className="px-4 py-2">
-                    <TimeTrackingControls
-                      taskId={row.id}
-                      timeTracking={row.timeTracking}
-                      status={opts?.statuses.find((s) => s.value === row.status_id)}
-                      canManage={canManage(row)}
-                      onChanged={load}
-                    />
-                  </td>
-                  <td className="px-4 py-2">
-                    {canManage(row) && (
-                      <button onClick={() => openEditModal(row)} className="mr-3 text-gray-600 hover:text-gray-900">
-                        Edit
-                      </button>
-                    )}
-                    {canDelete(row) && (
-                      <button onClick={() => handleDelete(row)} className="text-red-600 hover:text-red-800">
-                        Hapus
-                      </button>
-                    )}
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
+                    Memuat...
                   </td>
                 </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+              )}
+              {!loading && rows.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
+                    Belum ada task.
+                  </td>
+                </tr>
+              )}
+              {!loading && rows.length > 0 && table.paged.length === 0 && (
+                <tr>
+                  <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
+                    Tidak ada task yang cocok dengan pencarian/filter.
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                table.paged.map((row) => (
+                  <tr key={row.id}>
+                    <td className="px-4 py-2 font-medium text-gray-900">{row.title}</td>
+                    <td className="px-4 py-2 text-gray-500">{row.project_id ? label(opts?.projects, row.project_id) : '-'}</td>
+                    <td className="px-4 py-2">
+                      <Badge label={label(opts?.priorities, row.priority_id)} tone="neutral" />
+                    </td>
+                    <td className="px-4 py-2">
+                      <Badge
+                        label={label(opts?.statuses, row.status_id)}
+                        color={opts?.statuses.find((s) => s.value === row.status_id)?.colorCode}
+                      />
+                    </td>
+                    <td className="px-4 py-2 text-gray-500">{label(opts?.assignees, row.assigned_to)}</td>
+                    <td className="px-4 py-2 text-gray-500">{formatDate(row.due_date)}</td>
+                    <td className="px-4 py-2">
+                      {canManage(row) && (
+                        <button onClick={() => openEditModal(row)} className="mr-3 text-indigo-600 hover:text-indigo-800">
+                          Detail
+                        </button>
+                      )}
+                      {canDelete(row) && (
+                        <button onClick={() => handleDelete(row)} className="text-red-600 hover:text-red-800">
+                          Delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
 
-      <PaginationBar
-        page={table.page}
-        totalPages={table.totalPages}
-        totalCount={table.totalCount}
-        pageSize={table.pageSize}
-        onPageChange={table.setPage}
-      />
+        <PaginationBar
+          page={table.page}
+          totalPages={table.totalPages}
+          totalCount={table.totalCount}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+        />
+      </div>
 
       {modalOpen && opts && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
