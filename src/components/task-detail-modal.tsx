@@ -278,6 +278,15 @@ export default function TaskDetailModal({
       }
       await load();
       onChanged();
+      const actionLabel: Record<typeof action, string> = {
+        start: 'Task dimulai.',
+        pause: 'Task di-pause.',
+        resume: 'Task dilanjutkan.',
+        stop: 'Task dihentikan.',
+        back: 'Task dikembalikan ke tahap sebelumnya.',
+        done: 'Task ditandai selesai.',
+      };
+      toast.success(actionLabel[action]);
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
     } finally {
@@ -322,6 +331,7 @@ export default function TaskDetailModal({
       }
       await load();
       onChanged();
+      toast.success('Task berhasil dibatalkan.');
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
     } finally {
@@ -347,6 +357,7 @@ export default function TaskDetailModal({
         return;
       }
       onChanged();
+      toast.success('Perubahan task berhasil disimpan.');
       onClose();
     } catch {
       toast.error('Terjadi kesalahan jaringan.');

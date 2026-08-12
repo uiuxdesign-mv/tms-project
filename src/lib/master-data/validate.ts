@@ -41,6 +41,19 @@ export async function validateEntityPayload(
       continue;
     }
 
+    // Multi-select (mis. Project Terkait pada Client) — disimpan sebagai string ID dipisah koma
+    // di satu sel sheet. Client mengirim array of string; terima juga string csv siap-pakai
+    // (dipakai import CSV) supaya tidak perlu jalur terpisah.
+    if (field.type === 'multiselect') {
+      const arr = Array.isArray(raw)
+        ? raw.map((v) => String(v).trim()).filter(Boolean)
+        : typeof raw === 'string'
+          ? raw.split(',').map((v) => v.trim()).filter(Boolean)
+          : [];
+      data[field.key] = arr.join(',');
+      continue;
+    }
+
     const strValue = raw === undefined || raw === null ? '' : String(raw).trim();
 
     if (field.required && !strValue) {

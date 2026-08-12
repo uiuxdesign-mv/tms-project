@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/csrf-client';
+import { useToast } from '@/components/toast-provider';
 
 /**
  * Halaman wajib ganti password (dipaksa proxy.ts kalau sesi mustChangePassword=true) — dipakai
@@ -13,6 +14,7 @@ import { apiFetch } from '@/lib/csrf-client';
  */
 export default function ChangePasswordPage() {
   const router = useRouter();
+  const toast = useToast();
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -27,6 +29,7 @@ export default function ChangePasswordPage() {
 
     if (newPassword !== confirmPassword) {
       setFieldErrors({ confirmPassword: 'Konfirmasi password tidak cocok.' });
+      toast.error('Konfirmasi password tidak cocok.');
       return;
     }
 
@@ -40,13 +43,18 @@ export default function ChangePasswordPage() {
       const data = await res.json();
       if (!res.ok) {
         if (data.fieldErrors) setFieldErrors(data.fieldErrors);
-        else setError(data.error || 'Gagal mengganti password.');
+        else {
+          setError(data.error || 'Gagal mengganti password.');
+          toast.error(data.error || 'Gagal mengganti password.');
+        }
         return;
       }
+      toast.success('Password berhasil diganti.');
       router.push('/dashboard');
       router.refresh();
     } catch {
       setError('Terjadi kesalahan jaringan.');
+      toast.error('Terjadi kesalahan jaringan.');
     } finally {
       setLoading(false);
     }

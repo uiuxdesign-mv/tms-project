@@ -76,9 +76,20 @@ export async function POST(req: NextRequest) {
   if (estimatedHoursRaw !== undefined && estimatedHoursRaw !== null && estimatedHoursRaw !== '' && Number.isNaN(Number(estimatedHoursRaw))) {
     errors.estimated_hours = 'Estimasi jam harus berupa angka.';
   }
+  // Bugfix (permintaan user): Client & Project sekarang wajib diisi saat membuat Task baru (form
+  // Add Task) — sebelumnya keduanya opsional. Divalidasi juga di server, bukan cuma di form,
+  // supaya tidak bisa dilewati lewat request API langsung.
+  if (!clientId) errors.client_id = 'Client wajib dipilih.';
+  if (!projectId) errors.project_id = 'Project wajib dipilih.';
   if (!taskTypeId) errors.task_type_id = 'Task Type wajib dipilih.';
   if (!priorityId) errors.priority_id = 'Priority wajib dipilih.';
   if (!statusId) errors.status_id = 'Status wajib dipilih.';
+
+  const client = clientId ? await SheetTable.findById('clients', clientId) : undefined;
+  if (clientId && !client) errors.client_id = 'Client tidak ditemukan.';
+
+  const project = projectId ? await SheetTable.findById('projects', projectId) : undefined;
+  if (projectId && !project) errors.project_id = 'Project tidak ditemukan.';
 
   const taskType = taskTypeId ? await SheetTable.findById('task_types', taskTypeId) : undefined;
   if (taskTypeId && !taskType) errors.task_type_id = 'Task Type tidak ditemukan.';

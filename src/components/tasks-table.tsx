@@ -33,13 +33,14 @@ type TaskRow = {
 };
 
 type Option = { value: string; label: string };
+type ClientOption = Option & { projectIds: string[] };
 type ProjectOption = Option & { clientId: string };
 type TaskTypeOption = Option & { requiresRelatedTask: boolean };
 type StatusOption = Option & { isFinal: boolean; isDefault: boolean; isReview: boolean; colorCode?: string | null };
 
 type OptionsData = {
   canAssignOthers: boolean;
-  clients: Option[];
+  clients: ClientOption[];
   projects: ProjectOption[];
   taskTypes: TaskTypeOption[];
   priorities: Option[];
@@ -90,11 +91,43 @@ export default function TasksTable({
   const [saving, setSaving] = useState(false);
 
   // Filter dropdown (Fase 10 — video-fidelity pass): ikon filter di sebelah search box video.
+  // Bugfix (permintaan user): filter sekarang tidak langsung diterapkan tiap dropdown diganti —
+  // pilihan ditampung dulu di state "draft" (draftStatus/dst), baru benar-benar diterapkan ke
+  // tabel (filterStatus/dst, dipakai `filteredRows`) saat tombol "Apply" ditekan. "Reset"
+  // mengosongkan draft SEKALIGUS filter yang sedang aktif.
   const [filterOpen, setFilterOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
   const [filterAssignee, setFilterAssignee] = useState('');
+  const [draftStatus, setDraftStatus] = useState('');
+  const [draftPriority, setDraftPriority] = useState('');
+  const [draftAssignee, setDraftAssignee] = useState('');
   const activeFilterCount = [filterStatus, filterPriority, filterAssignee].filter(Boolean).length;
+
+  function openFilterDropdown() {
+    // Sinkronkan draft dengan filter yang SEDANG aktif tiap kali dropdown dibuka — supaya kalau
+    // sebelumnya ditutup tanpa menekan Apply, draft tidak menyisakan pilihan yang belum diterapkan.
+    setDraftStatus(filterStatus);
+    setDraftPriority(filterPriority);
+    setDraftAssignee(filterAssignee);
+    setFilterOpen((v) => !v);
+  }
+
+  function applyFilters() {
+    setFilterStatus(draftStatus);
+    setFilterPriority(draftPriority);
+    setFilterAssignee(draftAssignee);
+    setFilterOpen(false);
+  }
+
+  function resetFilters() {
+    setDraftStatus('');
+    setDraftPriority('');
+    setDraftAssignee('');
+    setFilterStatus('');
+    setFilterPriority('');
+    setFilterAssignee('');
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -130,6 +163,19 @@ export default function TasksTable({
 
   const selectedTaskType = opts?.taskTypes.find((t) => t.value === form.task_type_id);
   const showRelatedTask = !!selectedTaskType?.requiresRelatedTask;
+
+  // Bugfix (permintaan user): Client sekarang wajib dipilih LEBIH DULU di form Add Task, dan
+  // daftar Project otomatis terfilter mengikuti Project yang ditautkan ke Client tersebut (diatur
+  // lewat field multi-select "Project Terkait" di Master Client). Kalau Client yang dipilih belum
+  // ditautkan ke Project manapun (mis. data lama sebelum fitur ini ada), daftar Project TIDAK
+  // dikosongkan total — semua Project tetap ditampilkan (fail-open) supaya user tidak terkunci
+  // total dari membuat Task sebelum admin sempat mengisi tautan Client-Project di Master Data.
+  const selectedClientForTask = opts?.clients.find((c) => c.value === form.client_id);
+  const projectOptionsForTask = !form.client_id
+    ? []
+    : !selectedClientForTask || selectedClientForTask.projectIds.length === 0
+      ? opts?.projects || []
+      : (opts?.projects || []).filter((p) => selectedClientForTask.projectIds.includes(p.value));
 
   function openCreateModal() {
     setEditingId(null);
@@ -169,13 +215,14 @@ export default function TasksTable({
       const json = await res.json();
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
-        else setError(json.error || 'Gagal menyimpan data.');
+        else toast.error(json.error || 'Gagal menyimpan data.');
         return;
       }
       setModalOpen(false);
       await load();
+      toast.success(editingId ? 'Perubahan task berhasil disimpan.' : 'Task baru berhasil ditambahkan.');
     } catch {
-      setError('Terjadi kesalahan jaringan.');
+      toast.error('Terjadi kesalahan jaringan.');
     } finally {
       setSaving(false);
     }
@@ -192,6 +239,7 @@ export default function TasksTable({
         return;
       }
       await load();
+      toast.success(`Task "${row.title}" berhasil dihapus.`);
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
     }
@@ -253,7 +301,7 @@ export default function TasksTable({
           <div className="relative">
             <button
               type="button"
-              onClick={() => setFilterOpen((v) => !v)}
+              onClick={openFilterDropdown}
               className={`relative flex h-[34px] w-[38px] items-center justify-center rounded-lg border transition-colors ${
                 activeFilterCount > 0 ? 'border-indigo-300 bg-indigo-50 text-indigo-600' : 'border-gray-300 text-gray-500 hover:bg-gray-50'
               }`}
@@ -274,8 +322,8 @@ export default function TasksTable({
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-500">Status</label>
                   <select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
+                    value={draftStatus}
+                    onChange={(e) => setDraftStatus(e.target.value)}
                     className="select-field-sm w-full appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-2.5 pr-7 text-sm text-gray-900 focus-ring"
                   >
                     <option value="">Semua status</option>
@@ -289,8 +337,8 @@ export default function TasksTable({
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-500">Priority</label>
                   <select
-                    value={filterPriority}
-                    onChange={(e) => setFilterPriority(e.target.value)}
+                    value={draftPriority}
+                    onChange={(e) => setDraftPriority(e.target.value)}
                     className="select-field-sm w-full appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-2.5 pr-7 text-sm text-gray-900 focus-ring"
                   >
                     <option value="">Semua priority</option>
@@ -304,8 +352,8 @@ export default function TasksTable({
                 <div>
                   <label className="mb-1 block text-xs font-medium text-gray-500">Assignee</label>
                   <select
-                    value={filterAssignee}
-                    onChange={(e) => setFilterAssignee(e.target.value)}
+                    value={draftAssignee}
+                    onChange={(e) => setDraftAssignee(e.target.value)}
                     className="select-field-sm w-full appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-2.5 pr-7 text-sm text-gray-900 focus-ring"
                   >
                     <option value="">Semua assignee</option>
@@ -316,19 +364,22 @@ export default function TasksTable({
                     ))}
                   </select>
                 </div>
-                {activeFilterCount > 0 && (
+                <div className="flex items-center justify-between gap-2 border-t border-gray-100 pt-2.5">
                   <button
                     type="button"
-                    onClick={() => {
-                      setFilterStatus('');
-                      setFilterPriority('');
-                      setFilterAssignee('');
-                    }}
-                    className="text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                    onClick={resetFilters}
+                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
                   >
-                    Reset filter
+                    Reset
                   </button>
-                )}
+                  <button
+                    type="button"
+                    onClick={applyFilters}
+                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
+                  >
+                    Apply
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -466,37 +517,44 @@ export default function TasksTable({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Project</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Client *</label>
                   <select
-                    value={form.project_id}
-                    onChange={(e) => setForm((f) => ({ ...f, project_id: e.target.value }))}
-                    className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
-                  >
-                    <option value="">-- Tidak ada --</option>
-                    {/* Fase 12: Project & Client independen (sesuai video) — Project master data
-                        tidak lagi punya field Client, jadi daftar Project TIDAK difilter oleh
-                        Client yang dipilih di sini. */}
-                    {opts.projects.map((p) => (
-                      <option key={p.value} value={p.value}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Client (opsional)</label>
-                  <select
+                    required
                     value={form.client_id}
-                    onChange={(e) => setForm((f) => ({ ...f, client_id: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, client_id: e.target.value, project_id: '' }))
+                    }
                     className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                   >
-                    <option value="">-- Tidak ada --</option>
+                    <option value="">-- Pilih Client --</option>
                     {opts.clients.map((c) => (
                       <option key={c.value} value={c.value}>
                         {c.label}
                       </option>
                     ))}
                   </select>
+                  {fieldErrors.client_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.client_id}</p>}
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Project *</label>
+                  <select
+                    required
+                    disabled={!form.client_id}
+                    value={form.project_id}
+                    onChange={(e) => setForm((f) => ({ ...f, project_id: e.target.value }))}
+                    className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
+                  >
+                    <option value="">{form.client_id ? '-- Pilih Project --' : '-- Pilih Client dahulu --'}</option>
+                    {/* Bugfix (permintaan user): Project sekarang terfilter berdasarkan Client yang
+                        dipilih di atas (lewat tautan Project Terkait di Master Client), bukan
+                        menampilkan semua Project independen seperti sebelumnya. */}
+                    {projectOptionsForTask.map((p) => (
+                      <option key={p.value} value={p.value}>
+                        {p.label}
+                      </option>
+                    ))}
+                  </select>
+                  {fieldErrors.project_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.project_id}</p>}
                 </div>
               </div>
 

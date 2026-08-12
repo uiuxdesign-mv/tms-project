@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/csrf-client';
 import AvatarEditor from '@/components/avatar-editor';
+import { useToast } from '@/components/toast-provider';
 
 type ProfileData = {
   id: string;
@@ -28,6 +29,7 @@ type ProfileData = {
  */
 export default function ProfileView() {
   const router = useRouter();
+  const toast = useToast();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -108,10 +110,14 @@ export default function ProfileView() {
       const json = await res.json();
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
-        else setError(json.error || 'Gagal menyimpan profil.');
+        else {
+          setError(json.error || 'Gagal menyimpan profil.');
+          toast.error(json.error || 'Gagal menyimpan profil.');
+        }
         return;
       }
       setSavedMsg('Profil berhasil disimpan.');
+      toast.success('Profil berhasil disimpan.');
       setPhotoFile(null);
       setRemovePhoto(false);
       // Bugfix (Fase 18): sertakan `?v=` supaya langsung menampilkan foto BARU, bukan foto lama
@@ -120,6 +126,7 @@ export default function ProfileView() {
       router.refresh();
     } catch {
       setError('Terjadi kesalahan jaringan.');
+      toast.error('Terjadi kesalahan jaringan.');
     } finally {
       setSaving(false);
     }
@@ -133,6 +140,7 @@ export default function ProfileView() {
 
     if (newPassword !== confirmPassword) {
       setPwErrors({ confirmPassword: 'Konfirmasi password tidak cocok.' });
+      toast.error('Konfirmasi password tidak cocok.');
       return;
     }
 
@@ -146,15 +154,20 @@ export default function ProfileView() {
       const json = await res.json();
       if (!res.ok) {
         if (json.fieldErrors) setPwErrors(json.fieldErrors);
-        else setPwError(json.error || 'Gagal mengganti password.');
+        else {
+          setPwError(json.error || 'Gagal mengganti password.');
+          toast.error(json.error || 'Gagal mengganti password.');
+        }
         return;
       }
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
       setPwSavedMsg('Password berhasil diganti.');
+      toast.success('Password berhasil diganti.');
     } catch {
       setPwError('Terjadi kesalahan jaringan.');
+      toast.error('Terjadi kesalahan jaringan.');
     } finally {
       setPwSaving(false);
     }

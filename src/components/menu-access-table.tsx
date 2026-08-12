@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { apiFetch } from '@/lib/csrf-client';
+import { useToast } from '@/components/toast-provider';
 
 type RoleOption = { value: string; label: string; roleKey: string };
 type MenuDef = { key: string; label: string; href: string };
@@ -23,6 +24,7 @@ const ACTIONS: { key: keyof Omit<MatrixRow, 'menu_key'>; label: string }[] = [
 ];
 
 export default function MenuAccessTable() {
+  const toast = useToast();
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [menus, setMenus] = useState<MenuDef[]>([]);
@@ -107,8 +109,11 @@ export default function MenuAccessTable() {
       if (!res.ok) throw new Error(json.error || 'Gagal menyimpan hak akses.');
       setMatrix(json.data.matrix);
       setSavedMsg('Hak akses berhasil disimpan.');
+      toast.success('Hak akses berhasil disimpan.');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal menyimpan hak akses.');
+      const msg = e instanceof Error ? e.message : 'Gagal menyimpan hak akses.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSaving(false);
     }

@@ -1,13 +1,13 @@
 import type { SheetKey } from '@/lib/google/spreadsheet-ids';
 
-export type FieldType = 'text' | 'email' | 'textarea' | 'select' | 'boolean' | 'number' | 'date' | 'color';
+export type FieldType = 'text' | 'email' | 'textarea' | 'select' | 'multiselect' | 'boolean' | 'number' | 'date' | 'color';
 
 export type FieldConfig = {
   key: string;
   label: string;
   type: FieldType;
   required?: boolean;
-  /** Untuk type 'select' yang opsinya diambil dari sheet lain (relasi). */
+  /** Untuk type 'select'/'multiselect' yang opsinya diambil dari sheet lain (relasi). */
   optionsFrom?: SheetKey;
   /** Label yang ditampilkan di dropdown, diambil dari kolom ini pada sheet relasi. */
   optionsLabelKey?: string;
@@ -111,6 +111,26 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
       // di-generate otomatis dari role_name di server (lihat src/app/api/master/roles/route.ts).
     ],
   },
+  employment_types: {
+    key: 'employment_types',
+    label: 'Employment Type',
+    labelPlural: 'Employment Types',
+    titleField: 'type_name',
+    pageTitle: 'Employment Type',
+    subtitleTemplate: '{count} total records',
+    fields: [
+      { key: 'type_name', label: 'Nama Tipe Kepegawaian', type: 'text', required: true, unique: true, placeholder: 'Contoh: Full-time' },
+      {
+        key: 'can_assign_to_others',
+        label: 'May Assign Tasks to Other Users',
+        type: 'boolean',
+        displayAs: 'checkbox',
+        helperText:
+          'When enabled, this employment type is set as eligible to assign tasks to other users. Users with this employment type still need to be individually authorized via the "Is this user allowed to assign tasks to other users?" question on Master User.',
+      },
+      STATUS_FIELD,
+    ],
+  },
   clients: {
     key: 'clients',
     label: 'Client',
@@ -120,6 +140,16 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
     subtitleTemplate: '{count} total records',
     fields: [
       { key: 'client_name', label: 'Nama Klien', type: 'text', required: true, unique: true, placeholder: 'Contoh: PT Maju Bersama' },
+      {
+        key: 'project_ids',
+        label: 'Project Terkait',
+        type: 'multiselect',
+        optionsFrom: 'projects',
+        optionsLabelKey: 'project_name',
+        showInTable: false,
+        helperText:
+          'Pilih project yang terkait dengan client ini. Saat menambah Task, pilihan Project akan otomatis terfilter berdasarkan Client yang dipilih.',
+      },
       STATUS_FIELD,
     ],
   },
@@ -173,26 +203,6 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
         displayAs: 'checkbox',
         helperText:
           'When checked, every task created or edited with this task type must select an existing task as its Related Task reference (e.g. a "Revision" type that points back to the task being revised).',
-      },
-      STATUS_FIELD,
-    ],
-  },
-  employment_types: {
-    key: 'employment_types',
-    label: 'Employment Type',
-    labelPlural: 'Employment Types',
-    titleField: 'type_name',
-    pageTitle: 'Employment Type',
-    subtitleTemplate: '{count} total records',
-    fields: [
-      { key: 'type_name', label: 'Nama Tipe Kepegawaian', type: 'text', required: true, unique: true, placeholder: 'Contoh: Full-time' },
-      {
-        key: 'can_assign_to_others',
-        label: 'May Assign Tasks to Other Users',
-        type: 'boolean',
-        displayAs: 'checkbox',
-        helperText:
-          'When enabled, this employment type is set as eligible to assign tasks to other users. Users with this employment type still need to be individually authorized via the "Is this user allowed to assign tasks to other users?" question on Master User.',
       },
       STATUS_FIELD,
     ],

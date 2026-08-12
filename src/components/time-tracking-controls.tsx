@@ -106,6 +106,15 @@ export function TimeTrackingControls({
         return;
       }
       onChanged();
+      const actionLabel: Record<typeof action, string> = {
+        start: 'Task dimulai.',
+        pause: 'Task di-pause.',
+        resume: 'Task dilanjutkan.',
+        stop: 'Task dihentikan.',
+        back: 'Task dikembalikan ke tahap sebelumnya.',
+        done: 'Task ditandai selesai.',
+      };
+      toast.success(actionLabel[action]);
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
     } finally {

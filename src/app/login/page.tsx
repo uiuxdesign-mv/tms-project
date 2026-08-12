@@ -30,12 +30,14 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) {
         setError(data.error || 'Login gagal.');
+        toast.error(data.error || 'Login gagal.');
         return;
       }
       router.push('/dashboard');
       router.refresh();
     } catch {
       setError('Kesalahan jaringan - silakan coba lagi.');
+      toast.error('Kesalahan jaringan - silakan coba lagi.');
     } finally {
       setLoading(false);
     }

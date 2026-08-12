@@ -28,7 +28,16 @@ export async function GET() {
   return NextResponse.json({
     data: {
       canAssignOthers: allowAssignOthers,
-      clients: clients.filter((c) => c.status === 'Active').map((c) => ({ value: c.id, label: c.client_name })),
+      // Bugfix (permintaan user): Client sekarang bisa menautkan beberapa Project terkait
+      // (multi-select `project_ids` di Master Client) — dikirim di sini sebagai `projectIds`
+      // supaya form Add Task bisa memfilter pilihan Project berdasarkan Client yang dipilih.
+      clients: clients
+        .filter((c) => c.status === 'Active')
+        .map((c) => ({
+          value: c.id,
+          label: c.client_name,
+          projectIds: (c.project_ids || '').split(',').map((s) => s.trim()).filter(Boolean),
+        })),
       // Bugfix (Fase 13): sebelumnya `projects` TIDAK difilter status seperti clients/taskTypes/
       // priorities/statuses di bawah — project yang sudah di-nonaktifkan lewat Master Data masih
       // muncul & bisa dipilih di form Add/Edit Task. Disamakan dengan pola field lain di sini.

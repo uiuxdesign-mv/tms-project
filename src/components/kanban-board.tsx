@@ -203,6 +203,7 @@ export default function KanbanBoard({
         return;
       }
       await load();
+      toast.success(`Task dipindahkan ke "${targetStatus.label}".`);
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
     }

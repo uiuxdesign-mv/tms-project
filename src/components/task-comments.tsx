@@ -104,8 +104,11 @@ export default function TaskComments({
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       await load();
+      toast.success('Komentar berhasil dikirim.');
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal mengirim komentar.');
+      const msg = e instanceof Error ? e.message : 'Gagal mengirim komentar.';
+      setError(msg);
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
@@ -127,6 +130,7 @@ export default function TaskComments({
       if (!res.ok) throw new Error(json.error || 'Gagal menyimpan perubahan.');
       setEditingId(null);
       await load();
+      toast.success('Komentar berhasil diperbarui.');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Gagal menyimpan perubahan.');
     }
@@ -140,6 +144,7 @@ export default function TaskComments({
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Gagal menghapus komentar.');
       await load();
+      toast.success('Komentar berhasil dihapus.');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Gagal menghapus komentar.');
     }

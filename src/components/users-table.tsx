@@ -205,13 +205,14 @@ export default function UsersTable({
       const json = await res.json();
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
-        else setError(json.error || 'Gagal menyimpan data.');
+        else toast.error(json.error || 'Gagal menyimpan data.');
         return;
       }
       setModalOpen(false);
       await load();
+      toast.success(editingId ? 'Perubahan user berhasil disimpan.' : 'User baru berhasil ditambahkan.');
     } catch {
-      setError('Terjadi kesalahan jaringan.');
+      toast.error('Terjadi kesalahan jaringan.');
     } finally {
       setSaving(false);
     }
@@ -228,6 +229,7 @@ export default function UsersTable({
         return;
       }
       await load();
+      toast.success(`User "${row.name}" berhasil dihapus.`);
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
     }
@@ -359,6 +361,10 @@ export default function UsersTable({
     setImportResults(results);
     setImporting(false);
     await load();
+    const okCount = results.filter((r) => r.ok).length;
+    const failCount = results.length - okCount;
+    if (failCount === 0) toast.success(`Import selesai — ${okCount} user berhasil ditambahkan.`);
+    else toast.error(`Import selesai — ${okCount} berhasil, ${failCount} gagal. Lihat rincian di ringkasan.`);
   }
 
   return (

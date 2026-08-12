@@ -8,7 +8,7 @@ export async function resolveFieldOptions(config: EntityConfig): Promise<Record<
   const result: Record<string, SelectOption[]> = {};
 
   for (const field of config.fields) {
-    if (field.type !== 'select') continue;
+    if (field.type !== 'select' && field.type !== 'multiselect') continue;
 
     if (field.optionsStatic) {
       result[field.key] = field.optionsStatic.map((v) => ({ value: v, label: v }));

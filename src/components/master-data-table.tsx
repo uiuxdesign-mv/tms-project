@@ -139,13 +139,14 @@ export default function MasterDataTable({
       const json = await res.json();
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
-        else setError(json.error || 'Gagal menyimpan data.');
+        else toast.error(json.error || 'Gagal menyimpan data.');
         return;
       }
       setModalOpen(false);
       await load();
+      toast.success(editingRow ? `${config.label} berhasil diperbarui.` : `${config.label} baru berhasil ditambahkan.`);
     } catch {
-      setError('Terjadi kesalahan jaringan.');
+      toast.error('Terjadi kesalahan jaringan.');
     } finally {
       setSaving(false);
     }
@@ -172,6 +173,7 @@ export default function MasterDataTable({
         return;
       }
       await load();
+      toast.success(`${config.label} "${title}" berhasil dihapus.`);
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
     }
@@ -193,6 +195,7 @@ export default function MasterDataTable({
       }
       setDeleteBlocked(null);
       await load();
+      toast.success(`${config.label} berhasil dipindahkan & dihapus.`);
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
     } finally {
@@ -248,6 +251,7 @@ export default function MasterDataTable({
       });
       const json2 = await res2.json();
       if (!res2.ok) throw new Error(json2.error || 'Gagal mengubah urutan.');
+      toast.success('Urutan berhasil diubah.');
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Gagal mengubah urutan.');
     } finally {
@@ -312,6 +316,30 @@ export default function MasterDataTable({
             break;
           }
           payload[field.key] = match.value;
+        } else if (field.type === 'multiselect') {
+          if (!raw) {
+            payload[field.key] = '';
+            continue;
+          }
+          const opts = options[field.key] || [];
+          const parts = raw.split(',').map((s) => s.trim()).filter(Boolean);
+          const ids: string[] = [];
+          let notFound: string | null = null;
+          for (const part of parts) {
+            const match = opts.find(
+              (o) => o.label.toLowerCase() === part.toLowerCase() || o.value.toLowerCase() === part.toLowerCase()
+            );
+            if (!match) {
+              notFound = part;
+              break;
+            }
+            ids.push(match.value);
+          }
+          if (notFound) {
+            rowError = `${field.label}: "${notFound}" tidak ditemukan di data master terkait.`;
+            break;
+          }
+          payload[field.key] = ids.join(',');
         } else if (field.type === 'boolean') {
           const norm = raw.toLowerCase();
           payload[field.key] = ['ya', 'true', 'yes', '1'].includes(norm) ? 'Ya' : 'Tidak';
@@ -348,6 +376,10 @@ export default function MasterDataTable({
     setImportResults(results);
     setImporting(false);
     await load();
+    const okCount = results.filter((r) => r.ok).length;
+    const failCount = results.length - okCount;
+    if (failCount === 0) toast.success(`Import selesai — ${okCount} baris berhasil ditambahkan.`);
+    else toast.error(`Import selesai — ${okCount} berhasil, ${failCount} gagal. Lihat rincian di ringkasan.`);
   }
 
   const tableFields = config.fields.filter((f) => f.showInTable !== false);
@@ -856,10 +888,19 @@ function renderCellForTable(field: FieldConfig, value: string, fieldOptions?: Se
   return renderCellValue(field, value, fieldOptions);
 }
 
+function multiselectLabels(value: string, fieldOptions?: SelectOption[]): string[] {
+  const ids = (value || '').split(',').map((v) => v.trim()).filter(Boolean);
+  return ids.map((id) => fieldOptions?.find((o) => o.value === id)?.label || id);
+}
+
 function renderCellValue(field: FieldConfig, value: string, fieldOptions?: SelectOption[]) {
   if (field.type === 'select' && fieldOptions) {
     const match = fieldOptions.find((o) => o.value === value);
     return match?.label || value || '-';
+  }
+  if (field.type === 'multiselect') {
+    const labels = multiselectLabels(value, fieldOptions);
+    return labels.length > 0 ? labels.join(', ') : '-';
   }
   return value || '-';
 }
@@ -870,6 +911,9 @@ function csvCellValue(field: FieldConfig, value: string, fieldOptions?: SelectOp
   if (field.type === 'select' && fieldOptions) {
     const match = fieldOptions.find((o) => o.value === value);
     return match?.label || value || '';
+  }
+  if (field.type === 'multiselect') {
+    return multiselectLabels(value, fieldOptions).join(', ');
   }
   return value || '';
 }
@@ -933,6 +977,37 @@ function FieldInput({
           ))}
         </select>
       )}
+
+      {/* Multi-select (mis. Project Terkait pada Client) — daftar checkbox, nilainya disimpan
+          sebagai satu string ID dipisah koma (lihat validateEntityPayload). */}
+      {field.type === 'multiselect' && (() => {
+        const selected = value.split(',').map((v) => v.trim()).filter(Boolean);
+        return (
+          <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-gray-300 bg-white p-2.5">
+            {(options || []).length === 0 && <p className="text-xs text-gray-400">Belum ada data.</p>}
+            {(options || []).map((opt) => {
+              const checked = selected.includes(opt.value);
+              return (
+                <label key={opt.value} className="flex items-center gap-2 text-sm text-gray-700">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    disabled={disabled}
+                    onChange={(e) => {
+                      const next = e.target.checked
+                        ? [...selected, opt.value]
+                        : selected.filter((v) => v !== opt.value);
+                      onChange(next.join(','));
+                    }}
+                    className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus-ring"
+                  />
+                  {opt.label}
+                </label>
+              );
+            })}
+          </div>
+        );
+      })()}
 
       {field.type === 'boolean' && field.displayAs === 'select' && (
         <select
