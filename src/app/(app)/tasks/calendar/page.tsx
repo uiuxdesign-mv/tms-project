@@ -7,9 +7,10 @@ export default async function TasksCalendarPage() {
   const session = await getSession();
   if (!session) redirect('/login');
 
-  const [canView, canCreate] = await Promise.all([
+  const [canView, canCreate, canEdit] = await Promise.all([
     hasMenuPermission(session, 'tasking', 'view'),
     hasMenuPermission(session, 'tasking', 'create'),
+    hasMenuPermission(session, 'tasking', 'edit'),
   ]);
   if (!canView) {
     return (
@@ -23,7 +24,14 @@ export default async function TasksCalendarPage() {
 
   return (
     <div className="mx-auto max-w-[1200px]">
-      <CalendarView initialYear={now.getFullYear()} initialMonth={now.getMonth() + 1} canCreate={canCreate} />
+      <CalendarView
+        initialYear={now.getFullYear()}
+        initialMonth={now.getMonth() + 1}
+        canCreate={canCreate}
+        currentUserId={session.userId}
+        isAdmin={session.roleKey === 'admin'}
+        permissions={{ canEdit }}
+      />
     </div>
   );
 }

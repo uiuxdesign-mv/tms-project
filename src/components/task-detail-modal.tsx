@@ -565,9 +565,9 @@ export default function TaskDetailModal({
                     hilang ke-scroll padahal secara DOM sudah dipindah keluar dari <form> ini. */}
                 {canManage && !isDefaultStatus && (
                   <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                    Detail task ini terkunci karena status sudah bukan To Do lagi. Field Status masih bisa diubah manual
-                    (misalnya untuk koreksi mundur) — field lainnya hanya bisa diubah lewat tombol aksi di panel Time
-                    Tracking (Start/Pause/Stop/Back/Done) atau Cancel Task.
+                    Detail task ini terkunci karena status sudah bukan To Do lagi. Status hanya bisa berubah lewat tombol
+                    aksi di panel Time Tracking (Start/Pause/Stop/Back/Done), Cancel Task, atau drag & drop kartu di
+                    Kanban — bukan lewat form ini.
                   </div>
                 )}
                 <form id="task-edit-form" onSubmit={handleSave} className="space-y-3">
@@ -692,22 +692,16 @@ export default function TaskDetailModal({
                     </div>
                   )}
 
+                  {/* Bugfix (permintaan user): field Status dihapus dari form edit — status task
+                      cuma boleh berubah lewat tombol aksi Time Tracking (Start/Pause/Stop/Back/
+                      Done), Cancel Task, atau drag & drop kartu di Kanban, supaya business rule &
+                      History Log-nya selalu konsisten. Diganti label read-only di sini supaya
+                      status saat ini tetap terlihat waktu melihat detail task. */}
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">Status *</label>
-                    <select
-                      value={form.status_id}
-                      disabled={!canManage}
-                      onChange={(e) => setForm((f) => (f ? { ...f, status_id: e.target.value } : f))}
-                      className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
-                    >
-                      <option value="">-- Pilih --</option>
-                      {opts.statuses.map((s) => (
-                        <option key={s.value} value={s.value}>
-                          {s.label}
-                        </option>
-                      ))}
-                    </select>
-                    {fieldErrors.status_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.status_id}</p>}
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">Status</label>
+                    <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                      {label(opts.statuses, task.status_id)}
+                    </p>
                   </div>
 
                   <div>

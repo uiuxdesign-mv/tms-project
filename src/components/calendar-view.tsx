@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import Link from 'next/link';
+import { useEffect, useState, useCallback } from 'react';
 import { apiFetch } from '@/lib/csrf-client';
-import { Badge } from '@/components/badge';
 import { TasksPageHeader } from '@/components/tasks-view-header';
 import { TableSearchBox } from '@/components/table-controls';
+import TaskDetailModal from '@/components/task-detail-modal';
 
 type TaskRow = {
   id: string;
@@ -20,9 +19,7 @@ type Option = { value: string; label: string };
 type StatusOption = Option & { isFinal: boolean; colorCode?: string | null };
 
 type OptionsData = {
-  priorities: Option[];
   statuses: StatusOption[];
-  assignees: Option[];
 };
 
 const MONTH_NAMES = [
@@ -37,18 +34,28 @@ function isoDateOnly(d: Date): string {
 
 /**
  * Calendar view Task (Fase 8) — grid bulan berjalan menampilkan task berdasarkan `due_date`, plus
- * daftar terpisah "Unscheduled" untuk task tanpa `due_date`. Read-only (tidak bisa drag/edit
- * langsung di sini) — klik task untuk lihat detail ringkas, arahkan ke List untuk ubah.
+ * daftar terpisah "Unscheduled" untuk task tanpa `due_date`.
+ *
+ * Bugfix (permintaan user): sebelumnya klik task di sini membuka modal ringkas terpisah
+ * (read-only, cuma Status/Priority/Assignee/Due Date + link "Ubah di List"). Sekarang pakai
+ * `TaskDetailModal` yang SAMA dengan Kanban & List, supaya detail task (Time Tracking, History
+ * Log, komentar, form edit) konsisten di semua view — bukan 3 pengalaman berbeda.
  * `year`/`month` (1-12) dikontrol lewat query string supaya bisa dibagikan/di-bookmark.
  */
 export default function CalendarView({
   initialYear,
   initialMonth,
   canCreate = true,
+  currentUserId,
+  isAdmin,
+  permissions,
 }: {
   initialYear: number;
   initialMonth: number;
   canCreate?: boolean;
+  currentUserId: string;
+  isAdmin: boolean;
+  permissions: { canEdit: boolean };
 }) {
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth); // 1-12
@@ -56,7 +63,7 @@ export default function CalendarView({
   const [opts, setOpts] = useState<OptionsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [selectedTask, setSelectedTask] = useState<TaskRow | null>(null);
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
   const load = useCallback(async () => {
@@ -79,10 +86,6 @@ export default function CalendarView({
   useEffect(() => {
     load();
   }, [load]);
-
-  function label(list: Option[] | undefined, value: string) {
-    return list?.find((o) => o.value === value)?.label || '-';
-  }
 
   function goToMonth(deltaMonths: number) {
     const d = new Date(year, month - 1 + deltaMonths, 1);
@@ -206,7 +209,7 @@ export default function CalendarView({
                         return (
                           <button
                             key={t.id}
-                            onClick={() => setSelectedTask(t)}
+                            onClick={() => setDetailTaskId(t.id)}
                             className="block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium text-gray-900 hover:bg-gray-100"
                             style={{ borderLeft: `3px solid ${status?.colorCode || '#94a3b8'}` }}
                             title={t.title}
@@ -237,7 +240,7 @@ export default function CalendarView({
           {unscheduled.map((t) => (
             <button
               key={t.id}
-              onClick={() => setSelectedTask(t)}
+              onClick={() => setDetailTaskId(t.id)}
               className="block w-full truncate px-2 py-2 text-left text-sm font-medium text-gray-900 hover:text-indigo-600"
               title={t.title}
             >
@@ -247,63 +250,18 @@ export default function CalendarView({
         </div>
       </div>
 
-      {selectedTask && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm"
-          onClick={() => setSelectedTask(null)}
-        >
-          <div
-            className="flex max-h-[85vh] w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-white shadow-modal"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="shrink-0 border-b border-gray-200 px-5 py-4">
-              <h3 className="text-lg font-semibold text-gray-900">{selectedTask.title}</h3>
-            </div>
-            <div className="flex-1 overflow-y-auto p-5">
-              <dl className="space-y-2.5 text-sm">
-                <div className="flex items-center justify-between">
-                  <dt className="text-gray-500">Status</dt>
-                  <dd>
-                    <Badge
-                      label={label(opts?.statuses, selectedTask.status_id)}
-                      color={opts?.statuses.find((s) => s.value === selectedTask.status_id)?.colorCode}
-                    />
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <dt className="text-gray-500">Priority</dt>
-                  <dd>
-                    <Badge label={label(opts?.priorities, selectedTask.priority_id)} tone="neutral" />
-                  </dd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <dt className="text-gray-500">Assignee</dt>
-                  <dd className="font-medium text-gray-900">{label(opts?.assignees, selectedTask.assigned_to)}</dd>
-                </div>
-                <div className="flex items-center justify-between">
-                  <dt className="text-gray-500">Due Date</dt>
-                  <dd className="font-medium text-gray-900">{selectedTask.due_date || '-'}</dd>
-                </div>
-              </dl>
-            </div>
-            <div className="flex shrink-0 justify-end gap-3 border-t border-gray-200 px-5 py-4">
-              <button
-                onClick={() => setSelectedTask(null)}
-                className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
-              >
-                Tutup
-              </button>
-              <Link
-                href="/tasks"
-                className="focus-ring rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
-              >
-                Ubah di List →
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
       </div>
+
+      {detailTaskId && (
+        <TaskDetailModal
+          taskId={detailTaskId}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
+          permissions={{ canEdit: permissions.canEdit, canDelete: permissions.canEdit }}
+          onClose={() => setDetailTaskId(null)}
+          onChanged={load}
+        />
+      )}
     </div>
   );
 }
