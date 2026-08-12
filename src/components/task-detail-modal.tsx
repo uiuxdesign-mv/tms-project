@@ -5,6 +5,7 @@ import { apiFetch } from '@/lib/csrf-client';
 import { formatDuration } from '@/components/time-tracking-controls';
 import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
+import { Badge } from '@/components/badge';
 import TaskComments from '@/components/task-comments';
 
 type TaskRow = {
@@ -367,9 +368,14 @@ export default function TaskDetailModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
+      <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-4">
-          <h2 className="text-lg font-semibold text-gray-900">{task?.title || 'Task'}</h2>
+          <div className="flex items-center gap-2.5">
+            <h2 className="text-lg font-semibold text-gray-900">{task?.title || 'Task'}</h2>
+            {/* Bugfix (permintaan user): badge Status dipindah ke sini, sejajar dengan judul —
+                sebelumnya field Status read-only berdiri sendiri di dalam form. */}
+            {status && <Badge label={status.label} color={status.colorCode} />}
+          </div>
           <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-900" aria-label="Tutup">
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -692,18 +698,6 @@ export default function TaskDetailModal({
                     </div>
                   )}
 
-                  {/* Bugfix (permintaan user): field Status dihapus dari form edit — status task
-                      cuma boleh berubah lewat tombol aksi Time Tracking (Start/Pause/Stop/Back/
-                      Done), Cancel Task, atau drag & drop kartu di Kanban, supaya business rule &
-                      History Log-nya selalu konsisten. Diganti label read-only di sini supaya
-                      status saat ini tetap terlihat waktu melihat detail task. */}
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">Status</label>
-                    <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
-                      {label(opts.statuses, task.status_id)}
-                    </p>
-                  </div>
-
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-gray-700">Assignee</label>
                     {opts.canAssignOthers ? (
@@ -788,7 +782,12 @@ export default function TaskDetailModal({
               {task.updated_at && <p>Last updated: {formatLogTimestamp(task.updated_at)}</p>}
             </div>
             <div className="flex items-center gap-2">
-              {canManage && (
+              {/* Bugfix (permintaan user): tombol Save changes sekarang cuma tampil kalau field
+                  form masih boleh diedit (status To Do) — sebelumnya tetap muncul walau semua
+                  field sudah dikunci, karena awalnya dipakai juga untuk submit perubahan Status
+                  manual. Field Status sudah dihapus total dari form (jadi badge read-only di
+                  judul modal), jadi tidak ada lagi alasan tombol ini tetap tampil saat terkunci. */}
+              {canEditFields && (
                 <button
                   type="submit"
                   form="task-edit-form"
