@@ -1,8 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
-import { canManageTask, canAssignToOthers } from '@/lib/models/tasks';
+import { canViewTask, canManageTask, canAssignToOthers } from '@/lib/models/tasks';
 import { logAction } from '@/lib/models/audit-log';
+import { getTimeStatesForTasks } from '@/lib/models/time-tracking';
+
+/** Ambil 1 task by id (Fase 10 — dipakai Task Detail Modal saat dibuka dari klik kartu Kanban,
+ *  yang cuma punya rows list ringkas hasil GET /api/tasks tanpa perlu prop-drilling penuh). */
+export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
+  const guard = await requirePermission('tasking', 'view');
+  if ('error' in guard) return guard.error;
+  const { session } = guard;
+  const { id } = await ctx.params;
+
+  const existing = await SheetTable.findById('tasks', id);
+  if (!existing) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
+  if (!canViewTask(session, existing)) {
+    return NextResponse.json({ error: 'Anda tidak punya akses ke task ini.' }, { status: 403 });
+  }
+
+  const timeStates = await getTimeStatesForTasks([id]);
+  return NextResponse.json({ data: { ...existing, timeTracking: timeStates[id] } });
+}
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const guard = await requirePermission('tasking', 'edit');

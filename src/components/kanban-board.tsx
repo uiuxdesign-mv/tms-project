@@ -7,6 +7,7 @@ import { useToast } from '@/components/toast-provider';
 import { Badge } from '@/components/badge';
 import { TasksPageHeader } from '@/components/tasks-view-header';
 import { TableSearchBox } from '@/components/table-controls';
+import TaskDetailModal from '@/components/task-detail-modal';
 
 type TaskRow = {
   id: string;
@@ -86,6 +87,7 @@ export default function KanbanBoard({
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [dragOverStatusId, setDragOverStatusId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -231,8 +233,9 @@ export default function KanbanBoard({
                           setDragTaskId(null);
                           setDragOverStatusId(null);
                         }}
-                        className={`rounded-xl border border-gray-200 bg-white p-2.5 shadow-card transition-colors hover:border-indigo-300 ${
-                          manageable ? 'cursor-grab active:cursor-grabbing' : ''
+                        onClick={() => setDetailTaskId(row.id)}
+                        className={`cursor-pointer rounded-xl border border-gray-200 bg-white p-2.5 shadow-card transition-colors hover:border-indigo-300 ${
+                          manageable ? 'active:cursor-grabbing' : ''
                         } ${dragTaskId === row.id ? 'opacity-50' : ''}`}
                       >
                         <p className="text-sm font-medium text-gray-900">{row.title}</p>
@@ -289,6 +292,17 @@ export default function KanbanBoard({
           })}
         </div>
       </div>
+
+      {detailTaskId && (
+        <TaskDetailModal
+          taskId={detailTaskId}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
+          permissions={{ canEdit: permissions.canEdit, canDelete: permissions.canEdit }}
+          onClose={() => setDetailTaskId(null)}
+          onChanged={load}
+        />
+      )}
     </div>
   );
 }

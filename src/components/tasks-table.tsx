@@ -4,13 +4,13 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { apiFetch } from '@/lib/csrf-client';
 import type { TimeTrackingState } from '@/components/time-tracking-controls';
-import TaskComments from '@/components/task-comments';
 import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { useTableControls } from '@/lib/hooks/use-table-controls';
 import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/table-controls';
 import { Badge } from '@/components/badge';
 import { TasksPageHeader } from '@/components/tasks-view-header';
+import TaskDetailModal from '@/components/task-detail-modal';
 
 type TaskRow = {
   id: string;
@@ -146,32 +146,11 @@ export default function TasksTable({
     setModalOpen(true);
   }
 
-  // input[type=datetime-local] wajib format "YYYY-MM-DDTHH:mm" — task lama (sebelum kolom
-  // start_date/waktu ditambahkan) bisa masih punya due_date polos "YYYY-MM-DD" tanpa jam, yang
-  // kalau dibiarkan bikin input dianggap invalid dan mengosong. Tambahkan T00:00 supaya tetap
-  // ke-render sebagai tengah malam, bukan kosong.
-  function toDatetimeLocal(value: string): string {
-    if (!value) return '';
-    return value.includes('T') ? value.slice(0, 16) : `${value}T00:00`;
-  }
-
+  // Detail (List) & klik kartu (Kanban) sama-sama membuka TaskDetailModal (Fase 10) — modal itu
+  // fetch datanya sendiri lewat GET /api/tasks/[id], jadi di sini cukup set id-nya saja, tidak
+  // perlu lagi prefill `form` seperti form Tambah Task yang sederhana.
   function openEditModal(row: TaskRow) {
     setEditingId(row.id);
-    setForm({
-      title: row.title,
-      description: row.description,
-      client_id: row.client_id,
-      project_id: row.project_id,
-      task_type_id: row.task_type_id,
-      related_task_id: row.related_task_id,
-      priority_id: row.priority_id,
-      status_id: row.status_id,
-      assigned_to: row.assigned_to,
-      due_date: toDatetimeLocal(row.due_date),
-      start_date: toDatetimeLocal(row.start_date || ''),
-      estimated_hours: row.estimated_hours || '',
-    });
-    setFieldErrors({});
     setModalOpen(true);
   }
 
@@ -440,11 +419,22 @@ export default function TasksTable({
         />
       </div>
 
-      {modalOpen && opts && (
+      {modalOpen && editingId && (
+        <TaskDetailModal
+          taskId={editingId}
+          currentUserId={currentUserId}
+          isAdmin={isAdmin}
+          permissions={{ canEdit: permissions.canEdit, canDelete: permissions.canDelete }}
+          onClose={() => setModalOpen(false)}
+          onChanged={load}
+        />
+      )}
+
+      {modalOpen && !editingId && opts && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
           <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">{editingId ? 'Edit Task' : 'Tambah Task'}</h2>
+              <h2 className="text-lg font-semibold text-gray-900">Tambah Task</h2>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
             <form onSubmit={handleSave} className="space-y-3">
@@ -561,25 +551,6 @@ export default function TasksTable({
                 </div>
               )}
 
-              {editingId && (
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Status *</label>
-                  <select
-                    value={form.status_id}
-                    onChange={(e) => setForm((f) => ({ ...f, status_id: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
-                  >
-                    <option value="">-- Pilih --</option>
-                    {opts.statuses.map((s) => (
-                      <option key={s.value} value={s.value}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                  {fieldErrors.status_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.status_id}</p>}
-                </div>
-              )}
-
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700">Assignee</label>
                 {opts.canAssignOthers ? (
@@ -663,10 +634,6 @@ export default function TasksTable({
                 </button>
               </div>
             </form>
-
-            {editingId && (
-              <TaskComments taskId={editingId} currentUserId={currentUserId} canDeleteAny={permissions.canDelete} />
-            )}
             </div>
           </div>
         </div>
