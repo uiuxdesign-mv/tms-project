@@ -29,7 +29,12 @@ export async function GET() {
     data: {
       canAssignOthers: allowAssignOthers,
       clients: clients.filter((c) => c.status === 'Active').map((c) => ({ value: c.id, label: c.client_name })),
-      projects: projects.map((p) => ({ value: p.id, label: p.project_name, clientId: p.client_id })),
+      // Bugfix (Fase 13): sebelumnya `projects` TIDAK difilter status seperti clients/taskTypes/
+      // priorities/statuses di bawah — project yang sudah di-nonaktifkan lewat Master Data masih
+      // muncul & bisa dipilih di form Add/Edit Task. Disamakan dengan pola field lain di sini.
+      projects: projects
+        .filter((p) => p.status === 'Active')
+        .map((p) => ({ value: p.id, label: p.project_name, clientId: p.client_id })),
       taskTypes: taskTypes
         .filter((t) => t.status === 'Active')
         .map((t) => ({ value: t.id, label: t.type_name, requiresRelatedTask: t.requires_related_task === 'Ya' })),

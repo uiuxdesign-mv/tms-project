@@ -71,6 +71,16 @@ export default function MasterDataTable({
     load();
   }, [load]);
 
+  // Bugfix (Fase 13): cek status aktif satu baris, generik untuk semua entity Master Data — semua
+  // entity pakai kolom `status` bernilai 'Active'/'Inactive', KECUALI `statuses` yang justru punya
+  // field bernama "status" sendiri (nama status task, mis. "To Do") dan menandai aktif/nonaktifnya
+  // lewat kolom terpisah `is_active` ('Ya'/'Tidak') — lihat STATUS_FIELD vs field `is_active` di
+  // lib/master-data/config.ts.
+  function isRowActive(row: Row): boolean {
+    if (entityKey === 'statuses') return row.is_active === 'Ya';
+    return row.status === 'Active';
+  }
+
   function openCreateModal() {
     setEditingRow(null);
     const defaults: Record<string, string> = {};
@@ -558,6 +568,11 @@ export default function MasterDataTable({
                 <option value="">-- Pilih {config.label} pengganti --</option>
                 {rows
                   .filter((r) => r.id !== deleteBlocked.row.id)
+                  // Bugfix (Fase 13): data pengganti untuk reassign-lalu-hapus tidak boleh berupa
+                  // baris yang sudah tidak aktif juga — kalau boleh, referensi yang dipindahkan
+                  // cuma pindah dari satu data tidak aktif ke data tidak aktif lain, memunculkan
+                  // lagi masalah "data tidak aktif tapi masih terpakai/terpilih".
+                  .filter((r) => isRowActive(r))
                   .map((r) => (
                     <option key={r.id} value={r.id}>
                       {r[config.titleField] || r.id}
