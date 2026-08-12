@@ -175,8 +175,8 @@ export default function TaskDetailModal({
       ]);
       const taskJson = await parseJsonSafe(taskRes);
       const optsJson = await parseJsonSafe(optsRes);
-      if (!taskRes.ok || !taskJson.data) throw new Error(taskJson.error || 'Gagal memuat task.');
-      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || 'Gagal memuat opsi.');
+      if (!taskRes.ok || !taskJson.data) throw new Error(taskJson.error || t('toast_load_task_failed'));
+      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || t('toast_load_options_failed'));
 
       setTask(taskJson.data);
       setOpts({
@@ -214,7 +214,7 @@ export default function TaskDetailModal({
         setTimeUnavailable(true);
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat task.');
+      setError(e instanceof Error ? e.message : t('toast_load_task_failed'));
     } finally {
       if (!silent) setLoading(false);
     }
@@ -246,9 +246,9 @@ export default function TaskDetailModal({
   // ID-nya tidak ada di daftar yang kebetulan tersedia untuk user ini.
   function resolveActorName(userId: string | undefined): string {
     if (!userId) return '-';
-    if (userId === currentUserId) return 'You';
+    if (userId === currentUserId) return t('td_actor_you');
     const found = opts?.assignees.find((a) => a.value === userId);
-    return found ? found.label : 'Other User';
+    return found ? found.label : t('td_actor_other');
   }
 
   const status = opts?.statuses.find((s) => s.value === task?.status_id);
@@ -286,22 +286,22 @@ export default function TaskDetailModal({
       });
       const json = await parseJsonSafe(res);
       if (!res.ok) {
-        toast.error(json.error || 'Gagal menjalankan aksi Time Tracking.');
+        toast.error(json.error || t('toast_tt_action_failed'));
         return;
       }
       await load({ silent: true });
       onChanged();
       const actionLabel: Record<typeof action, string> = {
-        start: 'Task dimulai.',
-        pause: 'Task di-pause.',
-        resume: 'Task dilanjutkan.',
-        stop: 'Task dihentikan.',
-        back: 'Task dikembalikan ke tahap sebelumnya.',
-        done: 'Task ditandai selesai.',
+        start: t('toast_tt_started'),
+        pause: t('toast_tt_paused'),
+        resume: t('toast_tt_resumed'),
+        stop: t('toast_tt_stopped'),
+        back: t('toast_tt_back'),
+        done: t('toast_tt_done'),
       };
       toast.success(actionLabel[action]);
     } catch {
-      toast.error('Terjadi kesalahan jaringan.');
+      toast.error(t('toast_network_error'));
     } finally {
       setBusy(false);
     }
@@ -315,12 +315,12 @@ export default function TaskDetailModal({
     // "Cancelled" di aplikasi lama.
     const cancelStatus = opts.statuses.find((s) => s.isFinal && s.workflowLevel === null);
     if (!cancelStatus) {
-      toast.error('Tidak ada status "Cancelled" yang dikonfigurasi di Master Status.');
+      toast.error(t('toast_no_cancel_status'));
       return;
     }
     const ok = await confirmDialog({
-      message: `Batalkan task "${task?.title}"? Status akan diubah ke "${cancelStatus.label}".`,
-      confirmLabel: 'Batalkan Task',
+      message: `${t('confirm_cancel_task_prefix')} "${task?.title}"? ${t('confirm_cancel_task_suffix')} "${cancelStatus.label}".`,
+      confirmLabel: t('td_cancel_task_btn'),
       danger: true,
     });
     if (!ok) return;
@@ -339,14 +339,14 @@ export default function TaskDetailModal({
       });
       const json = await parseJsonSafe(res);
       if (!res.ok) {
-        toast.error(json.error || 'Gagal membatalkan task.');
+        toast.error(json.error || t('toast_cancel_task_failed'));
         return;
       }
       await load({ silent: true });
       onChanged();
-      toast.success('Task berhasil dibatalkan.');
+      toast.success(t('toast_cancel_task_success'));
     } catch {
-      toast.error('Terjadi kesalahan jaringan.');
+      toast.error(t('toast_network_error'));
     } finally {
       setBusy(false);
     }
@@ -366,14 +366,14 @@ export default function TaskDetailModal({
       const json = await parseJsonSafe(res);
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
-        else toast.error(json.error || 'Gagal menyimpan data.');
+        else toast.error(json.error || t('toast_save_task_failed'));
         return;
       }
       onChanged();
-      toast.success('Perubahan task berhasil disimpan.');
+      toast.success(t('toast_save_task_success'));
       onClose();
     } catch {
-      toast.error('Terjadi kesalahan jaringan.');
+      toast.error(t('toast_network_error'));
     } finally {
       setSaving(false);
     }
@@ -387,7 +387,7 @@ export default function TaskDetailModal({
   const backBtn = `${btnBase} border border-gray-300 text-gray-900 hover:bg-gray-100`;
   const doneBtn = `${btnBase} bg-emerald-600 text-white hover:bg-emerald-700`;
 
-  const selectedTaskType = opts?.taskTypes.find((t) => t.value === form?.task_type_id);
+  const selectedTaskType = opts?.taskTypes.find((tt) => tt.value === form?.task_type_id);
   const showRelatedTask = !!selectedTaskType?.requiresRelatedTask;
 
   return (
@@ -395,12 +395,12 @@ export default function TaskDetailModal({
       <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
         <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-5 py-4">
           <div className="flex items-center gap-2.5">
-            <h2 className="text-lg font-semibold text-gray-900">{task?.title || 'Task'}</h2>
+            <h2 className="text-lg font-semibold text-gray-900">{task?.title || t('td_task_fallback_title')}</h2>
             {/* Bugfix (permintaan user): badge Status dipindah ke sini, sejajar dengan judul —
                 sebelumnya field Status read-only berdiri sendiri di dalam form. */}
             {status && <Badge label={status.label} color={status.colorCode} />}
           </div>
-          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-900" aria-label="Tutup">
+          <button onClick={onClose} className="rounded-lg p-1 text-gray-400 hover:bg-gray-100 hover:text-gray-900" aria-label={t('td_close')}>
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
             </svg>
@@ -416,7 +416,7 @@ export default function TaskDetailModal({
               {/* Kolom kiri: Time Tracking */}
               <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
                 {timeUnavailable ? (
-                  <p className="text-sm text-gray-500">Time Tracking belum dikonfigurasi di server ini.</p>
+                  <p className="text-sm text-gray-500">{t('td_tt_not_configured')}</p>
                 ) : (
                   <>
                     <div className="mb-3 flex items-center justify-between">
@@ -431,22 +431,26 @@ export default function TaskDetailModal({
                               : 'bg-gray-200 text-gray-600'
                           }`}
                         >
-                          {timeState.state === 'running' ? 'Running' : timeState.state === 'paused' ? 'Paused' : 'Not started'}
+                          {timeState.state === 'running'
+                            ? t('td_tt_state_running')
+                            : timeState.state === 'paused'
+                            ? t('td_tt_state_paused')
+                            : t('td_tt_state_not_started')}
                         </span>
                       )}
                     </div>
 
                     <div className="grid grid-cols-3 gap-2 text-center">
                       <div>
-                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Current Session</p>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">{t('td_current_session')}</p>
                         <p className="tabular-nums text-base font-semibold text-gray-900">{formatDuration(currentSessionSeconds)}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Work Time</p>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">{t('tt_work_time')}</p>
                         <p className="tabular-nums text-base font-semibold text-gray-900">{formatDuration(workTimeSeconds)}</p>
                       </div>
                       <div>
-                        <p className="text-[10px] uppercase tracking-wide text-gray-400">Review Time</p>
+                        <p className="text-[10px] uppercase tracking-wide text-gray-400">{t('tt_review_time')}</p>
                         <p className="tabular-nums text-base font-semibold text-amber-600">{formatDuration(reviewTimeSeconds)}</p>
                       </div>
                     </div>
@@ -456,10 +460,10 @@ export default function TaskDetailModal({
                         {status?.isReview ? (
                           <>
                             <button disabled={busy} onClick={() => runTimeAction('back')} className={backBtn}>
-                              Back
+                              {t('tt_btn_back')}
                             </button>
                             <button disabled={busy} onClick={() => runTimeAction('done')} className={doneBtn}>
-                              Done
+                              {t('tt_btn_done')}
                             </button>
                           </>
                         ) : (
@@ -467,34 +471,34 @@ export default function TaskDetailModal({
                             {timeState.state === 'idle' && (
                               <>
                                 <button disabled={busy} onClick={() => runTimeAction('start')} className={startBtn}>
-                                  ▶ Start
+                                  ▶ {t('tt_btn_start')}
                                 </button>
                                 {/* Bugfix (Fase 19, spec §2 "Kondisi Awal"): tombol Stop tetap
                                     DITAMPILKAN (dalam kondisi disabled) saat status To Do —
                                     sebelumnya disembunyikan total. Pause memang sengaja tidak
                                     ditampilkan sama sekali di kondisi ini, sesuai spesifikasi. */}
                                 <button disabled className={stopBtn}>
-                                  Stop
+                                  {t('tt_btn_stop')}
                                 </button>
                               </>
                             )}
                             {timeState.state === 'running' && (
                               <>
                                 <button disabled={busy} onClick={() => runTimeAction('pause')} className={pauseBtn}>
-                                  Pause
+                                  {t('tt_btn_pause')}
                                 </button>
                                 <button disabled={busy} onClick={() => runTimeAction('stop')} className={stopBtn}>
-                                  Stop
+                                  {t('tt_btn_stop')}
                                 </button>
                               </>
                             )}
                             {timeState.state === 'paused' && (
                               <>
                                 <button disabled={busy} onClick={() => runTimeAction('resume')} className={startBtn}>
-                                  ▶ Start
+                                  ▶ {t('tt_btn_start')}
                                 </button>
                                 <button disabled={busy} onClick={() => runTimeAction('stop')} className={stopBtn}>
-                                  Stop
+                                  {t('tt_btn_stop')}
                                 </button>
                               </>
                             )}
@@ -505,7 +509,7 @@ export default function TaskDetailModal({
                           onClick={handleCancelTask}
                           className={`${btnBase} ml-auto bg-red-600 text-white hover:bg-red-700`}
                         >
-                          ✕ Cancel Task
+                          ✕ {t('td_cancel_task_btn')}
                         </button>
                       </div>
                     )}
@@ -518,7 +522,7 @@ export default function TaskDetailModal({
                             activeTab === 'work' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400'
                           }`}
                         >
-                          Work Session ({workIntervals.length})
+                          {t('td_work_session_label')} ({workIntervals.length})
                         </button>
                         <button
                           onClick={() => setActiveTab('review')}
@@ -526,20 +530,20 @@ export default function TaskDetailModal({
                             activeTab === 'review' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400'
                           }`}
                         >
-                          Review Session ({reviewIntervals.length})
+                          {t('td_review_session_label')} ({reviewIntervals.length})
                         </button>
                       </div>
                       <div className="mt-2 max-h-48 overflow-y-auto">
                         {(activeTab === 'work' ? workIntervals : reviewIntervals).length === 0 && (
-                          <p className="py-3 text-center text-xs text-gray-400">No time recorded yet.</p>
+                          <p className="py-3 text-center text-xs text-gray-400">{t('td_no_time_recorded')}</p>
                         )}
                         {(activeTab === 'work' ? workIntervals : reviewIntervals).length > 0 && (
                           <table className="w-full text-left text-xs">
                             <thead className="text-[10px] uppercase text-gray-400">
                               <tr>
-                                <th className="pb-1 pr-2 font-medium">Start/Resume</th>
-                                <th className="pb-1 pr-2 font-medium">{activeTab === 'review' ? 'Back/Done' : 'Pause/Stop'}</th>
-                                <th className="pb-1 font-medium">Duration</th>
+                                <th className="pb-1 pr-2 font-medium">{t('td_col_start_resume')}</th>
+                                <th className="pb-1 pr-2 font-medium">{activeTab === 'review' ? t('td_col_back_done') : t('td_col_pause_stop')}</th>
+                                <th className="pb-1 font-medium">{t('td_col_duration')}</th>
                               </tr>
                             </thead>
                             <tbody>
@@ -550,9 +554,16 @@ export default function TaskDetailModal({
                                 // penutupan sesi review dilabeli "Done" + hijau, bukan "Stop" + merah, konsisten
                                 // dengan warna "Review Done = Green" di spec (event mentahnya tetap sama-sama `stop`,
                                 // yang membedakan cuma konteks tab-nya).
-                                const openLabel = iv.openedBy === 'start' ? 'Start' : 'Resume';
+                                const openLabel = iv.openedBy === 'start' ? t('tt_btn_start') : t('tt_btn_resume');
                                 const openColor = iv.openedBy === 'start' ? 'text-blue-600' : 'text-emerald-600';
-                                const closeLabel = iv.closedBy === null ? 'Running' : activeTab === 'review' ? 'Done' : iv.closedBy === 'pause' ? 'Pause' : 'Stop';
+                                const closeLabel =
+                                  iv.closedBy === null
+                                    ? t('td_tt_state_running')
+                                    : activeTab === 'review'
+                                    ? t('tt_btn_done')
+                                    : iv.closedBy === 'pause'
+                                    ? t('tt_btn_pause')
+                                    : t('tt_btn_stop');
                                 const closeColor =
                                   iv.closedBy === null
                                     ? 'text-gray-400'
@@ -595,31 +606,29 @@ export default function TaskDetailModal({
                     hilang ke-scroll padahal secara DOM sudah dipindah keluar dari <form> ini. */}
                 {canManage && !isDefaultStatus && (
                   <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                    Detail task ini terkunci karena status sudah bukan To Do lagi. Status hanya bisa berubah lewat tombol
-                    aksi di panel Time Tracking (Start/Pause/Stop/Back/Done), Cancel Task, atau drag & drop kartu di
-                    Kanban — bukan lewat form ini.
+                    {t('td_locked_notice')}
                   </div>
                 )}
                 <form id="task-edit-form" onSubmit={handleSave} className="space-y-3">
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">Title</label>
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_title')}</label>
                     <input
                       value={form.title}
                       disabled={!canEditFields}
                       onChange={(e) => setForm((f) => (f ? { ...f, title: e.target.value } : f))}
-                      placeholder="Contoh: Perbaiki bug login di halaman utama"
+                      placeholder={t('td_field_title_placeholder')}
                       className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                     />
                     {fieldErrors.title && <p className="mt-1 text-xs text-red-600">{fieldErrors.title}</p>}
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">Description</label>
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_description')}</label>
                     <textarea
                       value={form.description}
                       disabled={!canEditFields}
                       onChange={(e) => setForm((f) => (f ? { ...f, description: e.target.value } : f))}
-                      placeholder="Jelaskan detail tugas ini, langkah pengerjaan, atau referensi yang dibutuhkan..."
+                      placeholder={t('td_field_description_placeholder')}
                       rows={3}
                       className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                     />
@@ -627,14 +636,14 @@ export default function TaskDetailModal({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">Project</label>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_project')}</label>
                       <select
                         value={form.project_id}
                         disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, project_id: e.target.value } : f))}
                         className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
-                        <option value="">-- Tidak ada --</option>
+                        <option value="">{t('td_option_none')}</option>
                         {/* Fase 12: Project & Client independen (sesuai video) — Project master
                             data tidak lagi punya field Client, jadi daftar Project TIDAK difilter
                             oleh Client yang dipilih di sini. */}
@@ -646,14 +655,14 @@ export default function TaskDetailModal({
                       </select>
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">Client (optional)</label>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_client')}</label>
                       <select
                         value={form.client_id}
                         disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, client_id: e.target.value } : f))}
                         className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
-                        <option value="">-- Tidak ada --</option>
+                        <option value="">{t('td_option_none')}</option>
                         {opts.clients.map((c) => (
                           <option key={c.value} value={c.value}>
                             {c.label}
@@ -665,14 +674,14 @@ export default function TaskDetailModal({
 
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">Priority *</label>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_priority')}</label>
                       <select
                         value={form.priority_id}
                         disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, priority_id: e.target.value } : f))}
                         className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
-                        <option value="">-- Pilih --</option>
+                        <option value="">{t('td_option_choose')}</option>
                         {opts.priorities.map((p) => (
                           <option key={p.value} value={p.value}>
                             {p.label}
@@ -682,17 +691,17 @@ export default function TaskDetailModal({
                       {fieldErrors.priority_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.priority_id}</p>}
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">Task Type *</label>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_task_type')}</label>
                       <select
                         value={form.task_type_id}
                         disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, task_type_id: e.target.value, related_task_id: '' } : f))}
                         className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
-                        <option value="">-- Pilih Task Type --</option>
-                        {opts.taskTypes.map((t) => (
-                          <option key={t.value} value={t.value}>
-                            {t.label}
+                        <option value="">{t('td_option_choose_task_type')}</option>
+                        {opts.taskTypes.map((tt) => (
+                          <option key={tt.value} value={tt.value}>
+                            {tt.label}
                           </option>
                         ))}
                       </select>
@@ -702,19 +711,19 @@ export default function TaskDetailModal({
 
                   {showRelatedTask && (
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">Task Terkait *</label>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_related_task')}</label>
                       <select
                         value={form.related_task_id}
                         disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, related_task_id: e.target.value } : f))}
                         className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
-                        <option value="">-- Pilih Task --</option>
+                        <option value="">{t('td_option_choose_task')}</option>
                         {opts.relatedTasks
-                          .filter((t) => t.value !== taskId)
-                          .map((t) => (
-                            <option key={t.value} value={t.value}>
-                              {t.label}
+                          .filter((rt) => rt.value !== taskId)
+                          .map((rt) => (
+                            <option key={rt.value} value={rt.value}>
+                              {rt.label}
                             </option>
                           ))}
                       </select>
@@ -723,7 +732,7 @@ export default function TaskDetailModal({
                   )}
 
                   <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">Assignee</label>
+                    <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_assignee')}</label>
                     {opts.canAssignOthers ? (
                       <select
                         value={form.assigned_to}
@@ -731,7 +740,7 @@ export default function TaskDetailModal({
                         onChange={(e) => setForm((f) => (f ? { ...f, assigned_to: e.target.value } : f))}
                         className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
-                        <option value="">-- Diri sendiri --</option>
+                        <option value="">{t('td_option_self')}</option>
                         {opts.assignees.map((a) => (
                           <option key={a.value} value={a.value}>
                             {a.label}
@@ -749,7 +758,7 @@ export default function TaskDetailModal({
                         onClick={() => setForm((f) => (f ? { ...f, assigned_to: currentUserId } : f))}
                         className="mt-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700"
                       >
-                        Assign to me
+                        {t('td_assign_to_me')}
                       </button>
                     )}
                     {fieldErrors.assigned_to && <p className="mt-1 text-xs text-red-600">{fieldErrors.assigned_to}</p>}
@@ -757,7 +766,7 @@ export default function TaskDetailModal({
 
                   <div className="grid grid-cols-3 gap-3">
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">Start Date</label>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_start_date')}</label>
                       <input
                         type="datetime-local"
                         value={form.start_date}
@@ -767,7 +776,7 @@ export default function TaskDetailModal({
                       />
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">Due Date</label>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_due_date')}</label>
                       <input
                         type="datetime-local"
                         value={form.due_date}
@@ -777,12 +786,12 @@ export default function TaskDetailModal({
                       />
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">Est. Hours</label>
+                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_est_hours')}</label>
                       <input
                         type="number"
                         min="0"
                         step="0.25"
-                        placeholder="e.g., 8"
+                        placeholder={t('td_est_hours_placeholder')}
                         value={form.estimated_hours}
                         disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, estimated_hours: e.target.value } : f))}
@@ -802,8 +811,8 @@ export default function TaskDetailModal({
         {!loading && task && (
           <div className="flex shrink-0 items-center justify-between border-t border-gray-200 px-5 py-3 text-xs text-gray-400">
             <div>
-              {task.created_at && <p>Created: {formatLogTimestamp(task.created_at)}</p>}
-              {task.updated_at && <p>Last updated: {formatLogTimestamp(task.updated_at)}</p>}
+              {task.created_at && <p>{t('td_created_label')}: {formatLogTimestamp(task.created_at)}</p>}
+              {task.updated_at && <p>{t('td_updated_label')}: {formatLogTimestamp(task.updated_at)}</p>}
             </div>
             <div className="flex items-center gap-2">
               {/* Bugfix (permintaan user): tombol Save changes sekarang cuma tampil kalau field
@@ -818,14 +827,14 @@ export default function TaskDetailModal({
                   disabled={saving}
                   className="rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
-                  {saving ? 'Menyimpan...' : 'Save changes'}
+                  {saving ? t('common_saving') : t('form_save_changes')}
                 </button>
               )}
               <button
                 onClick={onClose}
                 className="rounded-lg border border-gray-300 px-3.5 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
               >
-                Close
+                {t('td_close')}
               </button>
             </div>
           </div>

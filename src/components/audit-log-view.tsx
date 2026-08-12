@@ -18,7 +18,6 @@ type AuditLogEntry = {
   created_at: string;
 };
 
-const ACTION_LABEL: Record<string, string> = { create: 'Tambah', update: 'Ubah', delete: 'Hapus' };
 const ACTION_TONE: Record<string, 'success' | 'warning' | 'danger'> = {
   create: 'success',
   update: 'warning',
@@ -52,14 +51,15 @@ export default function AuditLogView() {
       try {
         const res = await apiFetch('/api/audit-log');
         const json = await parseJsonSafe(res);
-        if (!res.ok) throw new Error(json.error || 'Gagal memuat audit log.');
+        if (!res.ok) throw new Error(json.error || t('toast_audit_load_failed'));
         setEntries(json.data);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Gagal memuat audit log.');
+        setError(e instanceof Error ? e.message : t('toast_audit_load_failed'));
       } finally {
         setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const entityTypeOptions = useMemo(() => uniqueValues(entries, 'entity_type'), [entries]);
@@ -92,26 +92,42 @@ export default function AuditLogView() {
   }
 
   function exportCsv() {
-    const header = ['Waktu', 'Aktor', 'Aksi', 'Tipe Entitas', 'Entitas', 'Detail'];
-    const lines = [header, ...filtered.map((e) => [e.created_at, e.actor_name, ACTION_LABEL[e.action] || e.action, e.entity_type, e.entity_label, e.details])];
+    const actionLabel: Record<string, string> = {
+      create: t('audit_action_create'),
+      update: t('audit_action_update'),
+      delete: t('audit_action_delete'),
+    };
+    const header = [
+      t('audit_col_time'),
+      t('audit_col_actor'),
+      t('audit_col_action'),
+      t('audit_type_label'),
+      t('audit_col_data'),
+      t('audit_col_detail'),
+    ];
+    const lines = [header, ...filtered.map((e) => [e.created_at, e.actor_name, actionLabel[e.action] || e.action, e.entity_type, e.entity_label, e.details])];
     downloadCsv(`audit-log-${new Date().toISOString().slice(0, 10)}.csv`, buildCsv(lines));
   }
+
+  const actionLabel: Record<string, string> = {
+    create: t('audit_action_create'),
+    update: t('audit_action_update'),
+    delete: t('audit_action_delete'),
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Audit Log</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            Jejak semua aksi Tambah/Ubah/Hapus di Master Data, Users, Tasks, dan perubahan hak akses menu.
-          </p>
+          <h1 className="text-xl font-semibold text-gray-900">{t('audit_page_title')}</h1>
+          <p className="mt-1 text-sm text-gray-500">{t('audit_subtitle')}</p>
         </div>
         <button
           onClick={exportCsv}
           disabled={filtered.length === 0}
           className="focus-ring rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
-          Export CSV
+          {t('audit_export_csv')}
         </button>
       </div>
 
@@ -119,29 +135,29 @@ export default function AuditLogView() {
 
       <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-card">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-gray-900">Filter</h2>
+          <h2 className="text-sm font-semibold text-gray-900">{t('filter_title')}</h2>
           <button onClick={resetFilters} className="text-xs text-gray-500 hover:text-gray-700">
-            Reset Filter
+            {t('audit_reset_filter')}
           </button>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <div className="lg:col-span-2">
-            <label className="mb-1.5 block text-xs font-medium text-gray-700">Cari (nama data)</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-700">{t('audit_search_label')}</label>
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Ketik nama data..."
+              placeholder={t('audit_search_placeholder')}
               className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
             />
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-700">Tipe Data</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-700">{t('audit_type_label')}</label>
             <select
               value={entityType}
               onChange={(e) => setEntityType(e.target.value)}
               className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
             >
-              <option value="">-- Semua --</option>
+              <option value="">{t('audit_option_all')}</option>
               {entityTypeOptions.map((v) => (
                 <option key={v} value={v}>
                   {v}
@@ -150,26 +166,26 @@ export default function AuditLogView() {
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-700">Aksi</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-700">{t('audit_action_label')}</label>
             <select
               value={action}
               onChange={(e) => setAction(e.target.value)}
               className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
             >
-              <option value="">-- Semua --</option>
-              <option value="create">Tambah</option>
-              <option value="update">Ubah</option>
-              <option value="delete">Hapus</option>
+              <option value="">{t('audit_option_all')}</option>
+              <option value="create">{t('audit_action_create')}</option>
+              <option value="update">{t('audit_action_update')}</option>
+              <option value="delete">{t('audit_action_delete')}</option>
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-700">Pelaku</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-700">{t('audit_actor_label')}</label>
             <select
               value={actorName}
               onChange={(e) => setActorName(e.target.value)}
               className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
             >
-              <option value="">-- Semua --</option>
+              <option value="">{t('audit_option_all')}</option>
               {actorOptions.map((v) => (
                 <option key={v} value={v}>
                   {v}
@@ -178,7 +194,7 @@ export default function AuditLogView() {
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-700">Dari Tanggal</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-700">{t('audit_date_from_label')}</label>
             <input
               type="date"
               value={dateFrom}
@@ -189,7 +205,7 @@ export default function AuditLogView() {
         </div>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           <div>
-            <label className="mb-1.5 block text-xs font-medium text-gray-700">Sampai Tanggal</label>
+            <label className="mb-1.5 block text-xs font-medium text-gray-700">{t('audit_date_to_label')}</label>
             <input
               type="date"
               value={dateTo}
@@ -204,12 +220,12 @@ export default function AuditLogView() {
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <th className="px-4 py-2 font-medium">Waktu</th>
-              <th className="px-4 py-2 font-medium">Pelaku</th>
-              <th className="px-4 py-2 font-medium">Aksi</th>
-              <th className="px-4 py-2 font-medium">Tipe</th>
-              <th className="px-4 py-2 font-medium">Data</th>
-              <th className="px-4 py-2 font-medium">Detail</th>
+              <th className="px-4 py-2 font-medium">{t('audit_col_time')}</th>
+              <th className="px-4 py-2 font-medium">{t('audit_col_actor')}</th>
+              <th className="px-4 py-2 font-medium">{t('audit_col_action')}</th>
+              <th className="px-4 py-2 font-medium">{t('audit_col_type')}</th>
+              <th className="px-4 py-2 font-medium">{t('audit_col_data')}</th>
+              <th className="px-4 py-2 font-medium">{t('audit_col_detail')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -223,7 +239,7 @@ export default function AuditLogView() {
             {!loading && filtered.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
-                  Tidak ada log yang cocok dengan filter.
+                  {t('audit_no_match')}
                 </td>
               </tr>
             )}
@@ -233,7 +249,7 @@ export default function AuditLogView() {
                   <td className="whitespace-nowrap px-4 py-2 text-gray-500">{e.created_at.replace('T', ' ').slice(0, 19)}</td>
                   <td className="px-4 py-2 text-gray-700">{e.actor_name || '-'}</td>
                   <td className="px-4 py-2">
-                    <Badge label={ACTION_LABEL[e.action] || e.action} tone={ACTION_TONE[e.action] || 'neutral'} />
+                    <Badge label={actionLabel[e.action] || e.action} tone={ACTION_TONE[e.action] || 'neutral'} />
                   </td>
                   <td className="px-4 py-2 text-gray-700">{e.entity_type}</td>
                   <td className="px-4 py-2 text-gray-700">{e.entity_label}</td>
@@ -250,7 +266,7 @@ export default function AuditLogView() {
             onClick={() => setVisibleCount((c) => c + PAGE_SIZE_STEP)}
             className="focus-ring rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
           >
-            Muat {Math.min(PAGE_SIZE_STEP, filtered.length - visible.length)} lagi ({visible.length}/{filtered.length})
+            {t('audit_load_more_prefix')} {Math.min(PAGE_SIZE_STEP, filtered.length - visible.length)} {t('audit_load_more_suffix')} ({visible.length}/{filtered.length})
           </button>
         </div>
       )}

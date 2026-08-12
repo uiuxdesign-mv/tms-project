@@ -1,9 +1,10 @@
 'use client';
 
 import { useEffect, useState, useCallback, useRef } from 'react';
-import { apiFetch } from '@/lib/csrf-client';
+import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
+import { useLanguage } from '@/components/language-provider';
 
 type Attachment = { category: string; mimeType: string; originalName: string; fileSize: number };
 type Comment = {
@@ -56,21 +57,22 @@ export default function TaskComments({
 
   const toast = useToast();
   const confirmDialog = useConfirm();
+  const { t } = useLanguage();
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const res = await apiFetch(`/api/tasks/${taskId}/comments`);
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Gagal memuat komentar.');
+      const json = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(json.error || t('toast_comments_load_failed'));
       setComments(json.data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat komentar.');
+      setError(e instanceof Error ? e.message : t('toast_comments_load_failed'));
     } finally {
       setLoading(false);
     }
-  }, [taskId]);
+  }, [taskId, t]);
 
   useEffect(() => {
     load();
@@ -79,7 +81,7 @@ export default function TaskComments({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!text.trim() && !file) {
-      setError('Komentar harus berisi teks atau lampiran file.');
+      setError(t('comment_empty_error'));
       return;
     }
     setSubmitting(true);
@@ -98,15 +100,15 @@ export default function TaskComments({
           body: JSON.stringify({ comment: text }),
         });
       }
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Gagal mengirim komentar.');
+      const json = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(json.error || t('toast_comment_send_failed'));
       setText('');
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       await load();
-      toast.success('Komentar berhasil dikirim.');
+      toast.success(t('toast_comment_sent'));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Gagal mengirim komentar.';
+      const msg = e instanceof Error ? e.message : t('toast_comment_send_failed');
       setError(msg);
       toast.error(msg);
     } finally {
@@ -126,27 +128,27 @@ export default function TaskComments({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ comment: editText }),
       });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Gagal menyimpan perubahan.');
+      const json = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(json.error || t('toast_comment_save_failed'));
       setEditingId(null);
       await load();
-      toast.success('Komentar berhasil diperbarui.');
+      toast.success(t('toast_comment_updated'));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Gagal menyimpan perubahan.');
+      toast.error(e instanceof Error ? e.message : t('toast_comment_save_failed'));
     }
   }
 
   async function handleDelete(commentId: string) {
-    const ok = await confirmDialog({ message: 'Hapus komentar ini?', confirmLabel: 'Hapus', danger: true });
+    const ok = await confirmDialog({ message: t('confirm_delete_comment_message'), confirmLabel: t('action_delete'), danger: true });
     if (!ok) return;
     try {
       const res = await apiFetch(`/api/tasks/${taskId}/comments/${commentId}`, { method: 'DELETE' });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Gagal menghapus komentar.');
+      const json = await parseJsonSafe(res);
+      if (!res.ok) throw new Error(json.error || t('toast_comment_delete_failed'));
       await load();
-      toast.success('Komentar berhasil dihapus.');
+      toast.success(t('toast_comment_deleted'));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Gagal menghapus komentar.');
+      toast.error(e instanceof Error ? e.message : t('toast_comment_delete_failed'));
     }
   }
 
@@ -157,14 +159,14 @@ export default function TaskComments({
   return (
     <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4">
       <h3 className="mb-3 text-sm font-semibold text-gray-900">
-        Komentar <span className="font-normal text-gray-400">({comments.length})</span>
+        {t('comments_heading')} <span className="font-normal text-gray-400">({comments.length})</span>
       </h3>
 
       {error && <div className="mb-3 rounded-lg bg-red-50 p-2 text-xs text-red-700">{error}</div>}
 
       <div className="max-h-64 overflow-y-auto">
-        {loading && <p className="py-2 text-sm text-gray-400">Memuat komentar...</p>}
-        {!loading && comments.length === 0 && <p className="py-2 text-sm text-gray-400">Belum ada komentar.</p>}
+        {loading && <p className="py-2 text-sm text-gray-400">{t('comments_loading')}</p>}
+        {!loading && comments.length === 0 && <p className="py-2 text-sm text-gray-400">{t('comments_empty')}</p>}
         {!loading && comments.length > 0 && (
           <ul className="space-y-4">
             {comments.map((c) => (
@@ -179,7 +181,7 @@ export default function TaskComments({
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-sm font-medium text-gray-900">{c.user_name}</span>
                     <span className="text-xs text-gray-400">{formatDate(c.created_at)}</span>
-                    {c.edited && <span className="text-xs italic text-gray-400">(diedit)</span>}
+                    {c.edited && <span className="text-xs italic text-gray-400">{t('comments_edited_badge')}</span>}
                   </div>
 
                   {editingId === c.id ? (
@@ -187,7 +189,7 @@ export default function TaskComments({
                       <textarea
                         value={editText}
                         onChange={(e) => setEditText(e.target.value)}
-                        placeholder="Tulis komentar..."
+                        placeholder={t('comment_placeholder')}
                         rows={2}
                         className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                       />
@@ -196,13 +198,13 @@ export default function TaskComments({
                           onClick={() => saveEdit(c.id)}
                           className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
                         >
-                          Simpan
+                          {t('action_save')}
                         </button>
                         <button
                           onClick={() => setEditingId(null)}
                           className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-900"
                         >
-                          Batal
+                          {t('action_cancel')}
                         </button>
                       </div>
                     </div>
@@ -247,12 +249,12 @@ export default function TaskComments({
                       <div className="mt-1 flex items-center gap-3">
                         {c.user_id === currentUserId && (
                           <button onClick={() => startEdit(c)} className="text-xs font-medium text-gray-500 hover:text-gray-900">
-                            Edit
+                            {t('action_edit')}
                           </button>
                         )}
                         {(c.user_id === currentUserId || canDeleteAny) && (
                           <button onClick={() => handleDelete(c.id)} className="text-xs font-medium text-red-600 hover:text-red-700">
-                            Hapus
+                            {t('action_delete')}
                           </button>
                         )}
                       </div>
@@ -270,7 +272,7 @@ export default function TaskComments({
           value={text}
           onChange={(e) => setText(e.target.value)}
           rows={2}
-          placeholder="Tulis komentar..."
+          placeholder={t('comment_placeholder')}
           className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
         />
 
@@ -287,7 +289,7 @@ export default function TaskComments({
                 if (fileInputRef.current) fileInputRef.current.value = '';
               }}
               className="shrink-0 text-gray-400 hover:text-red-600"
-              aria-label="Hapus lampiran"
+              aria-label={t('comment_remove_attachment_aria')}
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -313,10 +315,10 @@ export default function TaskComments({
             disabled={submitting}
             className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
           >
-            {submitting ? 'Mengirim...' : 'Kirim'}
+            {submitting ? t('comment_sending') : t('comment_send')}
           </button>
         </div>
-        <p className="mt-1.5 text-xs text-gray-400">Maks 1 lampiran per komentar — Gambar 5MB, Video 25MB, File lain 10MB.</p>
+        <p className="mt-1.5 text-xs text-gray-400">{t('comment_hint')}</p>
       </form>
     </div>
   );

@@ -29,15 +29,15 @@ export default function LoginPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.error || 'Login gagal.');
-        toast.error(data.error || 'Login gagal.');
+        setError(data.error || t('toast_login_failed'));
+        toast.error(data.error || t('toast_login_failed'));
         return;
       }
       router.push('/dashboard');
       router.refresh();
     } catch {
-      setError('Kesalahan jaringan - silakan coba lagi.');
-      toast.error('Kesalahan jaringan - silakan coba lagi.');
+      setError(t('toast_network_error'));
+      toast.error(t('toast_network_error'));
     } finally {
       setLoading(false);
     }
@@ -64,29 +64,27 @@ export default function LoginPage() {
               />
             </svg>
           </span>
-          Task Management System
+          {t('login_brand_name')}
         </div>
         <div className="relative z-10">
           <h2 className="mb-3 text-3xl font-semibold leading-tight">
-            Rencanakan pekerjaan.
+            {t('login_hero_line1')}
             <br />
-            Pantau kemajuannya.
+            {t('login_hero_line2')}
             <br />
-            Selesaikan tepat waktu.
+            {t('login_hero_line3')}
           </h2>
-          <p className="max-w-sm text-indigo-200">
-            Satu ruang kerja yang rapi untuk tugas, pelacakan waktu, dan pelaporan tim Anda.
-          </p>
+          <p className="max-w-sm text-indigo-200">{t('login_hero_subtitle')}</p>
         </div>
-        <p className="relative z-10 text-sm text-indigo-300">© {new Date().getFullYear()} Task Management System</p>
+        <p className="relative z-10 text-sm text-indigo-300">© {new Date().getFullYear()} {t('login_brand_name')}</p>
       </div>
 
       {/* Panel form */}
       <div className="flex items-center justify-center bg-gray-50 p-6 sm:p-12">
         <div className="w-full max-w-sm animate-fade-in">
           <div className="mb-8">
-            <h2 className="mb-1 text-2xl font-semibold text-gray-900">Selamat datang kembali</h2>
-            <p className="text-sm text-gray-500">Masuk untuk melanjutkan ke ruang kerja Anda.</p>
+            <h2 className="mb-1 text-2xl font-semibold text-gray-900">{t('login_welcome_title')}</h2>
+            <p className="text-sm text-gray-500">{t('login_welcome_subtitle')}</p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5" noValidate>
@@ -124,7 +122,7 @@ export default function LoginPage() {
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
                   tabIndex={-1}
-                  aria-label="Tampilkan/sembunyikan kata sandi"
+                  aria-label={t('login_toggle_password_aria')}
                   className="absolute inset-y-0 right-0 flex items-center pr-3 text-gray-400 hover:text-gray-500"
                 >
                   {showPassword ? (
@@ -158,17 +156,17 @@ export default function LoginPage() {
                   onChange={(e) => setRemember(e.target.checked)}
                   className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus-ring"
                 />
-                <span className="text-sm text-gray-500">Ingat saya</span>
+                <span className="text-sm text-gray-500">{t('login_remember_me')}</span>
               </label>
               {/* Fase 12 (QA sesuai video): link ini ada di video tapi aplikasi belum punya alur
                   reset password lewat email (tidak ada layanan email) — tampilkan info kontak
                   admin, bukan link mati, supaya tetap jujur ke user. */}
               <button
                 type="button"
-                onClick={() => toast.info('Fitur reset kata sandi mandiri belum tersedia. Hubungi admin untuk reset password Anda.')}
+                onClick={() => toast.info(t('toast_login_reset_unavailable'))}
                 className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
               >
-                Lupa kata sandi?
+                {t('login_forgot_password')}
               </button>
             </div>
 

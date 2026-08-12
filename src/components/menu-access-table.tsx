@@ -47,15 +47,16 @@ export default function MenuAccessTable() {
       try {
         const res = await apiFetch('/api/menu-access/roles');
         const json = await parseJsonSafe(res);
-        if (!res.ok) throw new Error(json.error || 'Gagal memuat daftar role.');
+        if (!res.ok) throw new Error(json.error || t('toast_menu_access_load_roles_failed'));
         setRoles(json.data);
         if (json.data.length > 0) setSelectedRoleId(json.data[0].value);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Gagal memuat daftar role.');
+        setError(e instanceof Error ? e.message : t('toast_menu_access_load_roles_failed'));
       } finally {
         setLoadingRoles(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadMatrix = useCallback(async (roleId: string) => {
@@ -66,14 +67,15 @@ export default function MenuAccessTable() {
     try {
       const res = await apiFetch(`/api/menu-access?role_id=${encodeURIComponent(roleId)}`);
       const json = await parseJsonSafe(res);
-      if (!res.ok) throw new Error(json.error || 'Gagal memuat hak akses.');
+      if (!res.ok) throw new Error(json.error || t('toast_menu_access_load_matrix_failed'));
       setMenus(json.data.menus);
       setMatrix(json.data.matrix);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat hak akses.');
+      setError(e instanceof Error ? e.message : t('toast_menu_access_load_matrix_failed'));
     } finally {
       setLoadingMatrix(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -112,12 +114,12 @@ export default function MenuAccessTable() {
         body: JSON.stringify({ role_id: selectedRoleId, matrix }),
       });
       const json = await parseJsonSafe(res);
-      if (!res.ok) throw new Error(json.error || 'Gagal menyimpan hak akses.');
+      if (!res.ok) throw new Error(json.error || t('toast_menu_access_save_failed'));
       setMatrix(json.data.matrix);
-      setSavedMsg('Hak akses berhasil disimpan.');
-      toast.success('Hak akses berhasil disimpan.');
+      setSavedMsg(t('toast_menu_access_saved'));
+      toast.success(t('toast_menu_access_saved'));
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Gagal menyimpan hak akses.';
+      const msg = e instanceof Error ? e.message : t('toast_menu_access_save_failed');
       setError(msg);
       toast.error(msg);
     } finally {

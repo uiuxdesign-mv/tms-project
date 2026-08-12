@@ -10,6 +10,35 @@ import { useTableControls } from '@/lib/hooks/use-table-controls';
 import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/table-controls';
 import { Badge, StatusBadge } from '@/components/badge';
 import { useLanguage } from '@/components/language-provider';
+import type { TranslationKey } from '@/lib/i18n/translations';
+
+type TFn = (key: TranslationKey) => string;
+
+/** Resolusi label/placeholder/helperText field lewat i18n key kalau tersedia, jatuh ke string
+ *  mentah di config kalau belum ada key-nya (permintaan user: sweep i18n menyeluruh termasuk
+ *  Master Data — lihat catatan labelKey/placeholderKey/helperTextKey di lib/master-data/config.ts). */
+function fieldLabel(t: TFn, f: FieldConfig): string {
+  return f.labelKey ? t(f.labelKey) : f.label;
+}
+function fieldPlaceholder(t: TFn, f: FieldConfig): string | undefined {
+  return f.placeholderKey ? t(f.placeholderKey) : f.placeholder;
+}
+function fieldHelperText(t: TFn, f: FieldConfig): string | undefined {
+  return f.helperTextKey ? t(f.helperTextKey) : f.helperText;
+}
+function entityLabel(t: TFn, config: EntityConfig): string {
+  return config.labelKey ? t(config.labelKey) : config.label;
+}
+function entityLabelPlural(t: TFn, config: EntityConfig): string {
+  return config.labelPluralKey ? t(config.labelPluralKey) : config.labelPlural;
+}
+function entityPageTitle(t: TFn, config: EntityConfig): string {
+  return config.pageTitleKey ? t(config.pageTitleKey) : config.pageTitle;
+}
+function entitySubtitle(t: TFn, config: EntityConfig, count: number): string {
+  const template = config.subtitleTemplateKey ? t(config.subtitleTemplateKey) : config.subtitleTemplate;
+  return template.replace('{count}', String(count));
+}
 
 type Row = Record<string, string>;
 type SelectOption = { value: string; label: string };
@@ -64,14 +93,15 @@ export default function MasterDataTable({
       ]);
       const rowsJson = await parseJsonSafe(rowsRes);
       const optsJson = await parseJsonSafe(optsRes);
-      if (!rowsRes.ok || !rowsJson.data) throw new Error(rowsJson.error || 'Gagal memuat data.');
+      if (!rowsRes.ok || !rowsJson.data) throw new Error(rowsJson.error || t('toast_load_data_failed'));
       setRows(rowsJson.data);
       setOptions(optsJson.data || {});
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat data.');
+      setError(e instanceof Error ? e.message : t('toast_load_data_failed'));
     } finally {
       if (!silent) setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityKey]);
 
   useEffect(() => {
@@ -144,14 +174,18 @@ export default function MasterDataTable({
       const json = await parseJsonSafe(res);
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
-        else toast.error(json.error || 'Gagal menyimpan data.');
+        else toast.error(json.error || t('toast_save_task_failed'));
         return;
       }
       setModalOpen(false);
       await load({ silent: true });
-      toast.success(editingRow ? `${config.label} berhasil diperbarui.` : `${config.label} baru berhasil ditambahkan.`);
+      toast.success(
+        editingRow
+          ? `${entityLabel(t, config)} ${t('toast_update_success_suffix')}`
+          : `${entityLabel(t, config)} ${t('toast_create_success_suffix')}`
+      );
     } catch {
-      toast.error('Terjadi kesalahan jaringan.');
+      toast.error(t('toast_network_error'));
     } finally {
       setSaving(false);
     }
@@ -160,8 +194,8 @@ export default function MasterDataTable({
   async function handleDelete(row: Row) {
     const title = row[config.titleField] || row.id;
     const ok = await confirmDialog({
-      message: `Delete ${config.label.toLowerCase()} "${title}"?`,
-      confirmLabel: 'Delete',
+      message: `${t('confirm_delete_generic_prefix')} ${entityLabel(t, config).toLowerCase()} "${title}"?`,
+      confirmLabel: t('action_delete'),
       danger: true,
     });
     if (!ok) return;
@@ -173,14 +207,14 @@ export default function MasterDataTable({
           setDeleteBlocked({ row, message: json.error, reassignable: true });
           setReassignToId('');
         } else {
-          toast.error(json.error || 'Gagal menghapus data.');
+          toast.error(json.error || t('toast_delete_data_failed'));
         }
         return;
       }
       await load({ silent: true });
-      toast.success(`${config.label} "${title}" berhasil dihapus.`);
+      toast.success(`${entityLabel(t, config)} "${title}" ${t('toast_task_deleted_suffix')}`);
     } catch {
-      toast.error('Terjadi kesalahan jaringan.');
+      toast.error(t('toast_network_error'));
     }
   }
 
@@ -195,14 +229,14 @@ export default function MasterDataTable({
       });
       const json = await parseJsonSafe(res);
       if (!res.ok) {
-        toast.error(json.error || 'Gagal memindahkan & menghapus data.');
+        toast.error(json.error || t('toast_reassign_delete_failed'));
         return;
       }
       setDeleteBlocked(null);
       await load({ silent: true });
-      toast.success(`${config.label} berhasil dipindahkan & dihapus.`);
+      toast.success(`${entityLabel(t, config)} ${t('toast_reassign_delete_success_suffix')}`);
     } catch {
-      toast.error('Terjadi kesalahan jaringan.');
+      toast.error(t('toast_network_error'));
     } finally {
       setReassigning(false);
     }
@@ -247,7 +281,7 @@ export default function MasterDataTable({
         body: JSON.stringify(rowPayload),
       });
       const json1 = await parseJsonSafe(res1);
-      if (!res1.ok) throw new Error(json1.error || 'Gagal mengubah urutan.');
+      if (!res1.ok) throw new Error(json1.error || t('toast_reorder_failed'));
 
       const res2 = await apiFetch(`/api/master/${entityKey}/${other.id}`, {
         method: 'PATCH',
@@ -255,10 +289,10 @@ export default function MasterDataTable({
         body: JSON.stringify(otherPayload),
       });
       const json2 = await parseJsonSafe(res2);
-      if (!res2.ok) throw new Error(json2.error || 'Gagal mengubah urutan.');
-      toast.success('Urutan berhasil diubah.');
+      if (!res2.ok) throw new Error(json2.error || t('toast_reorder_failed'));
+      toast.success(t('toast_reorder_success'));
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : 'Gagal mengubah urutan.');
+      toast.error(e instanceof Error ? e.message : t('toast_reorder_failed'));
     } finally {
       // Selalu reload, sukses ataupun gagal di tengah jalan — supaya tabel selalu mencerminkan
       // urutan yang SEBENARNYA tersimpan di server, bukan asumsi optimistik di client.
@@ -268,7 +302,7 @@ export default function MasterDataTable({
   }
 
   function handleExportCsv() {
-    const header = config.fields.map((f) => f.label);
+    const header = config.fields.map((f) => fieldLabel(t, f));
     const lines = [header, ...rows.map((row) => config.fields.map((f) => csvCellValue(f, row[f.key], options[f.key])))];
     downloadCsv(`master-${entityKey}-${new Date().toISOString().slice(0, 10)}.csv`, buildCsv(lines));
   }
@@ -282,7 +316,7 @@ export default function MasterDataTable({
     const text = await file.text();
     const parsedRows = parseCsv(text);
     if (parsedRows.length < 2) {
-      setImportResults([{ rowNumber: 0, title: '-', ok: false, message: 'File CSV kosong atau tidak punya baris data.' }]);
+      setImportResults([{ rowNumber: 0, title: '-', ok: false, message: t('md_import_empty_csv') }]);
       return;
     }
 
@@ -317,7 +351,7 @@ export default function MasterDataTable({
             (o) => o.label.toLowerCase() === raw.toLowerCase() || o.value.toLowerCase() === raw.toLowerCase()
           );
           if (!match) {
-            rowError = `${field.label}: "${raw}" tidak ditemukan di ${field.optionsFrom ? 'data master terkait' : 'pilihan yang valid'}.`;
+            rowError = `${fieldLabel(t, field)}: "${raw}" ${field.optionsFrom ? t('md_import_not_found_related') : t('md_import_not_found_options')}`;
             break;
           }
           payload[field.key] = match.value;
@@ -341,7 +375,7 @@ export default function MasterDataTable({
             ids.push(match.value);
           }
           if (notFound) {
-            rowError = `${field.label}: "${notFound}" tidak ditemukan di data master terkait.`;
+            rowError = `${fieldLabel(t, field)}: "${notFound}" ${t('md_import_not_found_related')}`;
             break;
           }
           payload[field.key] = ids.join(',');
@@ -353,7 +387,7 @@ export default function MasterDataTable({
         }
       }
 
-      const rowTitle = payload[config.titleField] || `(baris ${rowNumber})`;
+      const rowTitle = payload[config.titleField] || `(${t('md_import_row_label')} ${rowNumber})`;
 
       if (rowError) {
         results.push({ rowNumber, title: rowTitle, ok: false, message: rowError });
@@ -368,13 +402,13 @@ export default function MasterDataTable({
         });
         const json = await parseJsonSafe(res);
         if (!res.ok) {
-          const msg = json.fieldErrors ? Object.values(json.fieldErrors).join('; ') : json.error || 'Gagal menyimpan.';
+          const msg = json.fieldErrors ? Object.values(json.fieldErrors).join('; ') : json.error || t('md_import_save_failed');
           results.push({ rowNumber, title: rowTitle, ok: false, message: msg });
         } else {
-          results.push({ rowNumber, title: rowTitle, ok: true, message: 'Berhasil ditambahkan.' });
+          results.push({ rowNumber, title: rowTitle, ok: true, message: t('md_import_row_success') });
         }
       } catch {
-        results.push({ rowNumber, title: rowTitle, ok: false, message: 'Terjadi kesalahan jaringan.' });
+        results.push({ rowNumber, title: rowTitle, ok: false, message: t('toast_network_error') });
       }
     }
 
@@ -383,8 +417,8 @@ export default function MasterDataTable({
     await load({ silent: true });
     const okCount = results.filter((r) => r.ok).length;
     const failCount = results.length - okCount;
-    if (failCount === 0) toast.success(`Import selesai — ${okCount} baris berhasil ditambahkan.`);
-    else toast.error(`Import selesai — ${okCount} berhasil, ${failCount} gagal. Lihat rincian di ringkasan.`);
+    if (failCount === 0) toast.success(t('toast_import_done_success').replace('{ok}', String(okCount)));
+    else toast.error(t('toast_import_done_mixed').replace('{ok}', String(okCount)).replace('{fail}', String(failCount)));
   }
 
   const tableFields = config.fields.filter((f) => f.showInTable !== false);
@@ -414,13 +448,13 @@ export default function MasterDataTable({
     searchFields: searchFields.length > 0 ? searchFields : [config.titleField],
   });
 
-  const subtitle = config.subtitleTemplate.replace('{count}', String(rows.length));
+  const subtitle = entitySubtitle(t, config, rows.length);
 
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-semibold text-gray-900">{config.pageTitle}</h1>
+          <h1 className="text-lg font-semibold text-gray-900">{entityPageTitle(t, config)}</h1>
           <p className="text-sm text-gray-500">{subtitle}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -430,7 +464,7 @@ export default function MasterDataTable({
               disabled={rows.length === 0}
               className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
             >
-              Export CSV
+              {t('md_export_csv')}
             </button>
           )}
           {permissions.canCreate && (
@@ -440,7 +474,7 @@ export default function MasterDataTable({
                 disabled={importing}
                 className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
-                {importing ? `Importing... (${importProgress.current}/${importProgress.total})` : 'Import CSV'}
+                {importing ? `${t('md_importing')} (${importProgress.current}/${importProgress.total})` : t('md_import_csv')}
               </button>
               <input
                 ref={fileInputRef}
@@ -457,7 +491,7 @@ export default function MasterDataTable({
                 onClick={openCreateModal}
                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
               >
-                + {t('action_add')} {config.label}
+                + {t('action_add')} {entityLabel(t, config)}
               </button>
             </>
           )}
@@ -466,7 +500,7 @@ export default function MasterDataTable({
 
       <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
         <div className="border-b border-gray-200 p-4">
-          <TableSearchBox value={table.search} onChange={table.setSearch} placeholder={`Search ${config.labelPlural.toLowerCase()}...`} />
+          <TableSearchBox value={table.search} onChange={table.setSearch} placeholder={`${t('md_search_placeholder_prefix')} ${entityLabelPlural(t, config).toLowerCase()}...`} />
         </div>
 
         {error && <div className="border-b border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
@@ -477,31 +511,31 @@ export default function MasterDataTable({
             <thead className="bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
                 <SortableHeader
-                  label="Kanban Order"
+                  label={t('md_col_kanban_order')}
                   active={table.sortKey === 'sort_order'}
                   dir={table.sortDir}
                   onClick={() => table.toggleSort('sort_order')}
                 />
                 <SortableHeader
-                  label="Name"
+                  label={t('md_col_name')}
                   active={table.sortKey === 'status_name'}
                   dir={table.sortDir}
                   onClick={() => table.toggleSort('status_name')}
                 />
                 <SortableHeader
-                  label="Workflow Level"
+                  label={t('md_field_workflow_level')}
                   active={table.sortKey === 'workflow_level'}
                   dir={table.sortDir}
                   onClick={() => table.toggleSort('workflow_level')}
                 />
-                <th className="px-4 py-2 font-medium">Markers</th>
+                <th className="px-4 py-2 font-medium">{t('md_col_markers')}</th>
                 <SortableHeader
-                  label="Status"
+                  label={t('col_status')}
                   active={table.sortKey === 'is_active'}
                   dir={table.sortDir}
                   onClick={() => table.toggleSort('is_active')}
                 />
-                <th className="px-4 py-2 font-medium">Actions</th>
+                <th className="px-4 py-2 font-medium">{t('col_actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -515,14 +549,14 @@ export default function MasterDataTable({
               {!loading && rows.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
-                    Belum ada data.
+                    {t('md_no_data')}
                   </td>
                 </tr>
               )}
               {!loading && rows.length > 0 && table.paged.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
-                    Tidak ada data yang cocok dengan pencarian.
+                    {t('md_no_match')}
                   </td>
                 </tr>
               )}
@@ -575,8 +609,8 @@ export default function MasterDataTable({
                       <td className="px-4 py-2 text-gray-700">{row.workflow_level || '—'}</td>
                       <td className="px-4 py-2">
                         <div className="flex flex-wrap gap-1.5">
-                          {row.is_default === 'Ya' && <Badge label="Default" tone="info" />}
-                          {row.is_final === 'Ya' && <Badge label="Final" tone="success" />}
+                          {row.is_default === 'Ya' && <Badge label={t('md_badge_default')} tone="info" />}
+                          {row.is_final === 'Ya' && <Badge label={t('md_badge_final')} tone="success" />}
                         </div>
                       </td>
                       <td className="px-4 py-2">
@@ -584,16 +618,16 @@ export default function MasterDataTable({
                       </td>
                       <td className="px-4 py-2">
                         <button onClick={() => openDetailModal(row)} className="mr-3 text-gray-600 hover:text-gray-900">
-                          Detail
+                          {t('action_detail')}
                         </button>
                         {permissions.canEdit && (
                           <button onClick={() => openEditModal(row)} className="mr-3 text-indigo-600 hover:text-indigo-800">
-                            Edit
+                            {t('action_edit')}
                           </button>
                         )}
                         {permissions.canDelete && (
                           <button onClick={() => handleDelete(row)} className="text-red-600 hover:text-red-800">
-                            Delete
+                            {t('action_delete')}
                           </button>
                         )}
                       </td>
@@ -609,13 +643,13 @@ export default function MasterDataTable({
               {tableFields.map((f) => (
                 <SortableHeader
                   key={f.key}
-                  label={f.label}
+                  label={fieldLabel(t, f)}
                   active={table.sortKey === f.key}
                   dir={table.sortDir}
                   onClick={() => table.toggleSort(f.key)}
                 />
               ))}
-              <th className="px-4 py-2 font-medium">Actions</th>
+              <th className="px-4 py-2 font-medium">{t('col_actions')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -629,14 +663,14 @@ export default function MasterDataTable({
             {!loading && rows.length === 0 && (
               <tr>
                 <td colSpan={tableFields.length + 1} className="px-4 py-6 text-center text-gray-400">
-                  Belum ada data.
+                  {t('md_no_data')}
                 </td>
               </tr>
             )}
             {!loading && rows.length > 0 && table.paged.length === 0 && (
               <tr>
                 <td colSpan={tableFields.length + 1} className="px-4 py-6 text-center text-gray-400">
-                  Tidak ada data yang cocok dengan pencarian.
+                  {t('md_no_match')}
                 </td>
               </tr>
             )}
@@ -647,30 +681,30 @@ export default function MasterDataTable({
                   <tr key={row.id}>
                     {tableFields.map((f, idx) => (
                       <td key={f.key} className="px-4 py-2 text-gray-700">
-                        {renderCellForTable(f, row[f.key], options[f.key])}
+                        {renderCellForTable(t, f, row[f.key], options[f.key])}
                         {idx === 0 && isSystemRow && (
                           <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium uppercase text-gray-500">
-                            Bawaan Sistem
+                            {t('md_badge_system')}
                           </span>
                         )}
                       </td>
                     ))}
                     <td className="px-4 py-2">
                       <button onClick={() => openDetailModal(row)} className="mr-3 text-gray-600 hover:text-gray-900">
-                        Detail
+                        {t('action_detail')}
                       </button>
                       {permissions.canEdit && (
                         <button onClick={() => openEditModal(row)} className="mr-3 text-indigo-600 hover:text-indigo-800">
-                          Edit
+                          {t('action_edit')}
                         </button>
                       )}
                       {permissions.canDelete && !isSystemRow && (
                         <button onClick={() => handleDelete(row)} className="text-red-600 hover:text-red-800">
-                          Delete
+                          {t('action_delete')}
                         </button>
                       )}
                       {permissions.canDelete && isSystemRow && (
-                        <span className="text-gray-300" title="Data bawaan sistem tidak bisa dihapus">
+                        <span className="text-gray-300" title={t('md_system_row_delete_title')}>
                           -
                         </span>
                       )}
@@ -697,7 +731,7 @@ export default function MasterDataTable({
           <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
               <h2 className="text-lg font-semibold text-gray-900">
-                {editingRow ? `${t('action_edit')} ${config.label}` : `${t('action_add')} ${config.label}`}
+                {editingRow ? `${t('action_edit')} ${entityLabel(t, config)}` : `${t('action_add')} ${entityLabel(t, config)}`}
               </h2>
             </div>
             {/* Bugfix (Fase 14): tombol aksi (Cancel/Save) dipindah ke footer `shrink-0` di luar
@@ -736,7 +770,7 @@ export default function MasterDataTable({
                   disabled={saving}
                   className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
-                  {saving ? t('common_saving') : editingRow ? t('form_save_changes') : `${t('form_create')} ${config.label}`}
+                  {saving ? t('common_saving') : editingRow ? t('form_save_changes') : `${t('form_create')} ${entityLabel(t, config)}`}
                 </button>
               </div>
             </form>
@@ -748,14 +782,14 @@ export default function MasterDataTable({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
           <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">{config.label} Detail</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{entityLabel(t, config)} {t('md_detail_suffix')}</h2>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
               <dl className="space-y-3 text-sm">
                 {config.fields.map((f) => (
                   <div key={f.key} className="flex justify-between gap-4">
-                    <dt className="text-gray-500">{f.label}</dt>
-                    <dd className="text-right text-gray-900">{renderCellForTable(f, viewingRow[f.key], options[f.key])}</dd>
+                    <dt className="text-gray-500">{fieldLabel(t, f)}</dt>
+                    <dd className="text-right text-gray-900">{renderCellForTable(t, f, viewingRow[f.key], options[f.key])}</dd>
                   </div>
                 ))}
               </dl>
@@ -765,7 +799,7 @@ export default function MasterDataTable({
                 onClick={() => setViewingRow(null)}
                 className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
               >
-                Close
+                {t('td_close')}
               </button>
             </div>
           </div>
@@ -776,10 +810,10 @@ export default function MasterDataTable({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
           <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">Hasil Import CSV</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{t('md_import_result_title')}</h2>
               <p className="mt-1 text-sm text-gray-500">
-                {importResults.filter((r) => r.ok).length} berhasil, {importResults.filter((r) => !r.ok).length} gagal
-                dari {importResults.length} baris.
+                {importResults.filter((r) => r.ok).length} {t('md_import_result_success')}, {importResults.filter((r) => !r.ok).length} {t('md_import_result_failed')}
+                {' '}{t('md_import_result_from')} {importResults.length} {t('md_import_result_rows')}
               </p>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
@@ -787,9 +821,9 @@ export default function MasterDataTable({
                 <table className="w-full text-left text-xs">
                   <thead className="bg-gray-50 uppercase text-gray-500">
                     <tr>
-                      <th className="px-3 py-2 font-medium">Baris</th>
-                      <th className="px-3 py-2 font-medium">Data</th>
-                      <th className="px-3 py-2 font-medium">Keterangan</th>
+                      <th className="px-3 py-2 font-medium">{t('md_import_col_row')}</th>
+                      <th className="px-3 py-2 font-medium">{t('md_import_col_data')}</th>
+                      <th className="px-3 py-2 font-medium">{t('md_import_col_note')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-gray-100">
@@ -809,7 +843,7 @@ export default function MasterDataTable({
                 onClick={() => setImportResults(null)}
                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
               >
-                Tutup
+                {t('td_close')}
               </button>
             </div>
           </div>
@@ -820,17 +854,17 @@ export default function MasterDataTable({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
           <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">Tidak Bisa Dihapus Langsung</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{t('md_delete_blocked_title')}</h2>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
               <p className="mb-4 text-sm text-gray-600">{deleteBlocked.message}</p>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">Ganti dengan {config.label}</label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('md_replace_with_prefix')} {entityLabel(t, config)}</label>
               <select
                 value={reassignToId}
                 onChange={(e) => setReassignToId(e.target.value)}
                 className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
               >
-                <option value="">-- Pilih {config.label} pengganti --</option>
+                <option value="">{t('md_option_choose_replacement_prefix')} {entityLabel(t, config)} {t('md_option_choose_replacement_suffix')}</option>
                 {rows
                   .filter((r) => r.id !== deleteBlocked.row.id)
                   // Bugfix (Fase 13): data pengganti untuk reassign-lalu-hapus tidak boleh berupa
@@ -845,8 +879,8 @@ export default function MasterDataTable({
                   ))}
               </select>
               <p className="mt-2 text-xs text-gray-500">
-                Semua data yang masih memakai &quot;{deleteBlocked.row[config.titleField]}&quot; akan dipindahkan ke
-                pilihan di atas, baru kemudian &quot;{deleteBlocked.row[config.titleField]}&quot; dihapus.
+                {t('md_reassign_note_prefix')} &quot;{deleteBlocked.row[config.titleField]}&quot; {t('md_reassign_note_suffix')}
+                {' '}&quot;{deleteBlocked.row[config.titleField]}&quot; {t('md_reassign_note_end')}
               </p>
             </div>
             <div className="flex shrink-0 justify-end gap-2 border-t border-gray-200 px-5 py-4">
@@ -855,14 +889,14 @@ export default function MasterDataTable({
                 onClick={() => setDeleteBlocked(null)}
                 className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
               >
-                Batal
+                {t('action_cancel')}
               </button>
               <button
                 onClick={handleReassignAndDelete}
                 disabled={!reassignToId || reassigning}
                 className="rounded-lg bg-red-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50"
               >
-                {reassigning ? 'Memproses...' : 'Ganti & Hapus'}
+                {reassigning ? t('md_reassign_processing') : t('md_reassign_confirm_btn')}
               </button>
             </div>
           </div>
@@ -875,13 +909,13 @@ export default function MasterDataTable({
 /** Dipakai baik di kolom tabel maupun modal Detail — render sesuai tipe field, termasuk badge
  * Active/Inactive untuk boolean displayAs:'select' (mis. is_active Master Status) dan Ya/Tidak
  * untuk checkbox biasa. */
-function renderCellForTable(field: FieldConfig, value: string, fieldOptions?: SelectOption[]) {
+function renderCellForTable(t: TFn, field: FieldConfig, value: string, fieldOptions?: SelectOption[]) {
   if (field.key === 'status') return <StatusBadge value={value} />;
   if (field.type === 'boolean' && field.displayAs === 'select') {
     const labels = field.selectLabels || ['Active', 'Inactive'];
     return <StatusBadge value={value === 'Ya' ? labels[0] : labels[1]} />;
   }
-  if (field.type === 'boolean') return value === 'Ya' ? 'Yes' : 'No';
+  if (field.type === 'boolean') return value === 'Ya' ? t('dashboard_yes') : t('dashboard_no');
   if (field.type === 'color' && value) {
     return (
       <span className="inline-flex items-center gap-1.5">
@@ -938,6 +972,11 @@ function FieldInput({
   disabled?: boolean;
   onChange: (v: string) => void;
 }) {
+  const { t } = useLanguage();
+  const label = fieldLabel(t, field);
+  const placeholder = fieldPlaceholder(t, field);
+  const helperText = fieldHelperText(t, field);
+
   // Checkbox tunggal (Fase 12, sesuai video) — label field dipakai sebagai teks di samping
   // checkbox, jadi TIDAK menampilkan label judul terpisah di atasnya seperti field lain.
   if (field.type === 'boolean' && field.displayAs === 'checkbox') {
@@ -951,9 +990,9 @@ function FieldInput({
             onChange={(e) => onChange(e.target.checked ? 'Ya' : 'Tidak')}
             className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus-ring"
           />
-          {field.label}
+          {label}
         </label>
-        {field.helperText && <p className="mt-1 text-xs text-gray-400">{field.helperText}</p>}
+        {helperText && <p className="mt-1 text-xs text-gray-400">{helperText}</p>}
         {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
       </div>
     );
@@ -962,9 +1001,9 @@ function FieldInput({
   return (
     <div>
       <label className="mb-1.5 block text-sm font-medium text-gray-700">
-        {field.label}
+        {label}
         {field.required && <span className="text-red-500"> *</span>}
-        {disabled && <span className="ml-1 text-xs font-normal text-gray-400">(tidak bisa diubah)</span>}
+        {disabled && <span className="ml-1 text-xs font-normal text-gray-400">{t('md_field_disabled_note')}</span>}
       </label>
 
       {field.type === 'select' && (
@@ -974,7 +1013,7 @@ function FieldInput({
           onChange={(e) => onChange(e.target.value)}
           className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
         >
-          <option value="">-- Pilih --</option>
+          <option value="">{t('md_option_choose')}</option>
           {(options || []).map((opt) => (
             <option key={opt.value} value={opt.value}>
               {opt.label}
@@ -989,7 +1028,7 @@ function FieldInput({
         const selected = value.split(',').map((v) => v.trim()).filter(Boolean);
         return (
           <div className="max-h-40 space-y-1.5 overflow-y-auto rounded-lg border border-gray-300 bg-white p-2.5">
-            {(options || []).length === 0 && <p className="text-xs text-gray-400">Belum ada data.</p>}
+            {(options || []).length === 0 && <p className="text-xs text-gray-400">{t('md_no_data_short')}</p>}
             {(options || []).map((opt) => {
               const checked = selected.includes(opt.value);
               return (
@@ -1031,7 +1070,7 @@ function FieldInput({
 
       {field.type === 'boolean' && (!field.displayAs || field.displayAs === 'radio') && (
         <div className="flex gap-4">
-          {['Ya', 'Tidak'].map((opt) => (
+          {(['Ya', 'Tidak'] as const).map((opt) => (
             <label key={opt} className="flex items-center gap-1.5 text-sm text-gray-700">
               <input
                 type="radio"
@@ -1040,7 +1079,7 @@ function FieldInput({
                 disabled={disabled}
                 onChange={() => onChange(opt)}
               />
-              {opt}
+              {opt === 'Ya' ? t('dashboard_yes') : t('dashboard_no')}
             </label>
           ))}
         </div>
@@ -1051,7 +1090,7 @@ function FieldInput({
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder}
+          placeholder={placeholder}
           rows={3}
           className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
         />
@@ -1083,12 +1122,12 @@ function FieldInput({
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
-          placeholder={field.placeholder}
+          placeholder={placeholder}
           className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
         />
       )}
 
-      {field.helperText && <p className="mt-1 text-xs text-gray-400">{field.helperText}</p>}
+      {helperText && <p className="mt-1 text-xs text-gray-400">{helperText}</p>}
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );

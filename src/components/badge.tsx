@@ -1,3 +1,7 @@
+'use client';
+
+import { useLanguage } from '@/components/language-provider';
+
 // Komponen Badge generik meniru components/Badge.php aplikasi lama: pill kecil rounded-full
 // dengan 5 "tone" warna (neutral/success/warning/danger/info), atau warna custom (hex) untuk
 // badge Status task yang warnanya dikonfigurasi admin lewat Master Status.
@@ -36,8 +40,11 @@ export function Badge({
   );
 }
 
-/** Badge Aktif/Tidak Aktif — dipakai di semua tabel Master Data & Users untuk kolom Status. */
+/** Badge Aktif/Tidak Aktif — dipakai di semua tabel Master Data & Users untuk kolom Status.
+ *  Bugfix (permintaan user, item i18n): label badge ini sebelumnya hardcode Bahasa Indonesia,
+ *  tidak ikut berganti saat toggle ID/EN — sekarang diresolusi lewat t(). */
 export function StatusBadge({ value }: { value: string }) {
+  const { t } = useLanguage();
   const active = value === 'Active' || value === 'active' || value === 'Aktif';
-  return <Badge label={active ? 'Aktif' : 'Tidak Aktif'} tone={active ? 'success' : 'danger'} />;
+  return <Badge label={active ? t('status_active_label') : t('status_inactive_label')} tone={active ? 'success' : 'danger'} />;
 }

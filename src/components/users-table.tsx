@@ -116,16 +116,17 @@ export default function UsersTable({
       const [usersRes, optsRes] = await Promise.all([apiFetch('/api/users'), apiFetch('/api/users/options')]);
       const usersJson = await parseJsonSafe(usersRes);
       const optsJson = await parseJsonSafe(optsRes);
-      if (!usersRes.ok || !usersJson.data) throw new Error(usersJson.error || 'Gagal memuat data.');
-      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || 'Gagal memuat opsi.');
+      if (!usersRes.ok || !usersJson.data) throw new Error(usersJson.error || t('toast_load_data_failed'));
+      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || t('toast_load_options_failed'));
       setRows(usersJson.data);
       setRoles(optsJson.data.roles);
       setEmploymentTypes(optsJson.data.employmentTypes);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat data.');
+      setError(e instanceof Error ? e.message : t('toast_load_data_failed'));
     } finally {
       if (!silent) setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -211,33 +212,33 @@ export default function UsersTable({
       const json = await parseJsonSafe(res);
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
-        else toast.error(json.error || 'Gagal menyimpan data.');
+        else toast.error(json.error || t('toast_save_task_failed'));
         return;
       }
       setModalOpen(false);
       await load({ silent: true });
-      toast.success(editingId ? 'Perubahan user berhasil disimpan.' : 'User baru berhasil ditambahkan.');
+      toast.success(editingId ? t('toast_user_updated') : t('toast_user_created'));
     } catch {
-      toast.error('Terjadi kesalahan jaringan.');
+      toast.error(t('toast_network_error'));
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete(row: UserRow) {
-    const ok = await confirmDialog({ message: `Delete user "${row.name}"?`, confirmLabel: 'Delete', danger: true });
+    const ok = await confirmDialog({ message: `${t('confirm_delete_generic_prefix')} ${t('u_entity_word')} "${row.name}"?`, confirmLabel: t('action_delete'), danger: true });
     if (!ok) return;
     try {
       const res = await apiFetch(`/api/users/${row.id}`, { method: 'DELETE' });
       const json = await parseJsonSafe(res);
       if (!res.ok) {
-        toast.error(json.error || 'Gagal menghapus data.');
+        toast.error(json.error || t('toast_delete_data_failed'));
         return;
       }
       await load({ silent: true });
-      toast.success(`User "${row.name}" berhasil dihapus.`);
+      toast.success(`${t('u_entity_word')} "${row.name}" ${t('toast_task_deleted_suffix')}`);
     } catch {
-      toast.error('Terjadi kesalahan jaringan.');
+      toast.error(t('toast_network_error'));
     }
   }
 
@@ -255,7 +256,7 @@ export default function UsersTable({
   }
 
   function handleExportCsv() {
-    const header = ['Nama', 'Email', 'Role', 'Tipe Kepegawaian', 'Boleh Menugaskan', 'Status'];
+    const header = [t('md_col_name'), t('u_col_email'), t('u_col_role'), t('u_col_employment_type'), t('u_col_can_assign'), t('col_status')];
     const lines = [
       header,
       ...rows.map((row) => [
@@ -287,7 +288,7 @@ export default function UsersTable({
     const text = await file.text();
     const parsedRows = parseCsv(text);
     if (parsedRows.length < 2) {
-      setImportResults([{ rowNumber: 0, title: '-', ok: false, message: 'File CSV kosong atau tidak punya baris data.' }]);
+      setImportResults([{ rowNumber: 0, title: '-', ok: false, message: t('md_import_empty_csv') }]);
       return;
     }
 
@@ -314,13 +315,13 @@ export default function UsersTable({
       const roleRaw = get('role');
       const employmentTypeRaw = get('employment_type');
       const statusRaw = get('status') || 'Active';
-      const rowTitle = name || email || `(baris ${rowNumber})`;
+      const rowTitle = name || email || `(${t('md_import_row_label')} ${rowNumber})`;
 
       const role = roles.find(
         (r) => r.label.toLowerCase() === roleRaw.toLowerCase() || r.roleKey.toLowerCase() === roleRaw.toLowerCase()
       );
       if (roleRaw && !role) {
-        results.push({ rowNumber, title: rowTitle, ok: false, message: `Role "${roleRaw}" tidak ditemukan.` });
+        results.push({ rowNumber, title: rowTitle, ok: false, message: `${t('u_col_role')} "${roleRaw}" ${t('u_import_not_found_suffix')}` });
         continue;
       }
 
@@ -328,7 +329,7 @@ export default function UsersTable({
         ? employmentTypes.find((e) => e.label.toLowerCase() === employmentTypeRaw.toLowerCase())
         : undefined;
       if (employmentTypeRaw && !employmentType) {
-        results.push({ rowNumber, title: rowTitle, ok: false, message: `Tipe Kepegawaian "${employmentTypeRaw}" tidak ditemukan.` });
+        results.push({ rowNumber, title: rowTitle, ok: false, message: `${t('u_col_employment_type')} "${employmentTypeRaw}" ${t('u_import_not_found_suffix')}` });
         continue;
       }
 
@@ -349,18 +350,18 @@ export default function UsersTable({
         });
         const json = await parseJsonSafe(res);
         if (!res.ok) {
-          const msg = json.fieldErrors ? Object.values(json.fieldErrors).join('; ') : json.error || 'Gagal menyimpan.';
+          const msg = json.fieldErrors ? Object.values(json.fieldErrors).join('; ') : json.error || t('md_import_save_failed');
           results.push({ rowNumber, title: rowTitle, ok: false, message: msg });
         } else {
           results.push({
             rowNumber,
             title: rowTitle,
             ok: true,
-            message: `Berhasil. Password sementara: ${json.generatedPassword} — wajib diganti user saat login pertama.`,
+            message: `${t('u_import_success_prefix')} ${json.generatedPassword} ${t('u_import_success_suffix')}`,
           });
         }
       } catch {
-        results.push({ rowNumber, title: rowTitle, ok: false, message: 'Terjadi kesalahan jaringan.' });
+        results.push({ rowNumber, title: rowTitle, ok: false, message: t('toast_network_error') });
       }
     }
 
@@ -369,16 +370,16 @@ export default function UsersTable({
     await load({ silent: true });
     const okCount = results.filter((r) => r.ok).length;
     const failCount = results.length - okCount;
-    if (failCount === 0) toast.success(`Import selesai — ${okCount} user berhasil ditambahkan.`);
-    else toast.error(`Import selesai — ${okCount} berhasil, ${failCount} gagal. Lihat rincian di ringkasan.`);
+    if (failCount === 0) toast.success(t('toast_import_users_done_success').replace('{ok}', String(okCount)));
+    else toast.error(t('toast_import_done_mixed').replace('{ok}', String(okCount)).replace('{fail}', String(failCount)));
   }
 
   return (
     <div>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-lg font-semibold text-gray-900">Master User</h1>
-          <p className="text-sm text-gray-500">{rows.length} total users</p>
+          <h1 className="text-lg font-semibold text-gray-900">{t('users_page_title')}</h1>
+          <p className="text-sm text-gray-500">{t('u_subtitle').replace('{count}', String(rows.length))}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <button
@@ -386,7 +387,7 @@ export default function UsersTable({
             disabled={rows.length === 0}
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
           >
-            Export CSV
+            {t('md_export_csv')}
           </button>
           {permissions.canCreate && (
             <>
@@ -395,7 +396,7 @@ export default function UsersTable({
                 disabled={importing}
                 className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
-                {importing ? `Importing... (${importProgress.current}/${importProgress.total})` : 'Import CSV'}
+                {importing ? `${t('md_importing')} (${importProgress.current}/${importProgress.total})` : t('md_import_csv')}
               </button>
               <input
                 ref={fileInputRef}
@@ -412,7 +413,7 @@ export default function UsersTable({
                 onClick={openCreateModal}
                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
               >
-                + Add User
+                {t('users_add_button')}
               </button>
             </>
           )}
@@ -421,7 +422,7 @@ export default function UsersTable({
 
       <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
         <div className="border-b border-gray-200 p-4">
-          <TableSearchBox value={table.search} onChange={table.setSearch} placeholder="Search name, email, department..." />
+          <TableSearchBox value={table.search} onChange={table.setSearch} placeholder={t('u_search_placeholder')} />
         </div>
 
         {error && <div className="border-b border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
@@ -430,12 +431,12 @@ export default function UsersTable({
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
-                <SortableHeader label="Name" active={table.sortKey === 'name'} dir={table.sortDir} onClick={() => table.toggleSort('name')} />
-                <SortableHeader label="Email" active={table.sortKey === 'email'} dir={table.sortDir} onClick={() => table.toggleSort('email')} />
-                <SortableHeader label="Department" active={table.sortKey === 'department'} dir={table.sortDir} onClick={() => table.toggleSort('department')} />
-                <th className="px-4 py-2 font-medium">Role</th>
-                <SortableHeader label="Status" active={table.sortKey === 'status'} dir={table.sortDir} onClick={() => table.toggleSort('status')} />
-                <th className="px-4 py-2 font-medium">Actions</th>
+                <SortableHeader label={t('md_col_name')} active={table.sortKey === 'name'} dir={table.sortDir} onClick={() => table.toggleSort('name')} />
+                <SortableHeader label={t('u_col_email')} active={table.sortKey === 'email'} dir={table.sortDir} onClick={() => table.toggleSort('email')} />
+                <SortableHeader label={t('u_col_department')} active={table.sortKey === 'department'} dir={table.sortDir} onClick={() => table.toggleSort('department')} />
+                <th className="px-4 py-2 font-medium">{t('u_col_role')}</th>
+                <SortableHeader label={t('col_status')} active={table.sortKey === 'status'} dir={table.sortDir} onClick={() => table.toggleSort('status')} />
+                <th className="px-4 py-2 font-medium">{t('col_actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -449,7 +450,7 @@ export default function UsersTable({
               {!loading && rows.length > 0 && table.paged.length === 0 && (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
-                    Tidak ada data yang cocok dengan pencarian.
+                    {t('md_no_match')}
                   </td>
                 </tr>
               )}
@@ -463,7 +464,7 @@ export default function UsersTable({
                       </div>
                       {row.must_change_password === 'Ya' && (
                         <span className="ml-11 mt-0.5 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase text-amber-700">
-                          Belum ganti password
+                          {t('u_must_change_password_badge')}
                         </span>
                       )}
                     </td>
@@ -475,16 +476,16 @@ export default function UsersTable({
                     <td className="px-4 py-2"><StatusBadge value={row.status} /></td>
                     <td className="px-4 py-2">
                       <button onClick={() => openDetailModal(row)} className="mr-3 text-gray-600 hover:text-gray-900">
-                        Detail
+                        {t('action_detail')}
                       </button>
                       {permissions.canEdit && (
                         <button onClick={() => openEditModal(row)} className="mr-3 text-indigo-600 hover:text-indigo-800">
-                          Edit
+                          {t('action_edit')}
                         </button>
                       )}
                       {permissions.canDelete && row.id !== currentUserId && (
                         <button onClick={() => handleDelete(row)} className="text-red-600 hover:text-red-800">
-                          Delete
+                          {t('action_delete')}
                         </button>
                       )}
                     </td>
@@ -507,7 +508,7 @@ export default function UsersTable({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
           <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">{editingId ? 'Edit User' : 'Add User'}</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{editingId ? t('u_modal_edit_title') : t('u_modal_add_title')}</h2>
             </div>
             {/* Bugfix (Fase 14): tombol aksi (Cancel/Save) dipindah ke footer `shrink-0` di luar
                 area scroll — sebelumnya ikut di dalam `overflow-y-auto`, jadi tombolnya ikut
@@ -516,50 +517,50 @@ export default function UsersTable({
             <div className="flex-1 overflow-y-auto p-5">
             <div className="space-y-3">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Full Name *</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('u_field_full_name')}</label>
                 <input
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                  placeholder="e.g. Budi Santoso"
+                  placeholder={t('u_ph_full_name')}
                   className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                 />
                 {fieldErrors.name && <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>}
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Email Address *</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('u_field_email')}</label>
                 <input
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                  placeholder="name@company.com"
+                  placeholder={t('u_ph_email')}
                   className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                 />
                 {fieldErrors.email && <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>}
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Phone</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('u_field_phone')}</label>
                 <input
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                  placeholder="e.g. 081234567890"
+                  placeholder={t('u_ph_phone')}
                   className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Department</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('u_col_department')}</label>
                 <input
                   value={form.department}
                   onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
-                  placeholder="e.g. Marketing"
+                  placeholder={t('u_ph_department')}
                   className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                 />
               </div>
 
               <AvatarEditor
-                label="Photo"
+                label={t('u_field_photo')}
                 previewUrl={photoPreview}
                 onFileReady={handlePhotoReady}
                 onRemove={handlePhotoRemove}
@@ -569,7 +570,7 @@ export default function UsersTable({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Role *</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('u_field_role')}</label>
                   <select
                     value={form.role_id}
                     onChange={(e) =>
@@ -577,11 +578,11 @@ export default function UsersTable({
                     }
                     className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors"
                   >
-                    <option value="">-- Pilih Role --</option>
+                    <option value="">{t('u_option_choose_role')}</option>
                     {roleOptionsForForm.map((r) => (
                       <option key={r.value} value={r.value}>
                         {r.label}
-                        {!r.active ? ' (Inactive)' : ''}
+                        {!r.active ? ` (${t('status_inactive_label')})` : ''}
                       </option>
                     ))}
                   </select>
@@ -589,31 +590,31 @@ export default function UsersTable({
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Status *</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('u_field_status')}</label>
                   <select
                     value={form.status}
                     onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
                     className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors"
                   >
-                    <option value="Active">Active</option>
-                    <option value="Inactive">Inactive</option>
+                    <option value="Active">{t('status_active_label')}</option>
+                    <option value="Inactive">{t('status_inactive_label')}</option>
                   </select>
                 </div>
               </div>
 
               {!isAdminRole && form.role_id && (
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Employment Type *</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('u_field_employment_type')}</label>
                   <select
                     value={form.employment_type_id}
                     onChange={(e) => setForm((f) => ({ ...f, employment_type_id: e.target.value, can_assign_others: 'Tidak' }))}
                     className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors"
                   >
-                    <option value="">-- Select an employment type... --</option>
+                    <option value="">{t('u_option_choose_employment_type')}</option>
                     {employmentTypeOptionsForForm.map((e) => (
                       <option key={e.value} value={e.value}>
                         {e.label}
-                        {!e.active ? ' (Inactive)' : ''}
+                        {!e.active ? ` (${t('status_inactive_label')})` : ''}
                       </option>
                     ))}
                   </select>
@@ -626,7 +627,7 @@ export default function UsersTable({
               {showCanAssign && (
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                    Is this user allowed to assign tasks to other users?
+                    {t('u_field_can_assign_question')}
                   </label>
                   <div className="flex gap-4">
                     {(['Ya', 'Tidak'] as const).map((opt) => (
@@ -638,13 +639,12 @@ export default function UsersTable({
                           onChange={() => setForm((f) => ({ ...f, can_assign_others: opt }))}
                           className="text-indigo-600 focus-ring"
                         />
-                        {opt === 'Ya' ? 'Yes' : 'No'}
+                        {opt === 'Ya' ? t('dashboard_yes') : t('dashboard_no')}
                       </label>
                     ))}
                   </div>
                   <p className="mt-1 text-xs text-gray-400">
-                    If &quot;Yes&quot;, this user can assign tasks to other users besides themselves on the Add/Edit Task
-                    page. If &quot;No&quot;, this user can only assign tasks to themselves.
+                    {t('u_can_assign_help')}
                   </p>
                   {fieldErrors.can_assign_others && (
                     <p className="mt-1 text-xs text-red-600">{fieldErrors.can_assign_others}</p>
@@ -654,13 +654,13 @@ export default function UsersTable({
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                  Password {editingId ? '(leave blank to keep unchanged)' : '*'}
+                  {t('u_field_password')} {editingId ? t('u_password_keep_note') : '*'}
                 </label>
                 <input
                   type="password"
                   value={form.password}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                  placeholder={editingId ? 'Kosongkan jika tidak diubah' : 'Minimal 8 karakter'}
+                  placeholder={editingId ? t('u_ph_password_edit') : t('u_ph_password_new')}
                   className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                 />
                 {fieldErrors.password && <p className="mt-1 text-xs text-red-600">{fieldErrors.password}</p>}
@@ -673,14 +673,14 @@ export default function UsersTable({
                 onClick={() => setModalOpen(false)}
                 className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
               >
-                Cancel
+                {t('action_cancel')}
               </button>
               <button
                 type="submit"
                 disabled={saving}
                 className="focus-ring rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
-                {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Create User'}
+                {saving ? t('common_saving') : editingId ? t('form_save_changes') : t('u_save_create_btn')}
               </button>
             </div>
             </form>
@@ -692,7 +692,7 @@ export default function UsersTable({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
           <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">User Detail</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{t('u_detail_title')}</h2>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
               <div className="mb-4 flex items-center gap-3">
@@ -704,25 +704,25 @@ export default function UsersTable({
               </div>
               <dl className="space-y-3 text-sm">
                 <div className="flex justify-between gap-4">
-                  <dt className="text-gray-500">Phone</dt>
+                  <dt className="text-gray-500">{t('u_field_phone')}</dt>
                   <dd className="text-right text-gray-900">{viewingRow.phone || '-'}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-gray-500">Department</dt>
+                  <dt className="text-gray-500">{t('u_col_department')}</dt>
                   <dd className="text-right text-gray-900">{viewingRow.department || '-'}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-gray-500">Role</dt>
+                  <dt className="text-gray-500">{t('u_col_role')}</dt>
                   <dd className="text-right text-gray-900">{roleLabel(viewingRow.role_id)}</dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-gray-500">Employment Type</dt>
+                  <dt className="text-gray-500">{t('u_col_employment_type')}</dt>
                   <dd className="text-right text-gray-900">
                     {viewingRow.employment_type_id ? employmentTypeLabel(viewingRow.employment_type_id) : '-'}
                   </dd>
                 </div>
                 <div className="flex justify-between gap-4">
-                  <dt className="text-gray-500">Status</dt>
+                  <dt className="text-gray-500">{t('col_status')}</dt>
                   <dd className="text-right"><StatusBadge value={viewingRow.status} /></dd>
                 </div>
               </dl>
@@ -732,7 +732,7 @@ export default function UsersTable({
                 onClick={() => setViewingRow(null)}
                 className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
               >
-                Close
+                {t('td_close')}
               </button>
             </div>
           </div>
@@ -743,21 +743,20 @@ export default function UsersTable({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
           <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">Hasil Import CSV</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{t('md_import_result_title')}</h2>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
             <p className="mb-4 text-sm text-gray-500">
-              {importResults.filter((r) => r.ok).length} berhasil, {importResults.filter((r) => !r.ok).length} gagal
-              dari {importResults.length} baris. Catat password sementara di bawah sebelum menutup jendela ini —
-              tidak ditampilkan lagi setelahnya.
+              {importResults.filter((r) => r.ok).length} {t('md_import_result_success')}, {importResults.filter((r) => !r.ok).length} {t('md_import_result_failed')}
+              {' '}{t('md_import_result_from')} {importResults.length} {t('md_import_result_rows')} {t('u_import_note')}
             </p>
             <div className="max-h-80 overflow-y-auto rounded-lg border border-gray-200">
               <table className="w-full text-left text-xs">
                 <thead className="bg-gray-50 uppercase text-gray-500">
                   <tr>
-                    <th className="px-3 py-2 font-medium">Baris</th>
-                    <th className="px-3 py-2 font-medium">Data</th>
-                    <th className="px-3 py-2 font-medium">Keterangan</th>
+                    <th className="px-3 py-2 font-medium">{t('md_import_col_row')}</th>
+                    <th className="px-3 py-2 font-medium">{t('md_import_col_data')}</th>
+                    <th className="px-3 py-2 font-medium">{t('md_import_col_note')}</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-100">
@@ -777,7 +776,7 @@ export default function UsersTable({
                 onClick={() => setImportResults(null)}
                 className="focus-ring rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700"
               >
-                Tutup
+                {t('td_close')}
               </button>
             </div>
           </div>

@@ -3,28 +3,31 @@
 import { useCallback, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import 'react-easy-crop/react-easy-crop.css';
+import { useLanguage } from '@/components/language-provider';
 
 const OUTPUT_SIZE = 320; // ukuran output foto profil persegi, cukup tajam untuk avatar 40-80px.
 
-function loadImage(src: string): Promise<HTMLImageElement> {
+type CropMessages = { loadError: string; canvasError: string; processError: string };
+
+function loadImage(src: string, errMsg: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
     img.onload = () => resolve(img);
-    img.onerror = () => reject(new Error('Gagal memuat gambar.'));
+    img.onerror = () => reject(new Error(errMsg));
     img.src = src;
   });
 }
 
-async function cropImageToBlob(imageSrc: string, area: Area): Promise<Blob> {
-  const image = await loadImage(imageSrc);
+async function cropImageToBlob(imageSrc: string, area: Area, messages: CropMessages): Promise<Blob> {
+  const image = await loadImage(imageSrc, messages.loadError);
   const canvas = document.createElement('canvas');
   canvas.width = OUTPUT_SIZE;
   canvas.height = OUTPUT_SIZE;
   const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas tidak didukung browser ini.');
+  if (!ctx) throw new Error(messages.canvasError);
   ctx.drawImage(image, area.x, area.y, area.width, area.height, 0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
   return new Promise((resolve, reject) => {
-    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error('Gagal memproses gambar.'))), 'image/jpeg', 0.92);
+    canvas.toBlob((blob) => (blob ? resolve(blob) : reject(new Error(messages.processError))), 'image/jpeg', 0.92);
   });
 }
 
@@ -55,7 +58,7 @@ export type AvatarEditorProps = {
  * menggantikan file asli — server tetap validasi ulang ukuran/jenis file seperti biasa.
  */
 export default function AvatarEditor({
-  label = 'Foto Profil',
+  label,
   previewUrl,
   fallbackInitial,
   onFileReady,
@@ -64,6 +67,8 @@ export default function AvatarEditor({
   error,
   disabled,
 }: AvatarEditorProps) {
+  const { t } = useLanguage();
+  const resolvedLabel = label === null ? null : label ?? t('avatar_default_label');
   const inputRef = useRef<HTMLInputElement>(null);
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
@@ -82,7 +87,7 @@ export default function AvatarEditor({
       setZoom(1);
       setCroppedAreaPixels(null);
     };
-    reader.onerror = () => setCropError('Gagal membaca file gambar.');
+    reader.onerror = () => setCropError(t('avatar_err_read_file'));
     reader.readAsDataURL(file);
   }
 
@@ -100,12 +105,16 @@ export default function AvatarEditor({
     setProcessing(true);
     setCropError(null);
     try {
-      const blob = await cropImageToBlob(rawImageSrc, croppedAreaPixels);
+      const blob = await cropImageToBlob(rawImageSrc, croppedAreaPixels, {
+        loadError: t('avatar_err_load_image'),
+        canvasError: t('avatar_err_canvas_unsupported'),
+        processError: t('avatar_err_process_failed'),
+      });
       const file = new File([blob], 'foto-profil.jpg', { type: 'image/jpeg' });
       onFileReady(file, URL.createObjectURL(blob));
       closeCropModal();
     } catch (e) {
-      setCropError(e instanceof Error ? e.message : 'Gagal memproses gambar.');
+      setCropError(e instanceof Error ? e.message : t('avatar_err_process_failed'));
     } finally {
       setProcessing(false);
     }
@@ -113,11 +122,11 @@ export default function AvatarEditor({
 
   return (
     <div>
-      {label && <label className="mb-1.5 block text-sm font-medium text-gray-700">{label}</label>}
+      {resolvedLabel && <label className="mb-1.5 block text-sm font-medium text-gray-700">{resolvedLabel}</label>}
       <div className="flex items-center gap-3">
         {previewUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={previewUrl} alt="Preview foto profil" className="h-14 w-14 shrink-0 rounded-full object-cover" />
+          <img src={previewUrl} alt={t('avatar_preview_alt')} className="h-14 w-14 shrink-0 rounded-full object-cover" />
         ) : fallbackInitial ? (
           <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-lg font-medium text-indigo-700">
             {fallbackInitial}
@@ -137,7 +146,7 @@ export default function AvatarEditor({
               onClick={() => inputRef.current?.click()}
               className="rounded-lg border border-gray-300 bg-gray-50 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-100 disabled:opacity-50"
             >
-              {previewUrl ? 'Ganti Foto' : 'Pilih Foto'}
+              {previewUrl ? t('avatar_btn_change') : t('avatar_btn_choose')}
             </button>
             {canRemove && (
               <button
@@ -146,7 +155,7 @@ export default function AvatarEditor({
                 onClick={onRemove}
                 className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
               >
-                Hapus Foto
+                {t('avatar_btn_remove')}
               </button>
             )}
           </div>
@@ -161,7 +170,7 @@ export default function AvatarEditor({
               handlePickFile(file);
             }}
           />
-          <p className="mt-1 text-xs text-gray-400">JPG, PNG, GIF, atau WEBP. Maks 2MB.</p>
+          <p className="mt-1 text-xs text-gray-400">{t('avatar_hint_filetypes')}</p>
         </div>
       </div>
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
@@ -170,10 +179,8 @@ export default function AvatarEditor({
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-gray-900/60 p-4 backdrop-blur-sm">
           <div className="flex w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
-              <h3 className="text-base font-semibold text-gray-900">Atur Posisi &amp; Crop Foto</h3>
-              <p className="mt-0.5 text-xs text-gray-500">
-                Geser foto untuk mengatur posisi, gunakan slider untuk memperbesar/memperkecil.
-              </p>
+              <h3 className="text-base font-semibold text-gray-900">{t('avatar_crop_modal_title')}</h3>
+              <p className="mt-0.5 text-xs text-gray-500">{t('avatar_crop_modal_subtitle')}</p>
             </div>
             <div className="relative h-72 w-full shrink-0 bg-gray-900">
               <Cropper
@@ -190,7 +197,7 @@ export default function AvatarEditor({
             </div>
             <div className="shrink-0 space-y-3 border-t border-gray-200 px-5 py-4">
               <div className="flex items-center gap-3">
-                <span className="text-xs text-gray-500">Zoom</span>
+                <span className="text-xs text-gray-500">{t('avatar_zoom_label')}</span>
                 <input
                   type="range"
                   min={1}
@@ -208,7 +215,7 @@ export default function AvatarEditor({
                   onClick={closeCropModal}
                   className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
                 >
-                  Batal
+                  {t('action_cancel')}
                 </button>
                 <button
                   type="button"
@@ -216,7 +223,7 @@ export default function AvatarEditor({
                   onClick={handleConfirmCrop}
                   className="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
-                  {processing ? 'Memproses...' : 'Terapkan'}
+                  {processing ? t('avatar_processing') : t('action_apply')}
                 </button>
               </div>
             </div>

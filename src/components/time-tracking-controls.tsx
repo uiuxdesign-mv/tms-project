@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { apiFetch } from '@/lib/csrf-client';
+import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { useToast } from '@/components/toast-provider';
+import { useLanguage } from '@/components/language-provider';
 
 export type TimeTrackingState = {
   state: 'idle' | 'running' | 'paused';
@@ -49,6 +50,7 @@ export function TimeTrackingControls({
   compact?: boolean;
 }) {
   const toast = useToast();
+  const { t } = useLanguage();
   const [busy, setBusy] = useState(false);
   // `nowMs` (bukan langsung Date.now() di body render, yang dianggap impure oleh React) di-refresh
   // oleh interval di bawah setiap 1 detik selama sesi berjalan, supaya badge durasi live-ticking.
@@ -72,17 +74,21 @@ export function TimeTrackingControls({
       return (
         <div className="w-full space-y-0.5 text-xs">
           <div className="flex items-center justify-between">
-            <span className="text-gray-500">Work Time</span>
+            <span className="text-gray-500">{t('tt_work_time')}</span>
             <span className="tabular-nums font-medium text-gray-700">{formatDuration(tt.closedWorkSeconds)}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-gray-500">Review Time</span>
+            <span className="text-gray-500">{t('tt_review_time')}</span>
             <span className="tabular-nums font-medium text-amber-600">{formatDuration(tt.closedReviewSeconds)}</span>
           </div>
         </div>
       );
     }
-    return <span className="text-gray-500">{formatDuration(tt.closedSeconds)} (selesai)</span>;
+    return (
+      <span className="text-gray-500">
+        {formatDuration(tt.closedSeconds)} {t('tt_completed_suffix')}
+      </span>
+    );
   }
 
   const liveExtra =
@@ -100,23 +106,23 @@ export function TimeTrackingControls({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       });
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) {
-        toast.error(json.error || 'Gagal menjalankan aksi Time Tracking.');
+        toast.error(json.error || t('toast_tt_action_failed'));
         return;
       }
       onChanged();
       const actionLabel: Record<typeof action, string> = {
-        start: 'Task dimulai.',
-        pause: 'Task di-pause.',
-        resume: 'Task dilanjutkan.',
-        stop: 'Task dihentikan.',
-        back: 'Task dikembalikan ke tahap sebelumnya.',
-        done: 'Task ditandai selesai.',
+        start: t('toast_tt_started'),
+        pause: t('toast_tt_paused'),
+        resume: t('toast_tt_resumed'),
+        stop: t('toast_tt_stopped'),
+        back: t('toast_tt_back'),
+        done: t('toast_tt_done'),
       };
       toast.success(actionLabel[action]);
     } catch {
-      toast.error('Terjadi kesalahan jaringan.');
+      toast.error(t('toast_network_error'));
     } finally {
       setBusy(false);
     }
@@ -169,11 +175,11 @@ export function TimeTrackingControls({
         <span className="tabular-nums text-gray-600">{formatDuration(displaySeconds)}</span>
         <button disabled={busy} onClick={(e) => runAction('back', e)} className={backClass}>
           {IconBack}
-          Back
+          {t('tt_btn_back')}
         </button>
         <button disabled={busy} onClick={(e) => runAction('done', e)} className={doneClass}>
           {IconDone}
-          Done
+          {t('tt_btn_done')}
         </button>
       </div>
     );
@@ -186,13 +192,13 @@ export function TimeTrackingControls({
         <>
           <button disabled={busy} onClick={(e) => runAction('start', e)} className={startClass}>
             {IconPlay}
-            Start
+            {t('tt_btn_start')}
           </button>
           {/* Bugfix (Fase 19, spec §2 "Kondisi Awal"): tombol Stop tetap ditampilkan (disabled)
               saat status To Do, bukan disembunyikan total — konsisten dengan task-detail-modal.tsx. */}
           <button disabled className={stopClass}>
             {IconStop}
-            Stop
+            {t('tt_btn_stop')}
           </button>
         </>
       )}
@@ -200,11 +206,11 @@ export function TimeTrackingControls({
         <>
           <button disabled={busy} onClick={(e) => runAction('pause', e)} className={pauseClass}>
             {IconPause}
-            Pause
+            {t('tt_btn_pause')}
           </button>
           <button disabled={busy} onClick={(e) => runAction('stop', e)} className={stopClass}>
             {IconStop}
-            Stop
+            {t('tt_btn_stop')}
           </button>
         </>
       )}
@@ -212,11 +218,11 @@ export function TimeTrackingControls({
         <>
           <button disabled={busy} onClick={(e) => runAction('resume', e)} className={startClass}>
             {IconPlay}
-            Resume
+            {t('tt_btn_resume')}
           </button>
           <button disabled={busy} onClick={(e) => runAction('stop', e)} className={stopClass}>
             {IconStop}
-            Stop
+            {t('tt_btn_stop')}
           </button>
         </>
       )}

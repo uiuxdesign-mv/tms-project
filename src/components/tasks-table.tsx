@@ -123,15 +123,16 @@ export default function TasksTable({
       const [tasksRes, optsRes] = await Promise.all([apiFetch('/api/tasks'), apiFetch('/api/tasks/options')]);
       const tasksJson = await parseJsonSafe(tasksRes);
       const optsJson = await parseJsonSafe(optsRes);
-      if (!tasksRes.ok || !tasksJson.data) throw new Error(tasksJson.error || 'Gagal memuat data.');
-      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || 'Gagal memuat opsi.');
+      if (!tasksRes.ok || !tasksJson.data) throw new Error(tasksJson.error || t('toast_load_data_failed'));
+      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || t('toast_load_options_failed'));
       setRows(tasksJson.data);
       setOpts(optsJson.data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat data.');
+      setError(e instanceof Error ? e.message : t('toast_load_data_failed'));
     } finally {
       if (!silent) setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -151,7 +152,7 @@ export default function TasksTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, opts]);
 
-  const selectedTaskType = opts?.taskTypes.find((t) => t.value === form.task_type_id);
+  const selectedTaskType = opts?.taskTypes.find((tt) => tt.value === form.task_type_id);
   const showRelatedTask = !!selectedTaskType?.requiresRelatedTask;
 
   // Bugfix (permintaan user): Client sekarang wajib dipilih LEBIH DULU di form Add Task, dan
@@ -205,33 +206,33 @@ export default function TasksTable({
       const json = await parseJsonSafe(res);
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
-        else toast.error(json.error || 'Gagal menyimpan data.');
+        else toast.error(json.error || t('toast_save_task_failed'));
         return;
       }
       setModalOpen(false);
       await load({ silent: true });
-      toast.success(editingId ? 'Perubahan task berhasil disimpan.' : 'Task baru berhasil ditambahkan.');
+      toast.success(editingId ? t('toast_save_task_success') : t('toast_task_created'));
     } catch {
-      toast.error('Terjadi kesalahan jaringan.');
+      toast.error(t('toast_network_error'));
     } finally {
       setSaving(false);
     }
   }
 
   async function handleDelete(row: TaskRow) {
-    const ok = await confirmDialog({ message: `Hapus task "${row.title}"?`, confirmLabel: 'Hapus', danger: true });
+    const ok = await confirmDialog({ message: `${t('confirm_delete_task_prefix')} "${row.title}"?`, confirmLabel: t('action_delete'), danger: true });
     if (!ok) return;
     try {
       const res = await apiFetch(`/api/tasks/${row.id}`, { method: 'DELETE' });
       const json = await parseJsonSafe(res);
       if (!res.ok) {
-        toast.error(json.error || 'Gagal menghapus data.');
+        toast.error(json.error || t('toast_delete_data_failed'));
         return;
       }
       await load({ silent: true });
-      toast.success(`Task "${row.title}" berhasil dihapus.`);
+      toast.success(`${t('toast_task_deleted_prefix')} "${row.title}" ${t('toast_task_deleted_suffix')}`);
     } catch {
-      toast.error('Terjadi kesalahan jaringan.');
+      toast.error(t('toast_network_error'));
     }
   }
 
@@ -280,7 +281,7 @@ export default function TasksTable({
   return (
     <div>
       <TasksPageHeader
-        subtitle={`Total ${table.totalCount} task${table.totalCount === 1 ? '' : 's'}`}
+        subtitle={`${t('tasks_subtitle_total')} ${table.totalCount} ${table.totalCount === 1 ? t('tasks_word_singular') : t('tasks_word_plural')}`}
         onAddTask={permissions.canCreate ? openCreateModal : undefined}
         canCreate={permissions.canCreate}
       />
@@ -306,18 +307,18 @@ export default function TasksTable({
           <table className="w-full text-left text-sm">
             <thead className="bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
-                <SortableHeader label="Title" active={table.sortKey === 'title'} dir={table.sortDir} onClick={() => table.toggleSort('title')} />
-                <th className="px-4 py-2 font-medium">Project</th>
-                <th className="px-4 py-2 font-medium">Priority</th>
-                <th className="px-4 py-2 font-medium">Status</th>
-                <th className="px-4 py-2 font-medium">Assignee</th>
+                <SortableHeader label={t('col_title')} active={table.sortKey === 'title'} dir={table.sortDir} onClick={() => table.toggleSort('title')} />
+                <th className="px-4 py-2 font-medium">{t('col_project')}</th>
+                <th className="px-4 py-2 font-medium">{t('col_priority')}</th>
+                <th className="px-4 py-2 font-medium">{t('col_status')}</th>
+                <th className="px-4 py-2 font-medium">{t('col_assignee')}</th>
                 <SortableHeader
-                  label="Due Date"
+                  label={t('td_field_due_date')}
                   active={table.sortKey === 'due_date'}
                   dir={table.sortDir}
                   onClick={() => table.toggleSort('due_date')}
                 />
-                <th className="px-4 py-2 font-medium">Actions</th>
+                <th className="px-4 py-2 font-medium">{t('col_actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
@@ -331,14 +332,14 @@ export default function TasksTable({
               {!loading && rows.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
-                    Belum ada task.
+                    {t('tasks_empty')}
                   </td>
                 </tr>
               )}
               {!loading && rows.length > 0 && table.paged.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
-                    Tidak ada task yang cocok dengan pencarian/filter.
+                    {t('tasks_no_match')}
                   </td>
                 </tr>
               )}
@@ -361,12 +362,12 @@ export default function TasksTable({
                     <td className="px-4 py-2">
                       {canManage(row) && (
                         <button onClick={() => openEditModal(row)} className="mr-3 text-indigo-600 hover:text-indigo-800">
-                          Detail
+                          {t('action_detail')}
                         </button>
                       )}
                       {canDelete(row) && (
                         <button onClick={() => handleDelete(row)} className="text-red-600 hover:text-red-800">
-                          Delete
+                          {t('action_delete')}
                         </button>
                       )}
                     </td>
@@ -400,7 +401,7 @@ export default function TasksTable({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
           <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">Tambah Task</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{t('tasks_add_modal_title')}</h2>
             </div>
             {/* Bugfix (Fase 14): tombol aksi (Batal/Simpan) dipindah ke footer `shrink-0` di luar
                 area scroll — sebelumnya ikut di dalam `overflow-y-auto`, jadi tombolnya ikut
@@ -409,22 +410,22 @@ export default function TasksTable({
             <div className="flex-1 overflow-y-auto p-5">
             <div className="space-y-3">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Judul *</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('tf_title')}</label>
                 <input
                   value={form.title}
                   onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                  placeholder="Contoh: Perbaiki bug login di halaman utama"
+                  placeholder={t('td_field_title_placeholder')}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                 />
                 {fieldErrors.title && <p className="mt-1 text-xs text-red-600">{fieldErrors.title}</p>}
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Deskripsi</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_description')}</label>
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  placeholder="Jelaskan detail tugas ini, langkah pengerjaan, atau referensi yang dibutuhkan..."
+                  placeholder={t('td_field_description_placeholder')}
                   rows={3}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                 />
@@ -432,7 +433,7 @@ export default function TasksTable({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Client *</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('tf_client')}</label>
                   <select
                     required
                     value={form.client_id}
@@ -441,7 +442,7 @@ export default function TasksTable({
                     }
                     className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                   >
-                    <option value="">-- Pilih Client --</option>
+                    <option value="">{t('tf_option_choose_client')}</option>
                     {opts.clients.map((c) => (
                       <option key={c.value} value={c.value}>
                         {c.label}
@@ -451,7 +452,7 @@ export default function TasksTable({
                   {fieldErrors.client_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.client_id}</p>}
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Project *</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('tf_project')}</label>
                   <select
                     required
                     disabled={!form.client_id}
@@ -459,7 +460,7 @@ export default function TasksTable({
                     onChange={(e) => setForm((f) => ({ ...f, project_id: e.target.value }))}
                     className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
                   >
-                    <option value="">{form.client_id ? '-- Pilih Project --' : '-- Pilih Client dahulu --'}</option>
+                    <option value="">{form.client_id ? t('tf_option_choose_project') : t('tf_option_choose_client_first')}</option>
                     {/* Bugfix (permintaan user): Project sekarang terfilter berdasarkan Client yang
                         dipilih di atas (lewat tautan Project Terkait di Master Client), bukan
                         menampilkan semua Project independen seperti sebelumnya. */}
@@ -475,13 +476,13 @@ export default function TasksTable({
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Priority *</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_priority')}</label>
                   <select
                     value={form.priority_id}
                     onChange={(e) => setForm((f) => ({ ...f, priority_id: e.target.value }))}
                     className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                   >
-                    <option value="">-- Pilih --</option>
+                    <option value="">{t('td_option_choose')}</option>
                     {opts.priorities.map((p) => (
                       <option key={p.value} value={p.value}>
                         {p.label}
@@ -491,16 +492,16 @@ export default function TasksTable({
                   {fieldErrors.priority_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.priority_id}</p>}
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Task Type *</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_task_type')}</label>
                   <select
                     value={form.task_type_id}
                     onChange={(e) => setForm((f) => ({ ...f, task_type_id: e.target.value, related_task_id: '' }))}
                     className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                   >
-                    <option value="">-- Pilih Task Type --</option>
-                    {opts.taskTypes.map((t) => (
-                      <option key={t.value} value={t.value}>
-                        {t.label}
+                    <option value="">{t('td_option_choose_task_type')}</option>
+                    {opts.taskTypes.map((tt) => (
+                      <option key={tt.value} value={tt.value}>
+                        {tt.label}
                       </option>
                     ))}
                   </select>
@@ -510,18 +511,18 @@ export default function TasksTable({
 
               {showRelatedTask && (
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Task Terkait *</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_related_task')}</label>
                   <select
                     value={form.related_task_id}
                     onChange={(e) => setForm((f) => ({ ...f, related_task_id: e.target.value }))}
                     className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                   >
-                    <option value="">-- Pilih Task --</option>
+                    <option value="">{t('td_option_choose_task')}</option>
                     {opts.relatedTasks
-                      .filter((t) => t.value !== editingId)
-                      .map((t) => (
-                        <option key={t.value} value={t.value}>
-                          {t.label}
+                      .filter((rt) => rt.value !== editingId)
+                      .map((rt) => (
+                        <option key={rt.value} value={rt.value}>
+                          {rt.label}
                         </option>
                       ))}
                   </select>
@@ -532,14 +533,14 @@ export default function TasksTable({
               )}
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Assignee</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_assignee')}</label>
                 {opts.canAssignOthers ? (
                   <select
                     value={form.assigned_to}
                     onChange={(e) => setForm((f) => ({ ...f, assigned_to: e.target.value }))}
                     className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                   >
-                    <option value="">-- Diri sendiri --</option>
+                    <option value="">{t('td_option_self')}</option>
                     {opts.assignees.map((a) => (
                       <option key={a.value} value={a.value}>
                         {a.label}
@@ -548,7 +549,7 @@ export default function TasksTable({
                   </select>
                 ) : (
                   <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
-                    Diri sendiri (Anda tidak punya hak menugaskan ke user lain)
+                    {t('tf_self_no_permission')}
                   </p>
                 )}
                 {opts.canAssignOthers && form.assigned_to !== currentUserId && (
@@ -557,7 +558,7 @@ export default function TasksTable({
                     onClick={() => setForm((f) => ({ ...f, assigned_to: currentUserId }))}
                     className="mt-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700"
                   >
-                    Tugaskan ke saya
+                    {t('td_assign_to_me')}
                   </button>
                 )}
                 {fieldErrors.assigned_to && <p className="mt-1 text-xs text-red-600">{fieldErrors.assigned_to}</p>}
@@ -565,7 +566,7 @@ export default function TasksTable({
 
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Start Date</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_start_date')}</label>
                   <input
                     type="datetime-local"
                     value={form.start_date}
@@ -574,7 +575,7 @@ export default function TasksTable({
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Due Date</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_due_date')}</label>
                   <input
                     type="datetime-local"
                     value={form.due_date}
@@ -583,12 +584,12 @@ export default function TasksTable({
                   />
                 </div>
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Est. Hours</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_est_hours')}</label>
                   <input
                     type="number"
                     min="0"
                     step="0.25"
-                    placeholder="e.g., 8"
+                    placeholder={t('td_est_hours_placeholder')}
                     value={form.estimated_hours}
                     onChange={(e) => setForm((f) => ({ ...f, estimated_hours: e.target.value }))}
                     className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
@@ -604,14 +605,14 @@ export default function TasksTable({
                 onClick={() => setModalOpen(false)}
                 className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
               >
-                Batal
+                {t('action_cancel')}
               </button>
               <button
                 type="submit"
                 disabled={saving}
                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
-                {saving ? 'Menyimpan...' : 'Simpan'}
+                {saving ? t('common_saving') : t('action_save')}
               </button>
             </div>
             </form>

@@ -28,11 +28,16 @@ type OptionsData = {
   assignees: Option[];
 };
 
-const MONTH_NAMES = [
+const MONTH_NAMES_ID = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
-const DAY_NAMES = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+const MONTH_NAMES_EN = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+const DAY_NAMES_ID = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
+const DAY_NAMES_EN = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function isoDateOnly(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -63,7 +68,9 @@ export default function CalendarView({
   isAdmin: boolean;
   permissions: { canEdit: boolean };
 }) {
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
+  const MONTH_NAMES = lang === 'id' ? MONTH_NAMES_ID : MONTH_NAMES_EN;
+  const DAY_NAMES = lang === 'id' ? DAY_NAMES_ID : DAY_NAMES_EN;
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth); // 1-12
   const [rows, setRows] = useState<TaskRow[]>([]);
@@ -101,15 +108,16 @@ export default function CalendarView({
       const [tasksRes, optsRes] = await Promise.all([apiFetch('/api/tasks'), apiFetch('/api/tasks/options')]);
       const tasksJson = await parseJsonSafe(tasksRes);
       const optsJson = await parseJsonSafe(optsRes);
-      if (!tasksRes.ok || !tasksJson.data) throw new Error(tasksJson.error || 'Gagal memuat data.');
-      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || 'Gagal memuat opsi.');
+      if (!tasksRes.ok || !tasksJson.data) throw new Error(tasksJson.error || t('toast_load_data_failed'));
+      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || t('toast_load_options_failed'));
       setRows(tasksJson.data);
       setOpts(optsJson.data);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat data.');
+      setError(e instanceof Error ? e.message : t('toast_load_data_failed'));
     } finally {
       if (!silent) setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -170,7 +178,7 @@ export default function CalendarView({
   return (
     <div>
       <TasksPageHeader
-        subtitle={`Total ${dueThisMonthCount} task${dueThisMonthCount === 1 ? '' : 's'} due this month`}
+        subtitle={`${t('tasks_subtitle_total')} ${dueThisMonthCount} ${dueThisMonthCount === 1 ? t('tasks_word_singular') : t('tasks_word_plural')} ${t('calendar_due_this_month_suffix')}`}
         addTaskHref="/tasks?new=1"
         canCreate={canCreate}
       />
@@ -198,7 +206,7 @@ export default function CalendarView({
           <div className="flex items-center gap-2">
             <button
               onClick={() => goToMonth(-1)}
-              aria-label="Bulan sebelumnya"
+              aria-label={t('calendar_prev_month_aria')}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-900"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -210,7 +218,7 @@ export default function CalendarView({
             </h2>
             <button
               onClick={() => goToMonth(1)}
-              aria-label="Bulan berikutnya"
+              aria-label={t('calendar_next_month_aria')}
               className="flex h-9 w-9 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:border-gray-300 hover:text-gray-900"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -226,7 +234,7 @@ export default function CalendarView({
             }}
             className="rounded-lg border border-gray-200 px-3 py-1.5 text-sm font-medium text-gray-500 hover:border-gray-300 hover:text-gray-900"
           >
-            Hari Ini
+            {t('calendar_today_btn')}
           </button>
         </div>
         <div className="grid grid-cols-7 border-b border-gray-200 text-center text-xs font-medium text-gray-500">
@@ -270,7 +278,7 @@ export default function CalendarView({
                           </button>
                         );
                       })}
-                      {dayTasks.length > 3 && <p className="px-1.5 text-[11px] text-gray-400">+{dayTasks.length - 3} lagi</p>}
+                      {dayTasks.length > 3 && <p className="px-1.5 text-[11px] text-gray-400">+{dayTasks.length - 3} {t('calendar_more_suffix')}</p>}
                     </div>
                   </>
                 )}
@@ -283,12 +291,12 @@ export default function CalendarView({
       <div className="w-full rounded-2xl border border-gray-200 bg-white shadow-card lg:w-64">
         <div className="border-b border-gray-200 p-4">
           <h3 className="text-sm font-semibold text-gray-900">
-            Unscheduled <span className="font-normal text-gray-400">({unscheduled.length})</span>
+            {t('calendar_unscheduled_title')} <span className="font-normal text-gray-400">({unscheduled.length})</span>
           </h3>
-          <p className="text-xs text-gray-400">Task tanpa Due Date</p>
+          <p className="text-xs text-gray-400">{t('calendar_unscheduled_subtitle')}</p>
         </div>
         <div className="max-h-[500px] divide-y divide-gray-100 overflow-y-auto p-2">
-          {unscheduled.length === 0 && <p className="p-2 text-center text-xs text-gray-400">Semua task sudah punya due date.</p>}
+          {unscheduled.length === 0 && <p className="p-2 text-center text-xs text-gray-400">{t('calendar_unscheduled_empty')}</p>}
           {unscheduled.map((t) => (
             <button
               key={t.id}

@@ -58,7 +58,7 @@ export default function ProfileView() {
     try {
       const res = await apiFetch('/api/profile');
       const json = await parseJsonSafe(res);
-      if (!res.ok) throw new Error(json.error || 'Gagal memuat profil.');
+      if (!res.ok) throw new Error(json.error || t('toast_load_profile_failed'));
       setProfile(json.data);
       setForm({
         name: json.data.name,
@@ -73,10 +73,11 @@ export default function ProfileView() {
       setPhotoPreview(json.data.photo_url ? `/api/users/${json.data.id}/photo?v=${encodeURIComponent(json.data.photo_url)}` : null);
       setRemovePhoto(false);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat profil.');
+      setError(e instanceof Error ? e.message : t('toast_load_profile_failed'));
     } finally {
       setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -113,13 +114,13 @@ export default function ProfileView() {
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
         else {
-          setError(json.error || 'Gagal menyimpan profil.');
-          toast.error(json.error || 'Gagal menyimpan profil.');
+          setError(json.error || t('toast_save_profile_failed'));
+          toast.error(json.error || t('toast_save_profile_failed'));
         }
         return;
       }
-      setSavedMsg('Profil berhasil disimpan.');
-      toast.success('Profil berhasil disimpan.');
+      setSavedMsg(t('toast_profile_saved'));
+      toast.success(t('toast_profile_saved'));
       setPhotoFile(null);
       setRemovePhoto(false);
       // Bugfix (Fase 18): sertakan `?v=` supaya langsung menampilkan foto BARU, bukan foto lama
@@ -127,8 +128,8 @@ export default function ProfileView() {
       setPhotoPreview(json.data.photo_url ? `/api/users/${json.data.id}/photo?v=${encodeURIComponent(json.data.photo_url)}` : null);
       router.refresh();
     } catch {
-      setError('Terjadi kesalahan jaringan.');
-      toast.error('Terjadi kesalahan jaringan.');
+      setError(t('toast_network_error'));
+      toast.error(t('toast_network_error'));
     } finally {
       setSaving(false);
     }
@@ -141,8 +142,8 @@ export default function ProfileView() {
     setPwSavedMsg(null);
 
     if (newPassword !== confirmPassword) {
-      setPwErrors({ confirmPassword: 'Konfirmasi password tidak cocok.' });
-      toast.error('Konfirmasi password tidak cocok.');
+      setPwErrors({ confirmPassword: t('toast_password_mismatch') });
+      toast.error(t('toast_password_mismatch'));
       return;
     }
 
@@ -157,19 +158,19 @@ export default function ProfileView() {
       if (!res.ok) {
         if (json.fieldErrors) setPwErrors(json.fieldErrors);
         else {
-          setPwError(json.error || 'Gagal mengganti password.');
-          toast.error(json.error || 'Gagal mengganti password.');
+          setPwError(json.error || t('toast_change_password_failed'));
+          toast.error(json.error || t('toast_change_password_failed'));
         }
         return;
       }
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
-      setPwSavedMsg('Password berhasil diganti.');
-      toast.success('Password berhasil diganti.');
+      setPwSavedMsg(t('toast_password_changed'));
+      toast.success(t('toast_password_changed'));
     } catch {
-      setPwError('Terjadi kesalahan jaringan.');
-      toast.error('Terjadi kesalahan jaringan.');
+      setPwError(t('toast_network_error'));
+      toast.error(t('toast_network_error'));
     } finally {
       setPwSaving(false);
     }
@@ -189,7 +190,7 @@ export default function ProfileView() {
     <div className="space-y-6">
       <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
         <div className="border-b border-gray-200 p-4">
-          <h2 className="text-lg font-semibold text-gray-900">Data Profil</h2>
+          <h2 className="text-lg font-semibold text-gray-900">{t('profile_data_section_title')}</h2>
         </div>
         <div className="p-5">
           <form onSubmit={handleSaveProfile} className="space-y-4">
@@ -210,42 +211,42 @@ export default function ProfileView() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">Nama *</label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('profile_field_name')}</label>
               <input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                placeholder="Contoh: Budi Santoso"
+                placeholder={t('u_ph_full_name')}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
               />
               {fieldErrors.name && <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>}
             </div>
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">Email *</label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('profile_field_email')}</label>
               <input
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
-                placeholder="nama@perusahaan.com"
+                placeholder={t('u_ph_email')}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
               />
               {fieldErrors.email && <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Telepon</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('u_field_phone')}</label>
                 <input
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                  placeholder="Contoh: 081234567890"
+                  placeholder={t('u_ph_phone')}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Departemen</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('u_col_department')}</label>
                 <input
                   value={form.department}
                   onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
-                  placeholder="Contoh: Marketing"
+                  placeholder={t('u_ph_department')}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                 />
               </div>
@@ -260,7 +261,7 @@ export default function ProfileView() {
                 disabled={saving}
                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
-                {saving ? 'Menyimpan...' : 'Simpan Profil'}
+                {saving ? t('common_saving') : t('profile_save_btn')}
               </button>
             </div>
           </form>
@@ -269,41 +270,41 @@ export default function ProfileView() {
 
       <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
         <div className="border-b border-gray-200 p-4">
-          <h2 className="text-lg font-semibold text-gray-900">Ganti Password</h2>
-          <p className="mt-1 text-xs text-gray-500">Wajib memasukkan password saat ini untuk verifikasi.</p>
+          <h2 className="text-lg font-semibold text-gray-900">{t('profile_password_section_title')}</h2>
+          <p className="mt-1 text-xs text-gray-500">{t('profile_password_section_subtitle')}</p>
         </div>
         <div className="p-5">
           <form onSubmit={handleChangePassword} className="space-y-4">
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700">Password Saat Ini</label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('profile_field_current_password')}</label>
               <input
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
-                placeholder="Masukkan password Anda saat ini"
+                placeholder={t('profile_ph_current_password')}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
               />
               {pwErrors.currentPassword && <p className="mt-1 text-xs text-red-600">{pwErrors.currentPassword}</p>}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Password Baru</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('profile_field_new_password')}</label>
                 <input
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
-                  placeholder="Minimal 8 karakter"
+                  placeholder={t('u_ph_password_new')}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                 />
                 {pwErrors.newPassword && <p className="mt-1 text-xs text-red-600">{pwErrors.newPassword}</p>}
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Konfirmasi Password Baru</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('profile_field_confirm_password')}</label>
                 <input
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  placeholder="Ulangi password baru"
+                  placeholder={t('profile_ph_confirm_password')}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                 />
                 {pwErrors.confirmPassword && <p className="mt-1 text-xs text-red-600">{pwErrors.confirmPassword}</p>}
@@ -319,7 +320,7 @@ export default function ProfileView() {
                 disabled={pwSaving}
                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
               >
-                {pwSaving ? 'Menyimpan...' : 'Ganti Password'}
+                {pwSaving ? t('common_saving') : t('profile_password_section_title')}
               </button>
             </div>
           </form>

@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { useLanguage } from '@/components/language-provider';
 
 type ToastType = 'success' | 'error' | 'info';
 
@@ -42,6 +43,7 @@ const AUTO_DISMISS_MS: Record<ToastType, number> = {
  * dari komponen manapun (client component).
  */
 export function ToastProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useLanguage();
   const [toasts, setToasts] = useState<ToastEntry[]>([]);
   const nextId = useRef(1);
 
@@ -67,15 +69,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     <ToastContext.Provider value={api}>
       {children}
       <div className="pointer-events-none fixed top-4 right-4 z-[100] flex w-full max-w-sm flex-col gap-2">
-        {toasts.map((t) => (
+        {toasts.map((entry) => (
           <div
-            key={t.id}
+            key={entry.id}
             role="alert"
-            className={`animate-toast-in pointer-events-auto flex items-start gap-3 rounded-xl border bg-white px-4 py-3 shadow-popover ${TYPE_BORDER[t.type]}`}
+            className={`animate-toast-in pointer-events-auto flex items-start gap-3 rounded-xl border bg-white px-4 py-3 shadow-popover ${TYPE_BORDER[entry.type]}`}
           >
-            <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${TYPE_DOT[t.type]}`} />
-            <p className="flex-1 text-sm text-gray-900">{t.message}</p>
-            <button onClick={() => dismiss(t.id)} className="text-gray-400 hover:text-gray-500" aria-label="Tutup notifikasi">
+            <span className={`mt-0.5 h-2 w-2 shrink-0 rounded-full ${TYPE_DOT[entry.type]}`} />
+            <p className="flex-1 text-sm text-gray-900">{entry.message}</p>
+            <button onClick={() => dismiss(entry.id)} className="text-gray-400 hover:text-gray-500" aria-label={t('toast_close_aria')}>
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
               </svg>

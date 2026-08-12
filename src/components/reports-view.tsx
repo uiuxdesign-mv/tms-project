@@ -155,14 +155,15 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
       try {
         const res = await apiFetch('/api/reports/tasks');
         const json = await parseJsonSafe(res);
-        if (!res.ok) throw new Error(json.error || 'Gagal memuat data laporan.');
+        if (!res.ok) throw new Error(json.error || t('toast_reports_load_failed'));
         setTasks(json.data);
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Gagal memuat data laporan.');
+        setError(e instanceof Error ? e.message : t('toast_reports_load_failed'));
       } finally {
         setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const userOptions = useMemo(() => uniqueOptions(tasks, 'assigned_to', 'assigned_to_name'), [tasks]);
@@ -179,7 +180,7 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
   function handleApply() {
     const range = computeRange(draftPeriodType, draftValue);
     if (!range) {
-      setError('Nilai periode belum lengkap/valid.');
+      setError(t('toast_reports_period_invalid'));
       return;
     }
     setError(null);
@@ -187,10 +188,10 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
   }
 
   const filtered = useMemo(() => {
-    return tasks.filter((t) => {
-      if (applied.userId && t.assigned_to !== applied.userId) return false;
-      if (!t.due_date) return false;
-      const d = t.due_date.slice(0, 10);
+    return tasks.filter((tk) => {
+      if (applied.userId && tk.assigned_to !== applied.userId) return false;
+      if (!tk.due_date) return false;
+      const d = tk.due_date.slice(0, 10);
       return d >= applied.start && d <= applied.end;
     });
   }, [tasks, applied]);
@@ -200,16 +201,23 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
   const completionRate = summary.total === 0 ? 0 : Math.round((summary.completed / summary.total) * 100);
   const trendPoints = useMemo(() => computeTrendPoints(filtered, applied, applied.periodType), [filtered, applied]);
 
-  const REPORT_HEADERS = ['Title', 'Project', 'Priority', 'Status', 'Assignee', 'Due Date'];
+  const REPORT_HEADERS = [
+    t('col_title'),
+    t('col_project'),
+    t('col_priority'),
+    t('col_status'),
+    t('col_assignee'),
+    t('td_field_due_date'),
+  ];
 
   function reportRows(): string[][] {
-    return filtered.map((t) => [
-      t.title,
-      t.project_name,
-      t.priority_name,
-      t.status_name,
-      t.assigned_to_name,
-      t.due_date,
+    return filtered.map((tk) => [
+      tk.title,
+      tk.project_name,
+      tk.priority_name,
+      tk.status_name,
+      tk.assigned_to_name,
+      tk.due_date,
     ]);
   }
 
@@ -244,10 +252,10 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
     const autoTable = (await import('jspdf-autotable')).default;
     const doc = new jsPDF({ orientation: 'landscape' });
     doc.setFontSize(14);
-    doc.text('Report — TMS', 14, 16);
+    doc.text(t('reports_pdf_title'), 14, 16);
     doc.setFontSize(9);
     doc.text(
-      `Printed: ${new Date().toLocaleString('en-US')} — Total: ${summary.total}, Done: ${summary.completed}, Overdue: ${summary.overdue}`,
+      `${t('reports_pdf_printed_label')}: ${new Date().toLocaleString('en-US')} — ${t('reports_pdf_total_label')}: ${summary.total}, ${t('reports_card_done')}: ${summary.completed}, ${t('reports_card_overdue')}: ${summary.overdue}`,
       14,
       22
     );
@@ -276,13 +284,13 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center justify-between gap-2 print:hidden">
-        <h1 className="text-xl font-semibold text-gray-900">Report</h1>
+        <h1 className="text-xl font-semibold text-gray-900">{t('nav_report')}</h1>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={handlePrint}
             className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
           >
-            Print
+            {t('reports_btn_print')}
           </button>
           {canExport && (
             <div className="relative">
@@ -290,7 +298,7 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
                 onClick={() => setExportOpen((v) => !v)}
                 className="flex items-center gap-1.5 rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
               >
-                Export
+                {t('reports_btn_export')}
                 <svg className={`h-3.5 w-3.5 transition-transform ${exportOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                 </svg>
@@ -319,13 +327,13 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
       <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-card print:hidden">
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 lg:grid-cols-[1fr_1fr_1fr_auto]">
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">User</label>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('reports_label_user')}</label>
             <select
               value={draftUserId}
               onChange={(e) => setDraftUserId(e.target.value)}
               className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
             >
-              <option value={ALL}>All Users</option>
+              <option value={ALL}>{t('reports_option_all_users')}</option>
               {userOptions.map((o) => (
                 <option key={o.value} value={o.value}>
                   {o.label}
@@ -334,31 +342,31 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium text-gray-700">Period</label>
+            <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('reports_label_period')}</label>
             <select
               value={draftPeriodType}
               onChange={(e) => handlePeriodTypeChange(e.target.value as PeriodType)}
               className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
             >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-              <option value="yearly">Yearly</option>
+              <option value="daily">{t('reports_period_daily')}</option>
+              <option value="weekly">{t('reports_period_weekly')}</option>
+              <option value="monthly">{t('reports_period_monthly')}</option>
+              <option value="yearly">{t('reports_period_yearly')}</option>
             </select>
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium text-gray-700">
-              {draftPeriodType === 'daily' && 'Select Date'}
-              {draftPeriodType === 'weekly' && 'Select Week'}
-              {draftPeriodType === 'monthly' && 'Select Month'}
-              {draftPeriodType === 'yearly' && 'Select Year'}
+              {draftPeriodType === 'daily' && t('reports_label_select_date')}
+              {draftPeriodType === 'weekly' && t('reports_label_select_week')}
+              {draftPeriodType === 'monthly' && t('reports_label_select_month')}
+              {draftPeriodType === 'yearly' && t('reports_label_select_year')}
             </label>
             {draftPeriodType === 'yearly' ? (
               <input
                 type="number"
                 value={draftValue}
                 onChange={(e) => setDraftValue(e.target.value)}
-                placeholder="Contoh: 2026"
+                placeholder={t('reports_ph_year')}
                 className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
               />
             ) : (
@@ -375,7 +383,7 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
               onClick={handleApply}
               className="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 lg:w-auto"
             >
-              Apply
+              {t('action_apply')}
             </button>
           </div>
         </div>
@@ -383,34 +391,34 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
 
       {/* Ringkasan — 4 + 3 kartu seperti video */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-        <SummaryCard label="Total Tasks" value={summary.total} />
-        <SummaryCard label="Done" value={summary.completed} />
-        <SummaryCard label="Pending" value={pending} />
-        <SummaryCard label="Overdue" value={summary.overdue} />
+        <SummaryCard label={t('reports_card_total_tasks')} value={summary.total} />
+        <SummaryCard label={t('reports_card_done')} value={summary.completed} />
+        <SummaryCard label={t('reports_card_pending')} value={pending} />
+        <SummaryCard label={t('reports_card_overdue')} value={summary.overdue} />
       </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <SummaryCard label="Completion Rate" value={`${completionRate}%`} />
+        <SummaryCard label={t('reports_card_completion_rate')} value={`${completionRate}%`} />
         {/* Hours Worked & Average Duration: di video, kedua kartu ini SELALU menampilkan "N/A" di
             semua kombinasi Period/User yang direkam (termasuk saat ada task selesai) — kemungkinan
             metrik ini belum benar-benar dihitung di aplikasi lama juga. Ditiru apa adanya daripada
             menerka-nerka rumus yang tidak pernah terlihat bekerja di video. */}
-        <SummaryCard label="Hours Worked" value="N/A" />
-        <SummaryCard label="Average Duration" value="N/A" />
+        <SummaryCard label={t('reports_card_hours_worked')} value="N/A" />
+        <SummaryCard label={t('reports_card_avg_duration')} value="N/A" />
       </div>
 
       {/* Charts — 3 seperti video: Task Status (donut), Priority Distribution (bar), Due Date Trend (line) */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <ChartCard title="Task Status">
+        <ChartCard title={t('reports_chart_task_status')}>
           <DonutChart items={summary.byStatus.map((s) => ({ key: s.statusId, label: s.statusName, count: s.count }))} />
         </ChartCard>
-        <ChartCard title="Priority Distribution">
+        <ChartCard title={t('reports_chart_priority_distribution')}>
           <VerticalBarChart
             items={summary.byPriority.map((p) => ({ key: p.priorityId, label: p.priorityName, count: p.count }))}
             barClassName="bg-blue-500"
           />
         </ChartCard>
-        <ChartCard title="Due Date Trend">
-          <LineChart points={trendPoints} valueSuffix="" emptyTitle="No data yet" />
+        <ChartCard title={t('reports_chart_due_date_trend')}>
+          <LineChart points={trendPoints} valueSuffix="" emptyTitle={t('dashboard_no_data_yet')} />
         </ChartCard>
       </div>
 
@@ -418,18 +426,21 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
       <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-card">
         <div className="border-b border-gray-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-gray-900">
-            Task Table <span className="font-normal text-gray-400">({filtered.length} task{filtered.length === 1 ? '' : 's'} in range)</span>
+            {t('reports_table_heading')}{' '}
+            <span className="font-normal text-gray-400">
+              ({filtered.length} {filtered.length === 1 ? t('reports_table_word_singular') : t('reports_table_word_plural')} {t('reports_table_in_range_suffix')})
+            </span>
           </h2>
         </div>
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <th className="px-4 py-2.5 font-medium">Title</th>
-              <th className="px-4 py-2.5 font-medium">Project</th>
-              <th className="px-4 py-2.5 font-medium">Priority</th>
-              <th className="px-4 py-2.5 font-medium">Status</th>
-              <th className="px-4 py-2.5 font-medium">Assignee</th>
-              <th className="px-4 py-2.5 font-medium">Due Date</th>
+              <th className="px-4 py-2.5 font-medium">{t('col_title')}</th>
+              <th className="px-4 py-2.5 font-medium">{t('col_project')}</th>
+              <th className="px-4 py-2.5 font-medium">{t('col_priority')}</th>
+              <th className="px-4 py-2.5 font-medium">{t('col_status')}</th>
+              <th className="px-4 py-2.5 font-medium">{t('col_assignee')}</th>
+              <th className="px-4 py-2.5 font-medium">{t('td_field_due_date')}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -443,20 +454,20 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
             {!loading && filtered.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
-                  Tidak ada task pada rentang ini.
+                  {t('reports_empty_state')}
                 </td>
               </tr>
             )}
             {!loading &&
-              filtered.map((t) => (
-                <tr key={t.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2.5 text-gray-700">{t.title}</td>
-                  <td className="px-4 py-2.5 text-gray-700">{t.project_name || '-'}</td>
-                  <td className="px-4 py-2.5 text-gray-700">{t.priority_name || '-'}</td>
-                  <td className="px-4 py-2.5 text-gray-700">{t.status_name || '-'}</td>
-                  <td className="px-4 py-2.5 text-gray-700">{t.assigned_to_name || '-'}</td>
+              filtered.map((tk) => (
+                <tr key={tk.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-2.5 text-gray-700">{tk.title}</td>
+                  <td className="px-4 py-2.5 text-gray-700">{tk.project_name || '-'}</td>
+                  <td className="px-4 py-2.5 text-gray-700">{tk.priority_name || '-'}</td>
+                  <td className="px-4 py-2.5 text-gray-700">{tk.status_name || '-'}</td>
+                  <td className="px-4 py-2.5 text-gray-700">{tk.assigned_to_name || '-'}</td>
                   <td className="px-4 py-2.5">
-                    <span className={t.is_overdue ? 'font-medium text-red-600' : 'text-gray-700'}>{formatDisplayDate(t.due_date)}</span>
+                    <span className={tk.is_overdue ? 'font-medium text-red-600' : 'text-gray-700'}>{formatDisplayDate(tk.due_date)}</span>
                   </td>
                 </tr>
               ))}

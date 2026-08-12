@@ -122,8 +122,8 @@ export default function KanbanBoard({
       const [tasksRes, optsRes] = await Promise.all([apiFetch('/api/tasks'), apiFetch('/api/tasks/options')]);
       const tasksJson = await parseJsonSafe(tasksRes);
       const optsJson = await parseJsonSafe(optsRes);
-      if (!tasksRes.ok || !tasksJson.data) throw new Error(tasksJson.error || 'Gagal memuat data.');
-      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || 'Gagal memuat opsi.');
+      if (!tasksRes.ok || !tasksJson.data) throw new Error(tasksJson.error || t('toast_load_data_failed'));
+      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || t('toast_load_options_failed'));
       setRows(tasksJson.data);
       setOpts({
         ...optsJson.data,
@@ -133,10 +133,11 @@ export default function KanbanBoard({
         })),
       });
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal memuat data.');
+      setError(e instanceof Error ? e.message : t('toast_load_data_failed'));
     } finally {
       if (!silent) setLoading(false);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -196,7 +197,7 @@ export default function KanbanBoard({
     const newLevel = targetStatus.workflowLevel;
     const bothLevelsSet = oldLevel !== null && oldLevel !== undefined && newLevel !== null && newLevel !== undefined;
     if (!bothLevelsSet || newLevel !== oldLevel + 1) {
-      toast.error('Drag di Kanban hanya boleh menggeser task persis satu tahap ke depan. Untuk mundur, gunakan form Edit.');
+      toast.error(t('toast_kanban_drag_invalid'));
       return;
     }
 
@@ -233,13 +234,13 @@ export default function KanbanBoard({
       }
       const json = await parseJsonSafe(res);
       if (!res.ok) {
-        toast.error(json.fieldErrors?.status_id || json.error || 'Gagal memindahkan task.');
+        toast.error(json.fieldErrors?.status_id || json.error || t('toast_move_task_failed'));
         return;
       }
       await load({ silent: true });
-      toast.success(`Task dipindahkan ke "${targetStatus.label}".`);
+      toast.success(`${t('toast_task_moved_prefix')} "${targetStatus.label}".`);
     } catch {
-      toast.error('Terjadi kesalahan jaringan.');
+      toast.error(t('toast_network_error'));
     }
   }
 
@@ -313,7 +314,7 @@ export default function KanbanBoard({
                   <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">{columnTasks.length}</span>
                 </div>
                 <div className="flex-1 space-y-2 p-2">
-                  {columnTasks.length === 0 && <p className="px-2 py-4 text-center text-xs text-gray-400">No tasks</p>}
+                  {columnTasks.length === 0 && <p className="px-2 py-4 text-center text-xs text-gray-400">{t('kanban_no_tasks')}</p>}
                   {columnTasks.map((row) => {
                     // Fase 19: task yang statusnya sudah Final (Done/Cancelled) tidak boleh di-drag
                     // sama sekali — konsisten dengan tombol Time Tracking yang juga ikut terkunci
@@ -370,10 +371,10 @@ export default function KanbanBoard({
                         {(row.due_date || row.estimated_hours) && (
                           <div className="mt-1.5 flex items-center justify-between text-xs">
                             <span className={overdue ? 'font-medium text-red-600' : 'text-gray-400'}>
-                              {row.due_date ? `Due ${formatShortDate(row.due_date)}` : ''}
+                              {row.due_date ? `${t('kanban_due_prefix')} ${formatShortDate(row.due_date)}` : ''}
                             </span>
                             <span className="text-gray-400">
-                              {row.estimated_hours ? `Est ${Number(row.estimated_hours).toFixed(2)} h` : ''}
+                              {row.estimated_hours ? `${t('kanban_est_prefix')} ${Number(row.estimated_hours).toFixed(2)} h` : ''}
                             </span>
                           </div>
                         )}

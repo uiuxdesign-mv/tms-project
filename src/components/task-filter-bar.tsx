@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { TableSearchBox } from '@/components/table-controls';
+import { useLanguage } from '@/components/language-provider';
 
 type Option = { value: string; label: string };
 
@@ -49,6 +50,7 @@ export default function TaskFilterBar({
    *  `p-4` di Kanban/Calendar). */
   className?: string;
 }) {
+  const { t } = useLanguage();
   const [filterOpen, setFilterOpen] = useState(false);
   const [draftStatus, setDraftStatus] = useState('');
   const [draftPriority, setDraftPriority] = useState('');
@@ -79,7 +81,7 @@ export default function TaskFilterBar({
 
   return (
     <div className={`flex flex-wrap items-center gap-2 ${className || ''}`}>
-      <TableSearchBox value={search} onChange={onSearchChange} placeholder="Search title..." />
+      <TableSearchBox value={search} onChange={onSearchChange} placeholder={t('filter_search_placeholder')} />
       <div className="relative">
         <button
           type="button"
@@ -87,8 +89,8 @@ export default function TaskFilterBar({
           className={`relative flex h-[34px] w-[38px] items-center justify-center rounded-lg border transition-colors ${
             activeFilterCount > 0 ? 'border-indigo-300 bg-indigo-50 text-indigo-600' : 'border-gray-300 text-gray-500 hover:bg-gray-50'
           }`}
-          title="Filter"
-          aria-label="Filter"
+          title={t('filter_title')}
+          aria-label={t('filter_title')}
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h18M6 9.75h12M10.5 15h3" />
@@ -102,13 +104,13 @@ export default function TaskFilterBar({
         {filterOpen && (
           <div className="absolute left-0 z-20 mt-2 w-64 space-y-3 rounded-lg border border-gray-200 bg-white p-3 shadow-popover">
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500">Status</label>
+              <label className="mb-1 block text-xs font-medium text-gray-500">{t('filter_label_status')}</label>
               <select
                 value={draftStatus}
                 onChange={(e) => setDraftStatus(e.target.value)}
                 className="select-field-sm w-full appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-2.5 pr-7 text-sm text-gray-900 focus-ring"
               >
-                <option value="">Semua status</option>
+                <option value="">{t('filter_option_all_status')}</option>
                 {statuses.map((s) => (
                   <option key={s.value} value={s.value}>
                     {s.label}
@@ -117,13 +119,13 @@ export default function TaskFilterBar({
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500">Priority</label>
+              <label className="mb-1 block text-xs font-medium text-gray-500">{t('filter_label_priority')}</label>
               <select
                 value={draftPriority}
                 onChange={(e) => setDraftPriority(e.target.value)}
                 className="select-field-sm w-full appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-2.5 pr-7 text-sm text-gray-900 focus-ring"
               >
-                <option value="">Semua priority</option>
+                <option value="">{t('filter_option_all_priority')}</option>
                 {priorities.map((p) => (
                   <option key={p.value} value={p.value}>
                     {p.label}
@@ -132,13 +134,13 @@ export default function TaskFilterBar({
               </select>
             </div>
             <div>
-              <label className="mb-1 block text-xs font-medium text-gray-500">Assignee</label>
+              <label className="mb-1 block text-xs font-medium text-gray-500">{t('filter_label_assignee')}</label>
               <select
                 value={draftAssignee}
                 onChange={(e) => setDraftAssignee(e.target.value)}
                 className="select-field-sm w-full appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-2.5 pr-7 text-sm text-gray-900 focus-ring"
               >
-                <option value="">Semua assignee</option>
+                <option value="">{t('filter_option_all_assignee')}</option>
                 {assignees.map((a) => (
                   <option key={a.value} value={a.value}>
                     {a.label}
@@ -152,14 +154,14 @@ export default function TaskFilterBar({
                 onClick={resetFilters}
                 className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
               >
-                Reset
+                {t('action_reset')}
               </button>
               <button
                 type="button"
                 onClick={applyFilters}
                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
               >
-                Apply
+                {t('action_apply')}
               </button>
             </div>
           </div>
