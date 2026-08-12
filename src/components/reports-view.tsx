@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { EnrichedTask } from '@/lib/reports/types';
 import { summarizeTasks } from '@/lib/reports/summarize';
-import { apiFetch } from '@/lib/csrf-client';
+import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { DonutChart } from '@/components/charts/donut-chart';
 import { VerticalBarChart } from '@/components/charts/vertical-bar-chart';
 import { LineChart, type LineChartPoint } from '@/components/charts/line-chart';
@@ -154,7 +154,7 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
       setError(null);
       try {
         const res = await apiFetch('/api/reports/tasks');
-        const json = await res.json();
+        const json = await parseJsonSafe(res);
         if (!res.ok) throw new Error(json.error || 'Gagal memuat data laporan.');
         setTasks(json.data);
       } catch (e) {

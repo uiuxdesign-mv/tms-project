@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { apiFetch } from '@/lib/csrf-client';
+import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import AvatarEditor from '@/components/avatar-editor';
 import { useToast } from '@/components/toast-provider';
 import { useLanguage } from '@/components/language-provider';
@@ -57,7 +57,7 @@ export default function ProfileView() {
     setError(null);
     try {
       const res = await apiFetch('/api/profile');
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) throw new Error(json.error || 'Gagal memuat profil.');
       setProfile(json.data);
       setForm({
@@ -109,7 +109,7 @@ export default function ProfileView() {
       else if (removePhoto) formData.append('remove_photo', '1');
 
       const res = await apiFetch('/api/profile', { method: 'PATCH', body: formData });
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
         else {
@@ -153,7 +153,7 @@ export default function ProfileView() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) {
         if (json.fieldErrors) setPwErrors(json.fieldErrors);
         else {

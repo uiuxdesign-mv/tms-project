@@ -13,16 +13,26 @@ export async function GET() {
   if ('error' in guard) return guard.error;
 
   // Bugfix (permintaan user, item data-staleness): lihat catatan sama di GET /api/master/[entity].
-  const roles = await getAllRoles({ useCache: false });
-  const data = roles
-    .filter((r) => r.role_key !== 'admin')
-    // Bugfix (Fase 13): role yang sudah di-nonaktifkan lewat Master Role sebelumnya masih muncul
-    // & bisa dipilih di dropdown ini — halaman Menu Access dipakai untuk MENGATUR hak akses role
-    // yang sedang dipakai, jadi role tidak aktif (tidak dipakai user manapun untuk login efektif)
-    // tidak perlu tampil di sini, konsisten dengan permintaan agar data tidak aktif tidak bisa
-    // dipilih di form manapun.
-    .filter((r) => r.status === 'Active')
-    .map((r) => ({ value: r.id, label: r.role_name, roleKey: r.role_key }));
+  // Bugfix susulan ("Unexpected end of JSON input"): dibungkus try/catch — lihat catatan lengkap
+  // di GET /api/master/[entity]/options.
+  try {
+    const roles = await getAllRoles({ useCache: false });
+    const data = roles
+      .filter((r) => r.role_key !== 'admin')
+      // Bugfix (Fase 13): role yang sudah di-nonaktifkan lewat Master Role sebelumnya masih muncul
+      // & bisa dipilih di dropdown ini — halaman Menu Access dipakai untuk MENGATUR hak akses role
+      // yang sedang dipakai, jadi role tidak aktif (tidak dipakai user manapun untuk login efektif)
+      // tidak perlu tampil di sini, konsisten dengan permintaan agar data tidak aktif tidak bisa
+      // dipilih di form manapun.
+      .filter((r) => r.status === 'Active')
+      .map((r) => ({ value: r.id, label: r.role_name, roleKey: r.role_key }));
 
-  return NextResponse.json({ data });
+    return NextResponse.json({ data });
+  } catch (err) {
+    console.error('GET /api/menu-access/roles gagal:', err);
+    return NextResponse.json(
+      { error: 'Gagal memuat daftar role dari Google Sheets. Coba muat ulang halaman.' },
+      { status: 503 }
+    );
+  }
 }

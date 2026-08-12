@@ -20,8 +20,20 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ entity: st
   // serverless Vercel lain yang masih baca cache basi, sehingga UI baru update setelah refresh
   // manual. Sekarang selalu baca langsung dari Google Sheets, sama seperti fix yang sudah
   // diterapkan di GET /api/tasks sebelumnya.
-  const rows = await SheetTable.getAll(config.key, { useCache: false });
-  return NextResponse.json({ data: rows });
+  //
+  // Bugfix susulan (permintaan user, "Unexpected end of JSON input"): endpoint ini sebelumnya
+  // TIDAK dibungkus try/catch — exception dari Google Sheets API yang tidak tertangani membuat
+  // client gagal parse respons (lihat catatan lengkap di GET /api/master/[entity]/options).
+  try {
+    const rows = await SheetTable.getAll(config.key, { useCache: false });
+    return NextResponse.json({ data: rows });
+  } catch (err) {
+    console.error(`GET /api/master/${entity} gagal:`, err);
+    return NextResponse.json(
+      { error: 'Gagal memuat data dari Google Sheets. Coba muat ulang halaman.' },
+      { status: 503 }
+    );
+  }
 }
 
 export async function POST(req: NextRequest, ctx: { params: Promise<{ entity: string }> }) {

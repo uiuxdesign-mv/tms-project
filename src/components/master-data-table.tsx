@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import type { EntityConfig, FieldConfig } from '@/lib/master-data/config';
 import { parseCsv, buildCsv, downloadCsv } from '@/lib/csv';
-import { apiFetch } from '@/lib/csrf-client';
+import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { useTableControls } from '@/lib/hooks/use-table-controls';
@@ -62,9 +62,9 @@ export default function MasterDataTable({
         apiFetch(`/api/master/${entityKey}`),
         apiFetch(`/api/master/${entityKey}/options`),
       ]);
-      const rowsJson = await rowsRes.json();
-      const optsJson = await optsRes.json();
-      if (!rowsRes.ok) throw new Error(rowsJson.error || 'Gagal memuat data.');
+      const rowsJson = await parseJsonSafe(rowsRes);
+      const optsJson = await parseJsonSafe(optsRes);
+      if (!rowsRes.ok || !rowsJson.data) throw new Error(rowsJson.error || 'Gagal memuat data.');
       setRows(rowsJson.data);
       setOptions(optsJson.data || {});
     } catch (e) {
@@ -141,7 +141,7 @@ export default function MasterDataTable({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formValues),
       });
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
         else toast.error(json.error || 'Gagal menyimpan data.');
@@ -167,7 +167,7 @@ export default function MasterDataTable({
     if (!ok) return;
     try {
       const res = await apiFetch(`/api/master/${entityKey}/${row.id}`, { method: 'DELETE' });
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) {
         if (res.status === 409 && json.reassignable) {
           setDeleteBlocked({ row, message: json.error, reassignable: true });
@@ -193,7 +193,7 @@ export default function MasterDataTable({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ to_id: reassignToId }),
       });
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) {
         toast.error(json.error || 'Gagal memindahkan & menghapus data.');
         return;
@@ -246,7 +246,7 @@ export default function MasterDataTable({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(rowPayload),
       });
-      const json1 = await res1.json();
+      const json1 = await parseJsonSafe(res1);
       if (!res1.ok) throw new Error(json1.error || 'Gagal mengubah urutan.');
 
       const res2 = await apiFetch(`/api/master/${entityKey}/${other.id}`, {
@@ -254,7 +254,7 @@ export default function MasterDataTable({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(otherPayload),
       });
-      const json2 = await res2.json();
+      const json2 = await parseJsonSafe(res2);
       if (!res2.ok) throw new Error(json2.error || 'Gagal mengubah urutan.');
       toast.success('Urutan berhasil diubah.');
     } catch (e) {
@@ -366,7 +366,7 @@ export default function MasterDataTable({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-        const json = await res.json();
+        const json = await parseJsonSafe(res);
         if (!res.ok) {
           const msg = json.fieldErrors ? Object.values(json.fieldErrors).join('; ') : json.error || 'Gagal menyimpan.';
           results.push({ rowNumber, title: rowTitle, ok: false, message: msg });

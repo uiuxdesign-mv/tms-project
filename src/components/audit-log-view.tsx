@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { buildCsv, downloadCsv } from '@/lib/csv';
-import { apiFetch } from '@/lib/csrf-client';
+import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { Badge } from '@/components/badge';
 import { useLanguage } from '@/components/language-provider';
 
@@ -51,7 +51,7 @@ export default function AuditLogView() {
       setError(null);
       try {
         const res = await apiFetch('/api/audit-log');
-        const json = await res.json();
+        const json = await parseJsonSafe(res);
         if (!res.ok) throw new Error(json.error || 'Gagal memuat audit log.');
         setEntries(json.data);
       } catch (e) {

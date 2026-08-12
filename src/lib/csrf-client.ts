@@ -18,3 +18,28 @@ export function apiFetch(input: RequestInfo | URL, init: RequestInit = {}): Prom
   headers.set('x-csrf-token', getCookie(CSRF_COOKIE_NAME));
   return fetch(input, { ...init, headers });
 }
+
+/**
+ * Bugfix (permintaan user, "Failed to execute 'json' on 'Response': Unexpected end of JSON
+ * input"): dulu SEMUA komponen langsung panggil `res.json()` tanpa pelindung — kalau server
+ * mengembalikan respons yang bukan/bukan-lagi JSON valid (mis. function serverless timeout,
+ * error gateway platform Vercel yang mengirim halaman HTML, koneksi terputus di tengah jalan),
+ * `.json()` melempar SyntaxError mentah dari browser yang lolos sampai ke layar user apa
+ * adanya — persis pesan teknis yang membingungkan itu.
+ *
+ * `parseJsonSafe()` menangkap kegagalan parse itu dan mengembalikan objek `{ error: ... }` yang
+ * ramah, supaya kode pemanggil (yang sudah baca `json.error`) selalu dapat pesan Bahasa
+ * Indonesia yang jelas, apa pun yang sebenarnya dikembalikan server.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export async function parseJsonSafe(res: Response): Promise<any> {
+  try {
+    return await res.json();
+  } catch {
+    return {
+      error: res.ok
+        ? 'Respons server tidak valid. Coba muat ulang halaman.'
+        : `Server mengalami gangguan (${res.status}). Coba beberapa saat lagi atau muat ulang halaman.`,
+    };
+  }
+}

@@ -11,6 +11,16 @@ export async function GET() {
   const guard = await requireAdmin();
   if ('error' in guard) return guard.error;
 
-  const entries = await getAuditLog();
-  return NextResponse.json({ data: entries });
+  // Bugfix (permintaan user, "Unexpected end of JSON input"): dibungkus try/catch — lihat
+  // catatan lengkap di GET /api/master/[entity]/options.
+  try {
+    const entries = await getAuditLog();
+    return NextResponse.json({ data: entries });
+  } catch (err) {
+    console.error('GET /api/audit-log gagal:', err);
+    return NextResponse.json(
+      { error: 'Gagal memuat Audit Log dari Google Sheets. Coba muat ulang halaman.' },
+      { status: 503 }
+    );
+  }
 }

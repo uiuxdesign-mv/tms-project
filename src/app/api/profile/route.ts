@@ -41,9 +41,19 @@ export async function GET() {
   const guard = await requireAuth();
   if ('error' in guard) return guard.error;
 
-  const user = await SheetTable.findById('users', guard.session.userId);
-  if (!user) return NextResponse.json({ error: 'User tidak ditemukan.' }, { status: 404 });
-  return NextResponse.json({ data: omitPasswordHash(user) });
+  // Bugfix (permintaan user, "Unexpected end of JSON input"): dibungkus try/catch — lihat
+  // catatan lengkap di GET /api/master/[entity]/options.
+  try {
+    const user = await SheetTable.findById('users', guard.session.userId);
+    if (!user) return NextResponse.json({ error: 'User tidak ditemukan.' }, { status: 404 });
+    return NextResponse.json({ data: omitPasswordHash(user) });
+  } catch (err) {
+    console.error('GET /api/profile gagal:', err);
+    return NextResponse.json(
+      { error: 'Gagal memuat data profil dari Google Sheets. Coba muat ulang halaman.' },
+      { status: 503 }
+    );
+  }
 }
 
 export async function PATCH(req: NextRequest) {

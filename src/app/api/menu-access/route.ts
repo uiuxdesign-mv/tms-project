@@ -12,15 +12,25 @@ export async function GET(req: NextRequest) {
   const roleId = req.nextUrl.searchParams.get('role_id') || '';
   if (!roleId) return NextResponse.json({ error: 'role_id wajib diisi.' }, { status: 400 });
 
-  const role = await findRoleById(roleId);
-  if (!role) return NextResponse.json({ error: 'Role tidak ditemukan.' }, { status: 404 });
-  if (role.role_key === 'admin') {
-    return NextResponse.json({ error: 'Hak akses role Admin tidak diatur di sini (selalu penuh).' }, { status: 400 });
-  }
+  // Bugfix (permintaan user, "Unexpected end of JSON input"): dibungkus try/catch — lihat
+  // catatan lengkap di GET /api/master/[entity]/options.
+  try {
+    const role = await findRoleById(roleId);
+    if (!role) return NextResponse.json({ error: 'Role tidak ditemukan.' }, { status: 404 });
+    if (role.role_key === 'admin') {
+      return NextResponse.json({ error: 'Hak akses role Admin tidak diatur di sini (selalu penuh).' }, { status: 400 });
+    }
 
-  // Bugfix (permintaan user, item data-staleness): lihat catatan sama di GET /api/master/[entity].
-  const matrix = await getPermissionMatrixForRole(roleId, { useCache: false });
-  return NextResponse.json({ data: { matrix, menus: MENU_KEYS } });
+    // Bugfix (permintaan user, item data-staleness): lihat catatan sama di GET /api/master/[entity].
+    const matrix = await getPermissionMatrixForRole(roleId, { useCache: false });
+    return NextResponse.json({ data: { matrix, menus: MENU_KEYS } });
+  } catch (err) {
+    console.error('GET /api/menu-access gagal:', err);
+    return NextResponse.json(
+      { error: 'Gagal memuat hak akses dari Google Sheets. Coba muat ulang halaman.' },
+      { status: 503 }
+    );
+  }
 }
 
 export async function POST(req: NextRequest) {

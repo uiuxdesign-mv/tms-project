@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { apiFetch } from '@/lib/csrf-client';
+import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { TimeTrackingControls, type TimeTrackingState } from '@/components/time-tracking-controls';
 import { useToast } from '@/components/toast-provider';
 import { Badge } from '@/components/badge';
@@ -120,9 +120,10 @@ export default function KanbanBoard({
     setError(null);
     try {
       const [tasksRes, optsRes] = await Promise.all([apiFetch('/api/tasks'), apiFetch('/api/tasks/options')]);
-      const tasksJson = await tasksRes.json();
-      const optsJson = await optsRes.json();
-      if (!tasksRes.ok) throw new Error(tasksJson.error || 'Gagal memuat data.');
+      const tasksJson = await parseJsonSafe(tasksRes);
+      const optsJson = await parseJsonSafe(optsRes);
+      if (!tasksRes.ok || !tasksJson.data) throw new Error(tasksJson.error || 'Gagal memuat data.');
+      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || 'Gagal memuat opsi.');
       setRows(tasksJson.data);
       setOpts({
         ...optsJson.data,
@@ -230,7 +231,7 @@ export default function KanbanBoard({
           body: JSON.stringify({ status_id: targetStatus.value, viaKanbanDrag: true }),
         });
       }
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) {
         toast.error(json.fieldErrors?.status_id || json.error || 'Gagal memindahkan task.');
         return;

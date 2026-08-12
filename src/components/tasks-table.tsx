@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { apiFetch } from '@/lib/csrf-client';
+import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import type { TimeTrackingState } from '@/components/time-tracking-controls';
 import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
@@ -121,9 +121,10 @@ export default function TasksTable({
     setError(null);
     try {
       const [tasksRes, optsRes] = await Promise.all([apiFetch('/api/tasks'), apiFetch('/api/tasks/options')]);
-      const tasksJson = await tasksRes.json();
-      const optsJson = await optsRes.json();
-      if (!tasksRes.ok) throw new Error(tasksJson.error || 'Gagal memuat data.');
+      const tasksJson = await parseJsonSafe(tasksRes);
+      const optsJson = await parseJsonSafe(optsRes);
+      if (!tasksRes.ok || !tasksJson.data) throw new Error(tasksJson.error || 'Gagal memuat data.');
+      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || 'Gagal memuat opsi.');
       setRows(tasksJson.data);
       setOpts(optsJson.data);
     } catch (e) {
@@ -201,7 +202,7 @@ export default function TasksTable({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
         else toast.error(json.error || 'Gagal menyimpan data.');
@@ -222,7 +223,7 @@ export default function TasksTable({
     if (!ok) return;
     try {
       const res = await apiFetch(`/api/tasks/${row.id}`, { method: 'DELETE' });
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) {
         toast.error(json.error || 'Gagal menghapus data.');
         return;

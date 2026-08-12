@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { apiFetch } from '@/lib/csrf-client';
+import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { TasksPageHeader } from '@/components/tasks-view-header';
 import TaskDetailModal from '@/components/task-detail-modal';
 import TaskFilterBar from '@/components/task-filter-bar';
@@ -99,9 +99,10 @@ export default function CalendarView({
     setError(null);
     try {
       const [tasksRes, optsRes] = await Promise.all([apiFetch('/api/tasks'), apiFetch('/api/tasks/options')]);
-      const tasksJson = await tasksRes.json();
-      const optsJson = await optsRes.json();
-      if (!tasksRes.ok) throw new Error(tasksJson.error || 'Gagal memuat data.');
+      const tasksJson = await parseJsonSafe(tasksRes);
+      const optsJson = await parseJsonSafe(optsRes);
+      if (!tasksRes.ok || !tasksJson.data) throw new Error(tasksJson.error || 'Gagal memuat data.');
+      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || 'Gagal memuat opsi.');
       setRows(tasksJson.data);
       setOpts(optsJson.data);
     } catch (e) {

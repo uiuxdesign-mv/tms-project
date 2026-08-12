@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { apiFetch } from '@/lib/csrf-client';
+import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { useToast } from '@/components/toast-provider';
 import { useLanguage } from '@/components/language-provider';
 import type { TranslationKey } from '@/lib/i18n/translations';
@@ -46,7 +46,7 @@ export default function MenuAccessTable() {
       setLoadingRoles(true);
       try {
         const res = await apiFetch('/api/menu-access/roles');
-        const json = await res.json();
+        const json = await parseJsonSafe(res);
         if (!res.ok) throw new Error(json.error || 'Gagal memuat daftar role.');
         setRoles(json.data);
         if (json.data.length > 0) setSelectedRoleId(json.data[0].value);
@@ -65,7 +65,7 @@ export default function MenuAccessTable() {
     setSavedMsg(null);
     try {
       const res = await apiFetch(`/api/menu-access?role_id=${encodeURIComponent(roleId)}`);
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) throw new Error(json.error || 'Gagal memuat hak akses.');
       setMenus(json.data.menus);
       setMatrix(json.data.matrix);
@@ -111,7 +111,7 @@ export default function MenuAccessTable() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ role_id: selectedRoleId, matrix }),
       });
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) throw new Error(json.error || 'Gagal menyimpan hak akses.');
       setMatrix(json.data.matrix);
       setSavedMsg('Hak akses berhasil disimpan.');

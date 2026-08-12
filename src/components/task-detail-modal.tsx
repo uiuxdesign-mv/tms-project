@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { apiFetch } from '@/lib/csrf-client';
+import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { formatDuration } from '@/components/time-tracking-controls';
 import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
@@ -173,10 +173,10 @@ export default function TaskDetailModal({
         apiFetch('/api/tasks/options'),
         apiFetch(`/api/tasks/${taskId}/time-tracking`),
       ]);
-      const taskJson = await taskRes.json();
-      const optsJson = await optsRes.json();
-      if (!taskRes.ok) throw new Error(taskJson.error || 'Gagal memuat task.');
-      if (!optsRes.ok) throw new Error(optsJson.error || 'Gagal memuat opsi.');
+      const taskJson = await parseJsonSafe(taskRes);
+      const optsJson = await parseJsonSafe(optsRes);
+      if (!taskRes.ok || !taskJson.data) throw new Error(taskJson.error || 'Gagal memuat task.');
+      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || 'Gagal memuat opsi.');
 
       setTask(taskJson.data);
       setOpts({
@@ -202,10 +202,14 @@ export default function TaskDetailModal({
       });
 
       if (ttRes.ok) {
-        const ttJson = await ttRes.json();
-        setTimeState(ttJson.data.state);
-        setEvents(ttJson.data.events);
-        setTimeUnavailable(false);
+        const ttJson = await parseJsonSafe(ttRes);
+        if (ttJson.data) {
+          setTimeState(ttJson.data.state);
+          setEvents(ttJson.data.events);
+          setTimeUnavailable(false);
+        } else {
+          setTimeUnavailable(true);
+        }
       } else {
         setTimeUnavailable(true);
       }
@@ -280,7 +284,7 @@ export default function TaskDetailModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action }),
       });
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) {
         toast.error(json.error || 'Gagal menjalankan aksi Time Tracking.');
         return;
@@ -333,7 +337,7 @@ export default function TaskDetailModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'cancel' }),
       });
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) {
         toast.error(json.error || 'Gagal membatalkan task.');
         return;
@@ -359,7 +363,7 @@ export default function TaskDetailModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
       });
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
         else toast.error(json.error || 'Gagal menyimpan data.');

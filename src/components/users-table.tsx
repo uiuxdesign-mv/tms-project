@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { apiFetch } from '@/lib/csrf-client';
+import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { parseCsv, buildCsv, downloadCsv } from '@/lib/csv';
 import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
@@ -114,9 +114,10 @@ export default function UsersTable({
     setError(null);
     try {
       const [usersRes, optsRes] = await Promise.all([apiFetch('/api/users'), apiFetch('/api/users/options')]);
-      const usersJson = await usersRes.json();
-      const optsJson = await optsRes.json();
-      if (!usersRes.ok) throw new Error(usersJson.error || 'Gagal memuat data.');
+      const usersJson = await parseJsonSafe(usersRes);
+      const optsJson = await parseJsonSafe(optsRes);
+      if (!usersRes.ok || !usersJson.data) throw new Error(usersJson.error || 'Gagal memuat data.');
+      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || 'Gagal memuat opsi.');
       setRows(usersJson.data);
       setRoles(optsJson.data.roles);
       setEmploymentTypes(optsJson.data.employmentTypes);
@@ -207,7 +208,7 @@ export default function UsersTable({
       else if (removePhoto && editingId) formData.append('remove_photo', '1');
 
       const res = await apiFetch(url, { method, body: formData });
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
         else toast.error(json.error || 'Gagal menyimpan data.');
@@ -228,7 +229,7 @@ export default function UsersTable({
     if (!ok) return;
     try {
       const res = await apiFetch(`/api/users/${row.id}`, { method: 'DELETE' });
-      const json = await res.json();
+      const json = await parseJsonSafe(res);
       if (!res.ok) {
         toast.error(json.error || 'Gagal menghapus data.');
         return;
@@ -346,7 +347,7 @@ export default function UsersTable({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-        const json = await res.json();
+        const json = await parseJsonSafe(res);
         if (!res.ok) {
           const msg = json.fieldErrors ? Object.values(json.fieldErrors).join('; ') : json.error || 'Gagal menyimpan.';
           results.push({ rowNumber, title: rowTitle, ok: false, message: msg });

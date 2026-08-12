@@ -14,8 +14,18 @@ export async function GET() {
   if ('error' in guard) return guard.error;
 
   // Bugfix (permintaan user, item data-staleness): lihat catatan sama di GET /api/master/[entity].
-  const rows = await SheetTable.getAll('users', { useCache: false });
-  return NextResponse.json({ data: rows.map(omitPasswordHash) });
+  // Bugfix susulan ("Unexpected end of JSON input"): dibungkus try/catch — lihat catatan lengkap
+  // di GET /api/master/[entity]/options.
+  try {
+    const rows = await SheetTable.getAll('users', { useCache: false });
+    return NextResponse.json({ data: rows.map(omitPasswordHash) });
+  } catch (err) {
+    console.error('GET /api/users gagal:', err);
+    return NextResponse.json(
+      { error: 'Gagal memuat data dari Google Sheets. Coba muat ulang halaman.' },
+      { status: 503 }
+    );
+  }
 }
 
 /** Body request bisa JSON biasa, atau multipart/form-data kalau menyertakan foto (Fase 11, Add User). */
