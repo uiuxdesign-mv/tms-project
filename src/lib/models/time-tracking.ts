@@ -53,8 +53,8 @@ export type DerivedTimeState = {
   liveSince: string | null;
 };
 
-async function getEventsForTask(taskId: string): Promise<TimeLogRow[]> {
-  const rows = await SheetTable.getAll('task_time_logs');
+async function getEventsForTask(taskId: string, opts: { useCache?: boolean } = {}): Promise<TimeLogRow[]> {
+  const rows = await SheetTable.getAll('task_time_logs', opts);
   return (rows as unknown as TimeLogRow[])
     .filter((r) => r.task_id === taskId)
     .sort((a, b) => a.occurred_at.localeCompare(b.occurred_at) || Number(a.session_no) - Number(b.session_no));
@@ -344,9 +344,12 @@ async function finish(taskId: string): Promise<TimeActionResult> {
 }
 
 /** Dipakai UI untuk menghitung "closedSeconds" total (sudah termasuk cache tasks.actual_duration_seconds). */
-export async function getTimeStateForTask(taskId: string): Promise<{ task: SheetRow | undefined; state: DerivedTimeState; events: TimeLogRow[] }> {
-  const task = await SheetTable.findById('tasks', taskId);
-  const events = await getEventsForTask(taskId);
+export async function getTimeStateForTask(
+  taskId: string,
+  opts: { useCache?: boolean } = {}
+): Promise<{ task: SheetRow | undefined; state: DerivedTimeState; events: TimeLogRow[] }> {
+  const task = await SheetTable.findById('tasks', taskId, opts);
+  const events = await getEventsForTask(taskId, opts);
   const state = deriveState(events);
   return { task, state, events };
 }
@@ -356,11 +359,14 @@ export async function getTimeStateForTask(taskId: string): Promise<{ task: Sheet
  * terpisah per task hanya untuk tahu state Time Tracking-nya. Cuma 1 kali baca sheet
  * `task_time_logs` (kena cache 30 detik yang sama seperti sheet lain), lalu di-replay per task.
  */
-export async function getTimeStatesForTasks(taskIds: string[]): Promise<Record<string, DerivedTimeState>> {
+export async function getTimeStatesForTasks(
+  taskIds: string[],
+  opts: { useCache?: boolean } = {}
+): Promise<Record<string, DerivedTimeState>> {
   const idSet = new Set(taskIds);
   let allEvents: TimeLogRow[];
   try {
-    allEvents = (await SheetTable.getAll('task_time_logs')) as unknown as TimeLogRow[];
+    allEvents = (await SheetTable.getAll('task_time_logs', opts)) as unknown as TimeLogRow[];
   } catch {
     // Sheet `task_time_logs` belum dikonfigurasi (mis. SHEET_ID_TASK_TIME_LOGS belum diset saat
     // deploy) — daripada bikin seluruh daftar Task/Kanban/Calendar 500, degradasi ke "idle" untuk

@@ -14,14 +14,18 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const { session } = guard;
   const { id } = await ctx.params;
 
-  const existing = await SheetTable.findById('tasks', id);
+  // Bugfix (Fase 19): sama seperti GET /api/tasks & /api/tasks/[id] — endpoint ini dipanggil ulang
+  // tepat setelah aksi Start/Pause/Resume/Stop untuk hydrate badge live-ticking, jadi harus baca
+  // langsung dari Google Sheets (lewati cache in-memory 30 detik) supaya tidak menampilkan state
+  // basi kalau request ini kebetulan dilayani instance serverless yang beda dari yang barusan menulis.
+  const existing = await SheetTable.findById('tasks', id, { useCache: false });
   if (!existing) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
   if (!canManageTask(session, existing)) {
     return NextResponse.json({ error: 'Anda tidak punya akses ke Time Tracking task ini.' }, { status: 403 });
   }
 
   try {
-    const { task, state, events } = await getTimeStateForTask(id);
+    const { task, state, events } = await getTimeStateForTask(id, { useCache: false });
     return NextResponse.json({ data: { task, state, events } });
   } catch {
     return NextResponse.json(

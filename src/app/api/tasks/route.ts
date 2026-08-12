@@ -10,7 +10,14 @@ export async function GET(req: NextRequest) {
   if ('error' in guard) return guard.error;
   const { session } = guard;
 
-  const all = await SheetTable.getAll('tasks');
+  // Bugfix (Fase 19): endpoint ini dipanggil ulang tepat setelah aksi Time Tracking/drag Kanban
+  // untuk me-refresh papan/daftar Task — kalau pakai cache in-memory 30 detik yang sama seperti
+  // sheet lain (lihat catatan di lib/google/cache.ts), request ini bisa saja dilayani instance
+  // serverless Vercel yang BEDA dari yang barusan menulis perubahan, sehingga masih membaca cache
+  // basi dan status task terlihat belum pindah kolom padahal sudah tersimpan. Data task berubah
+  // sangat sering (tiap aksi Start/Pause/Stop/drag), jadi selalu baca langsung dari Google Sheets
+  // di sini demi konsistensi, bukan dari cache.
+  const all = await SheetTable.getAll('tasks', { useCache: false });
   let rows = all.filter((t) => canViewTask(session, t));
 
   const url = new URL(req.url);
@@ -21,7 +28,7 @@ export async function GET(req: NextRequest) {
 
   // Fase 8 (Time Tracking): sisipkan state Start/Pause/Stop/Review yang sudah di-derive dari
   // event log, supaya UI (tabel Task, nanti Kanban) tidak perlu 1 request terpisah per task.
-  const timeStates = await getTimeStatesForTasks(rows.map((t) => t.id));
+  const timeStates = await getTimeStatesForTasks(rows.map((t) => t.id), { useCache: false });
   const rowsWithTimeTracking = rows.map((t) => ({ ...t, timeTracking: timeStates[t.id] }));
 
   return NextResponse.json({ data: rowsWithTimeTracking });

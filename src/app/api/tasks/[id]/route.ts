@@ -13,13 +13,16 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const { session } = guard;
   const { id } = await ctx.params;
 
-  const existing = await SheetTable.findById('tasks', id);
+  // Bugfix (Fase 19): sama seperti GET /api/tasks (list) — modal ini di-reload tepat setelah aksi
+  // Time Tracking, jadi cache in-memory 30 detik yang bisa beda per-instance serverless Vercel
+  // harus dilewati di sini supaya status/waktu yang ditampilkan selalu yang terbaru.
+  const existing = await SheetTable.findById('tasks', id, { useCache: false });
   if (!existing) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
   if (!canViewTask(session, existing)) {
     return NextResponse.json({ error: 'Anda tidak punya akses ke task ini.' }, { status: 403 });
   }
 
-  const timeStates = await getTimeStatesForTasks([id]);
+  const timeStates = await getTimeStatesForTasks([id], { useCache: false });
   return NextResponse.json({ data: { ...existing, timeTracking: timeStates[id] } });
 }
 

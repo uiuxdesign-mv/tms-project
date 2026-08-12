@@ -60,8 +60,12 @@ export async function getAll(
   return all.filter((r) => !r.deleted_at);
 }
 
-export async function findById(sheetKey: SheetKey, id: string): Promise<SheetRow | undefined> {
-  const all = await getAll(sheetKey);
+export async function findById(
+  sheetKey: SheetKey,
+  id: string,
+  opts: { useCache?: boolean; includeDeleted?: boolean } = {}
+): Promise<SheetRow | undefined> {
+  const all = await getAll(sheetKey, opts);
   return all.find((r) => r.id === id);
 }
 
