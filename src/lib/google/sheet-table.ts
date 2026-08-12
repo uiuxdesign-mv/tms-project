@@ -18,16 +18,50 @@ function columnLetter(n: number): string {
   return s;
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Bugfix (Fase 19): sejak beberapa endpoint Task/Time Tracking melewati cache in-memory demi
+ * konsistensi (lihat komentar di route GET /api/tasks dkk), pembacaan sheet lewat di sini jadi
+ * jauh lebih sering langsung memanggil Google Sheets API — sesekali kena error transient (rate
+ * limit 429, atau 5xx sesaat dari Google) yang SEBELUMNYA jarang terlihat karena "diredam" oleh
+ * cache. Tanpa retry, error transient begini bikin request gagal total (500 kosong ke client,
+ * padahal cuma butuh dicoba ulang sebentar) — jadi di-retry beberapa kali dengan jeda singkat
+ * sebelum benar-benar dianggap gagal.
+ */
+async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+  let lastErr: unknown;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const code = Number((err as { code?: number | string; status?: number })?.code ?? (err as { status?: number })?.status);
+      // Transient: rate limit (429), error server Google (5xx), atau error tanpa kode HTTP sama
+      // sekali (biasanya masalah jaringan sesaat) — selain itu (mis. 400/403 karena sheet memang
+      // salah setting) tidak ada gunanya diulang, langsung lempar supaya pesan error tetap jelas.
+      const transient = code === 429 || (code >= 500 && code < 600) || Number.isNaN(code);
+      if (!transient || i === attempts - 1) throw err;
+      await sleep(300 * 2 ** i); // 300ms, 600ms
+    }
+  }
+  throw lastErr;
+}
+
 async function readHeaderAndRows(sheetKey: SheetKey): Promise<{ header: string[]; rows: string[][] }> {
-  const sheets = await getSheetsClient();
-  const spreadsheetId = SPREADSHEET_IDS[sheetKey]();
-  const res = await sheets.spreadsheets.values.get({
-    spreadsheetId,
-    range: 'A1:ZZ100000',
+  return withRetry(async () => {
+    const sheets = await getSheetsClient();
+    const spreadsheetId = SPREADSHEET_IDS[sheetKey]();
+    const res = await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: 'A1:ZZ100000',
+    });
+    const values = (res.data.values as string[][] | undefined) || [];
+    const [header, ...rows] = values;
+    return { header: header || [], rows };
   });
-  const values = (res.data.values as string[][] | undefined) || [];
-  const [header, ...rows] = values;
-  return { header: header || [], rows };
 }
 
 function rowsToObjects(header: string[], rows: string[][]): SheetRow[] {

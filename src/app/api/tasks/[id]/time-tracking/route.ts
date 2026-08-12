@@ -18,18 +18,21 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   // tepat setelah aksi Start/Pause/Resume/Stop untuk hydrate badge live-ticking, jadi harus baca
   // langsung dari Google Sheets (lewati cache in-memory 30 detik) supaya tidak menampilkan state
   // basi kalau request ini kebetulan dilayani instance serverless yang beda dari yang barusan menulis.
-  const existing = await SheetTable.findById('tasks', id, { useCache: false });
-  if (!existing) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
-  if (!canManageTask(session, existing)) {
-    return NextResponse.json({ error: 'Anda tidak punya akses ke Time Tracking task ini.' }, { status: 403 });
-  }
-
+  // Semuanya dibungkus 1 try/catch (bukan cuma getTimeStateForTask seperti sebelumnya) supaya
+  // findById di atas juga tidak bisa bikin respons 500 kosong kalau Google Sheets API bermasalah.
   try {
+    const existing = await SheetTable.findById('tasks', id, { useCache: false });
+    if (!existing) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
+    if (!canManageTask(session, existing)) {
+      return NextResponse.json({ error: 'Anda tidak punya akses ke Time Tracking task ini.' }, { status: 403 });
+    }
+
     const { task, state, events } = await getTimeStateForTask(id, { useCache: false });
     return NextResponse.json({ data: { task, state, events } });
-  } catch {
+  } catch (err) {
+    console.error(`GET /api/tasks/${id}/time-tracking gagal:`, err);
     return NextResponse.json(
-      { error: 'Sheet Time Tracking (task_time_logs) belum dikonfigurasi di server ini. Hubungi admin.' },
+      { error: 'Sheet Time Tracking (task_time_logs) belum dikonfigurasi, atau Google Sheets API sedang bermasalah. Coba lagi / hubungi admin.' },
       { status: 503 }
     );
   }

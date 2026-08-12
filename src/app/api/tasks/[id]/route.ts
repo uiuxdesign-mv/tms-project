@@ -15,15 +15,25 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
   // Bugfix (Fase 19): sama seperti GET /api/tasks (list) — modal ini di-reload tepat setelah aksi
   // Time Tracking, jadi cache in-memory 30 detik yang bisa beda per-instance serverless Vercel
-  // harus dilewati di sini supaya status/waktu yang ditampilkan selalu yang terbaru.
-  const existing = await SheetTable.findById('tasks', id, { useCache: false });
-  if (!existing) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
-  if (!canViewTask(session, existing)) {
-    return NextResponse.json({ error: 'Anda tidak punya akses ke task ini.' }, { status: 403 });
-  }
+  // harus dilewati di sini supaya status/waktu yang ditampilkan selalu yang terbaru. Dibungkus
+  // try/catch supaya error transient Google Sheets API (setelah retry di sheet-table.ts tetap
+  // gagal) menghasilkan pesan JSON yang jelas, bukan respons 500 kosong.
+  try {
+    const existing = await SheetTable.findById('tasks', id, { useCache: false });
+    if (!existing) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
+    if (!canViewTask(session, existing)) {
+      return NextResponse.json({ error: 'Anda tidak punya akses ke task ini.' }, { status: 403 });
+    }
 
-  const timeStates = await getTimeStatesForTasks([id], { useCache: false });
-  return NextResponse.json({ data: { ...existing, timeTracking: timeStates[id] } });
+    const timeStates = await getTimeStatesForTasks([id], { useCache: false });
+    return NextResponse.json({ data: { ...existing, timeTracking: timeStates[id] } });
+  } catch (err) {
+    console.error(`GET /api/tasks/${id} gagal:`, err);
+    return NextResponse.json(
+      { error: 'Gagal memuat data Task dari Google Sheets. Coba muat ulang halaman.' },
+      { status: 503 }
+    );
+  }
 }
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {

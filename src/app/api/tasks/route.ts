@@ -17,21 +17,35 @@ export async function GET(req: NextRequest) {
   // basi dan status task terlihat belum pindah kolom padahal sudah tersimpan. Data task berubah
   // sangat sering (tiap aksi Start/Pause/Stop/drag), jadi selalu baca langsung dari Google Sheets
   // di sini demi konsistensi, bukan dari cache.
-  const all = await SheetTable.getAll('tasks', { useCache: false });
-  let rows = all.filter((t) => canViewTask(session, t));
+  //
+  // Bugfix susulan: karena sekarang SELALU memanggil Google Sheets API langsung (bukan cache),
+  // error transient (rate limit/5xx sesaat) yang sebelumnya jarang muncul jadi lebih sering
+  // ketemu — sheet-table.ts sudah retry singkat untuk itu, tapi kalau tetap gagal, di sini WAJIB
+  // ditangkap supaya client dapat pesan error JSON yang jelas, bukan respons 500 kosong yang bikin
+  // `res.json()` di browser meledak ("Unexpected end of JSON input").
+  try {
+    const all = await SheetTable.getAll('tasks', { useCache: false });
+    let rows = all.filter((t) => canViewTask(session, t));
 
-  const url = new URL(req.url);
-  const statusId = url.searchParams.get('status_id');
-  const assignee = url.searchParams.get('assigned_to');
-  if (statusId) rows = rows.filter((t) => t.status_id === statusId);
-  if (assignee) rows = rows.filter((t) => t.assigned_to === assignee);
+    const url = new URL(req.url);
+    const statusId = url.searchParams.get('status_id');
+    const assignee = url.searchParams.get('assigned_to');
+    if (statusId) rows = rows.filter((t) => t.status_id === statusId);
+    if (assignee) rows = rows.filter((t) => t.assigned_to === assignee);
 
-  // Fase 8 (Time Tracking): sisipkan state Start/Pause/Stop/Review yang sudah di-derive dari
-  // event log, supaya UI (tabel Task, nanti Kanban) tidak perlu 1 request terpisah per task.
-  const timeStates = await getTimeStatesForTasks(rows.map((t) => t.id), { useCache: false });
-  const rowsWithTimeTracking = rows.map((t) => ({ ...t, timeTracking: timeStates[t.id] }));
+    // Fase 8 (Time Tracking): sisipkan state Start/Pause/Stop/Review yang sudah di-derive dari
+    // event log, supaya UI (tabel Task, nanti Kanban) tidak perlu 1 request terpisah per task.
+    const timeStates = await getTimeStatesForTasks(rows.map((t) => t.id), { useCache: false });
+    const rowsWithTimeTracking = rows.map((t) => ({ ...t, timeTracking: timeStates[t.id] }));
 
-  return NextResponse.json({ data: rowsWithTimeTracking });
+    return NextResponse.json({ data: rowsWithTimeTracking });
+  } catch (err) {
+    console.error('GET /api/tasks gagal:', err);
+    return NextResponse.json(
+      { error: 'Gagal memuat data Task dari Google Sheets. Coba muat ulang halaman.' },
+      { status: 503 }
+    );
+  }
 }
 
 export async function POST(req: NextRequest) {
