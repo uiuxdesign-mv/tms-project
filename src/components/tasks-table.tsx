@@ -431,7 +431,7 @@ export default function TasksTable({
       )}
 
       {modalOpen && !editingId && opts && (
-        <div className="fixed inset-0 z-10 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
           <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
               <h2 className="text-lg font-semibold text-gray-900">Tambah Task</h2>
