@@ -32,7 +32,14 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       status: 200,
       headers: {
         'Content-Type': sniffed?.mime || 'image/jpeg',
-        'Cache-Control': 'private, max-age=3600',
+        // Bugfix (Fase 18): sebelumnya `max-age=3600` dengan URL yang SELALU SAMA walau foto sudah
+        // diganti — browser jadi menampilkan foto lama dari cache-nya sendiri sampai 1 jam
+        // (dilaporkan user sebagai "foto tersimpan tidak sesuai yang di-crop"). Sekarang caller
+        // SELALU menyertakan `?v=<driveFileId>` yang berubah tiap upload foto baru (lihat
+        // UserAvatar di users-table.tsx), jadi URL ini sudah "immutable per versi" — aman di-cache
+        // lebih lama tanpa risiko basi, sekaligus tetap `private` (bukan dicache shared/CDN,
+        // supaya requireAuth tetap berlaku tiap request bukan-dari-cache).
+        'Cache-Control': 'private, max-age=31536000, immutable',
       },
     });
   } catch {

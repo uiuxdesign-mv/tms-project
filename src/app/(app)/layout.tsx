@@ -89,7 +89,12 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
   let photoUrl: string | undefined;
   try {
     const userRow = await SheetTable.findById('users', session.userId);
-    photoUrl = userRow?.photo_url ? `/api/users/${session.userId}/photo` : undefined;
+    // Bugfix (Fase 18, permintaan user): sertakan `?v=` (Drive file ID) supaya avatar topbar tidak
+    // menampilkan foto LAMA dari cache browser setelah foto diganti — lihat catatan lengkap di
+    // UserAvatar (users-table.tsx).
+    photoUrl = userRow?.photo_url
+      ? `/api/users/${session.userId}/photo?v=${encodeURIComponent(userRow.photo_url)}`
+      : undefined;
   } catch {
     photoUrl = undefined;
   }

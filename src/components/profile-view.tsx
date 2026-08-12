@@ -63,7 +63,10 @@ export default function ProfileView() {
         department: json.data.department || '',
       });
       setPhotoFile(null);
-      setPhotoPreview(json.data.photo_url ? `/api/users/${json.data.id}/photo` : null);
+      // Bugfix (Fase 18, permintaan user): sertakan `?v=` (Drive file ID kolom photo_url) supaya
+      // browser tidak menampilkan foto LAMA dari cache-nya sendiri (endpoint proxy foto dikirim
+      // dengan header cache 1 jam) — lihat catatan lengkap di UserAvatar (users-table.tsx).
+      setPhotoPreview(json.data.photo_url ? `/api/users/${json.data.id}/photo?v=${encodeURIComponent(json.data.photo_url)}` : null);
       setRemovePhoto(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal memuat profil.');
@@ -111,7 +114,9 @@ export default function ProfileView() {
       setSavedMsg('Profil berhasil disimpan.');
       setPhotoFile(null);
       setRemovePhoto(false);
-      setPhotoPreview(json.data.photo_url ? `/api/users/${json.data.id}/photo` : null);
+      // Bugfix (Fase 18): sertakan `?v=` supaya langsung menampilkan foto BARU, bukan foto lama
+      // dari cache browser (lihat catatan lengkap di UserAvatar, users-table.tsx).
+      setPhotoPreview(json.data.photo_url ? `/api/users/${json.data.id}/photo?v=${encodeURIComponent(json.data.photo_url)}` : null);
       router.refresh();
     } catch {
       setError('Terjadi kesalahan jaringan.');

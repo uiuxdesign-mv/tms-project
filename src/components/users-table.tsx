@@ -40,12 +40,30 @@ const emptyForm = {
   department: '',
 };
 
-/** Avatar bundar — pakai foto asli (proxy lewat /api/users/[id]/photo) kalau ada, fallback huruf awal nama. */
+/**
+ * Avatar bundar — pakai foto asli (proxy lewat /api/users/[id]/photo) kalau ada, fallback huruf
+ * awal nama.
+ * Bugfix (Fase 18, permintaan user): `photoUrl` di sini sebenarnya adalah Drive file ID kolom
+ * `photo_url` (BUKAN url sungguhan) — sebelumnya cuma dipakai sebagai pengecekan ada/tidaknya foto,
+ * padahal URL proxy-nya (`/api/users/{id}/photo`) SELALU SAMA persis setiap kali dipanggil, walau
+ * foto sudah diganti. Karena endpoint proxy itu dikirim dengan header cache 1 jam, browser jadi
+ * terus menampilkan foto LAMA dari cache-nya sendiri walau server sudah menyimpan foto baru hasil
+ * crop — persis gejala yang dilaporkan user ("foto tersimpan tidak sesuai yang di-crop"). Fix:
+ * sertakan Drive file ID sebagai query string `?v=` — karena ID ini SELALU berubah tiap upload foto
+ * baru (lihat uploadUserPhoto), URL jadi otomatis "versi baru" tiap ganti foto, sehingga browser
+ * dipaksa fetch ulang alih-alih pakai cache lama.
+ */
 function UserAvatar({ userId, name, photoUrl, size = 8 }: { userId: string; name: string; photoUrl?: string; size?: 8 | 10 }) {
   const dim = size === 10 ? 'h-10 w-10' : 'h-8 w-8';
   if (photoUrl) {
     // eslint-disable-next-line @next/next/no-img-element
-    return <img src={`/api/users/${userId}/photo`} alt={name} className={`${dim} shrink-0 rounded-full object-cover`} />;
+    return (
+      <img
+        src={`/api/users/${userId}/photo?v=${encodeURIComponent(photoUrl)}`}
+        alt={name}
+        className={`${dim} shrink-0 rounded-full object-cover`}
+      />
+    );
   }
   return (
     <span className={`flex ${dim} shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-medium text-indigo-700`}>
@@ -143,7 +161,8 @@ export default function UsersTable({
     });
     setFieldErrors({});
     setPhotoFile(null);
-    setPhotoPreview(row.photo_url ? `/api/users/${row.id}/photo` : null);
+    // Bugfix (Fase 18): sertakan `?v=` (Drive file ID) — lihat catatan di UserAvatar.
+    setPhotoPreview(row.photo_url ? `/api/users/${row.id}/photo?v=${encodeURIComponent(row.photo_url)}` : null);
     setRemovePhoto(false);
     setModalOpen(true);
   }
