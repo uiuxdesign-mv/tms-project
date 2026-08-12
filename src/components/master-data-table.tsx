@@ -9,6 +9,7 @@ import { useConfirm } from '@/components/confirm-provider';
 import { useTableControls } from '@/lib/hooks/use-table-controls';
 import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/table-controls';
 import { Badge, StatusBadge } from '@/components/badge';
+import { useLanguage } from '@/components/language-provider';
 
 type Row = Record<string, string>;
 type SelectOption = { value: string; label: string };
@@ -27,6 +28,7 @@ export default function MasterDataTable({
 }) {
   const toast = useToast();
   const confirmDialog = useConfirm();
+  const { t } = useLanguage();
   const [rows, setRows] = useState<Row[]>([]);
   const [options, setOptions] = useState<Record<string, SelectOption[]>>({});
   const [loading, setLoading] = useState(true);
@@ -49,8 +51,11 @@ export default function MasterDataTable({
   // Fase 15: tombol naik/turun urutan di tabel Master Status (lihat handleMoveStatus).
   const [reorderingStatus, setReorderingStatus] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // Bugfix (permintaan user, item loading-flicker): sama seperti komponen Task — reload setelah
+  // aksi Tambah/Edit/Hapus/Import/Reorder (`silent: true`) tidak lagi mengganti baris tabel dengan
+  // "Memuat..." sesaat, data cuma di-refresh diam-diam di belakang layar.
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [rowsRes, optsRes] = await Promise.all([
@@ -65,7 +70,7 @@ export default function MasterDataTable({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal memuat data.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, [entityKey]);
 
@@ -143,7 +148,7 @@ export default function MasterDataTable({
         return;
       }
       setModalOpen(false);
-      await load();
+      await load({ silent: true });
       toast.success(editingRow ? `${config.label} berhasil diperbarui.` : `${config.label} baru berhasil ditambahkan.`);
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
@@ -172,7 +177,7 @@ export default function MasterDataTable({
         }
         return;
       }
-      await load();
+      await load({ silent: true });
       toast.success(`${config.label} "${title}" berhasil dihapus.`);
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
@@ -194,7 +199,7 @@ export default function MasterDataTable({
         return;
       }
       setDeleteBlocked(null);
-      await load();
+      await load({ silent: true });
       toast.success(`${config.label} berhasil dipindahkan & dihapus.`);
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
@@ -257,7 +262,7 @@ export default function MasterDataTable({
     } finally {
       // Selalu reload, sukses ataupun gagal di tengah jalan — supaya tabel selalu mencerminkan
       // urutan yang SEBENARNYA tersimpan di server, bukan asumsi optimistik di client.
-      await load();
+      await load({ silent: true });
       setReorderingStatus(false);
     }
   }
@@ -375,7 +380,7 @@ export default function MasterDataTable({
 
     setImportResults(results);
     setImporting(false);
-    await load();
+    await load({ silent: true });
     const okCount = results.filter((r) => r.ok).length;
     const failCount = results.length - okCount;
     if (failCount === 0) toast.success(`Import selesai — ${okCount} baris berhasil ditambahkan.`);
@@ -452,7 +457,7 @@ export default function MasterDataTable({
                 onClick={openCreateModal}
                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
               >
-                + Add {config.label}
+                + {t('action_add')} {config.label}
               </button>
             </>
           )}
@@ -503,7 +508,7 @@ export default function MasterDataTable({
               {loading && (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
-                    Memuat...
+                    {t('common_loading')}
                   </td>
                 </tr>
               )}
@@ -617,7 +622,7 @@ export default function MasterDataTable({
             {loading && (
               <tr>
                 <td colSpan={tableFields.length + 1} className="px-4 py-6 text-center text-gray-400">
-                  Memuat...
+                  {t('common_loading')}
                 </td>
               </tr>
             )}
@@ -692,7 +697,7 @@ export default function MasterDataTable({
           <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
               <h2 className="text-lg font-semibold text-gray-900">
-                {editingRow ? `Edit ${config.label}` : `Add ${config.label}`}
+                {editingRow ? `${t('action_edit')} ${config.label}` : `${t('action_add')} ${config.label}`}
               </h2>
             </div>
             {/* Bugfix (Fase 14): tombol aksi (Cancel/Save) dipindah ke footer `shrink-0` di luar
@@ -724,14 +729,14 @@ export default function MasterDataTable({
                   onClick={() => setModalOpen(false)}
                   className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
                 >
-                  Cancel
+                  {t('action_cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
                   className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
-                  {saving ? 'Saving...' : editingRow ? 'Save Changes' : `Create ${config.label}`}
+                  {saving ? t('common_saving') : editingRow ? t('form_save_changes') : `${t('form_create')} ${config.label}`}
                 </button>
               </div>
             </form>

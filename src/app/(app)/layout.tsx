@@ -4,6 +4,20 @@ import { getVisibleMenuKeys } from '@/lib/menu-access/permissions';
 import { MASTER_MENU_KEYS } from '@/lib/menu-access/config';
 import AppShell, { type ShellNavGroup, type ShellNavLink } from '@/components/app-shell';
 import * as SheetTable from '@/lib/google/sheet-table';
+import type { TranslationKey } from '@/lib/i18n/translations';
+
+// Bugfix (permintaan user, item i18n): peta entity key (mis. "clients") ke translation key
+// (nav_master_clients) supaya label entity Master Data di sidebar ikut berganti ID/EN — lihat
+// entry baru di lib/i18n/translations.ts.
+const MASTER_ENTITY_LABEL_KEYS: Record<string, TranslationKey> = {
+  clients: 'nav_master_clients',
+  projects: 'nav_master_projects',
+  priorities: 'nav_master_priorities',
+  task_types: 'nav_master_task_types',
+  employment_types: 'nav_master_employment_types',
+  statuses: 'nav_master_statuses',
+  roles: 'nav_master_roles',
+};
 
 /**
  * Layout persisten (Fase 10) untuk semua halaman setelah login — sidebar + topbar dihitung SEKALI
@@ -49,11 +63,14 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
     masterDataLinks.push({ key: 'master-users', label: 'Users', labelKey: 'nav_master_users', href: '/master/users' });
   }
   masterDataLinks.push(
-    // Nama entity (Clients, Projects, dst.) dibangun dinamis dari config Menu Access dan TIDAK
-    // punya translation key — di luar cakupan i18n Fase 10 (lihat catatan di translations.ts).
+    // Bugfix (permintaan user, item i18n): nama entity (Clients, Projects, dst.) dibangun dinamis
+    // dari config Menu Access — sekarang di-lookup ke translation key lewat MASTER_ENTITY_LABEL_KEYS
+    // di atas, supaya ikut berganti ID/EN seperti item sidebar lain. `label` (raw) tetap dikirim
+    // sebagai fallback kalau entity-nya belum terdaftar di peta (mis. entity baru di masa depan).
     ...visibleMasterMenus.map((m) => ({
       key: m.key,
       label: m.label.replace(/^Master /, ''),
+      labelKey: MASTER_ENTITY_LABEL_KEYS[m.key.replace(/^master-/, '')],
       href: m.href,
     }))
   );

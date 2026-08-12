@@ -8,14 +8,17 @@ export async function GET() {
   if ('error' in guard) return guard.error;
   const { session } = guard;
 
+  // Bugfix (permintaan user, item data-staleness): opsi dropdown form Add/Edit Task ini sering
+  // dibuka tepat setelah admin ubah Master Data terkait (Client/Project/Task Type/dst) — samakan
+  // dengan fix cache di GET /api/master/[entity], selalu baca langsung dari Google Sheets.
   const [clients, projects, taskTypes, priorities, statuses, users, tasks] = await Promise.all([
-    SheetTable.getAll('clients'),
-    SheetTable.getAll('projects'),
-    SheetTable.getAll('task_types'),
-    SheetTable.getAll('priorities'),
-    SheetTable.getAll('statuses'),
-    SheetTable.getAll('users'),
-    SheetTable.getAll('tasks'),
+    SheetTable.getAll('clients', { useCache: false }),
+    SheetTable.getAll('projects', { useCache: false }),
+    SheetTable.getAll('task_types', { useCache: false }),
+    SheetTable.getAll('priorities', { useCache: false }),
+    SheetTable.getAll('statuses', { useCache: false }),
+    SheetTable.getAll('users', { useCache: false }),
+    SheetTable.getAll('tasks', { useCache: false }),
   ]);
 
   const allowAssignOthers = canAssignToOthers(session);

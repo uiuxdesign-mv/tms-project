@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import { getEntityConfig } from '@/lib/master-data/config';
 import { validateEntityPayload } from '@/lib/master-data/validate';
@@ -15,7 +15,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ entity: st
   const guard = await requirePermission(`master-${entity}`, 'view');
   if ('error' in guard) return guard.error;
 
-  const rows = await SheetTable.getAll(config.key);
+  // Bugfix (permintaan user, item data-staleness): sebelumnya pakai cache in-memory 30 detik
+  // (default) — setelah Tambah/Edit/Hapus di Master Data, list ini bisa saja dilayani instance
+  // serverless Vercel lain yang masih baca cache basi, sehingga UI baru update setelah refresh
+  // manual. Sekarang selalu baca langsung dari Google Sheets, sama seperti fix yang sudah
+  // diterapkan di GET /api/tasks sebelumnya.
+  const rows = await SheetTable.getAll(config.key, { useCache: false });
   return NextResponse.json({ data: rows });
 }
 
@@ -68,14 +73,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ entity: st
     await enforceSingleReviewStatus(row.id);
   }
 
-  await logAction({
-    actorUserId: guard.session.userId,
-    actorName: guard.session.name,
-    action: 'create',
-    entityType: config.key,
-    entityId: row.id,
-    entityLabel: row[config.titleField] || row.id,
-  });
+  // Bugfix (permintaan user, item speed): logAction() dipindah ke after() — tidak lagi
+  // memperlambat response (lihat catatan lengkap di POST /api/tasks).
+  after(() =>
+    logAction({
+      actorUserId: guard.session.userId,
+      actorName: guard.session.name,
+      action: 'create',
+      entityType: config.key,
+      entityId: row.id,
+      entityLabel: row[config.titleField] || row.id,
+    })
+  );
 
   return NextResponse.json({ data: row }, { status: 201 });
 }

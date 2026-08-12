@@ -48,8 +48,11 @@ export async function getVisibleMenuKeys(session: SessionPayload): Promise<Set<s
 }
 
 /** Ambil matriks permission lengkap (semua MENU_KEYS) untuk satu role_id — dipakai halaman admin Menu Access. */
-export async function getPermissionMatrixForRole(roleId: string): Promise<PermissionMatrixRow[]> {
-  const rows = await SheetTable.getAll('menu_access');
+export async function getPermissionMatrixForRole(
+  roleId: string,
+  opts: { useCache?: boolean } = {}
+): Promise<PermissionMatrixRow[]> {
+  const rows = await SheetTable.getAll('menu_access', opts);
   const byMenuKey = new Map(rows.filter((r) => r.role_id === roleId).map((r) => [r.menu_key, r]));
 
   return MENU_KEYS.map(({ key }) => {

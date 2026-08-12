@@ -8,6 +8,7 @@ import { Badge } from '@/components/badge';
 import { TasksPageHeader } from '@/components/tasks-view-header';
 import TaskDetailModal from '@/components/task-detail-modal';
 import TaskFilterBar from '@/components/task-filter-bar';
+import { useLanguage } from '@/components/language-provider';
 
 type TaskRow = {
   id: string;
@@ -80,6 +81,7 @@ export default function KanbanBoard({
   permissions: { canEdit: boolean };
 }) {
   const toast = useToast();
+  const { t } = useLanguage();
   const [rows, setRows] = useState<TaskRow[]>([]);
   const [opts, setOpts] = useState<OptionsData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,8 +109,14 @@ export default function KanbanBoard({
     setFilterAssignee('');
   }
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // Bugfix (permintaan user, item loading-flicker): sama seperti task-detail-modal.tsx — `load()`
+  // dipanggil ulang tiap kali habis drag & drop atau aksi di modal (`onChanged`), bukan cuma saat
+  // papan Kanban pertama kali dibuka. Sebelumnya SETIAP pemanggilan mem-blank seluruh papan ke
+  // "Memuat..." karena `loading` dipaksa true tanpa syarat, jadi kartu-kartu hilang sebentar tiap
+  // kali user drag kartu — sekarang reload setelah aksi (`silent: true`) tidak lagi mem-blank
+  // papan, data cuma di-refresh diam-diam di belakang layar begitu response datang.
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [tasksRes, optsRes] = await Promise.all([apiFetch('/api/tasks'), apiFetch('/api/tasks/options')]);
@@ -126,13 +134,15 @@ export default function KanbanBoard({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal memuat data.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const silentReload = useCallback(() => load({ silent: true }), [load]);
 
   function label(list: Option[] | undefined, value: string) {
     return list?.find((o) => o.value === value)?.label || '-';
@@ -225,14 +235,14 @@ export default function KanbanBoard({
         toast.error(json.fieldErrors?.status_id || json.error || 'Gagal memindahkan task.');
         return;
       }
-      await load();
+      await load({ silent: true });
       toast.success(`Task dipindahkan ke "${targetStatus.label}".`);
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
     }
   }
 
-  if (loading) return <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center text-gray-400 shadow-card">Memuat...</div>;
+  if (loading) return <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center text-gray-400 shadow-card">{t('common_loading')}</div>;
   if (error) return <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
   if (!opts) return null;
 
@@ -246,7 +256,7 @@ export default function KanbanBoard({
   return (
     <div>
       <TasksPageHeader
-        subtitle="Drag a card to another column to change its status. Click a card to view/edit."
+        subtitle={t('tasks_kanban_subtitle')}
         addTaskHref="/tasks?new=1"
         canCreate={permissions.canEdit}
       />
@@ -373,7 +383,7 @@ export default function KanbanBoard({
                             timeTracking={row.timeTracking}
                             status={status}
                             canManage={manageable}
-                            onChanged={load}
+                            onChanged={silentReload}
                             compact
                           />
                         </div>
@@ -394,7 +404,7 @@ export default function KanbanBoard({
           isAdmin={isAdmin}
           permissions={{ canEdit: permissions.canEdit, canDelete: permissions.canEdit }}
           onClose={() => setDetailTaskId(null)}
-          onChanged={load}
+          onChanged={silentReload}
         />
       )}
     </div>

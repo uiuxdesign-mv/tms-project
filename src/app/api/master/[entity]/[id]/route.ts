@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import { getEntityConfig } from '@/lib/master-data/config';
 import { validateEntityPayload } from '@/lib/master-data/validate';
@@ -40,14 +40,18 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ entity: s
     await enforceSingleReviewStatus(id);
   }
 
-  await logAction({
-    actorUserId: guard.session.userId,
-    actorName: guard.session.name,
-    action: 'update',
-    entityType: config.key,
-    entityId: id,
-    entityLabel: updated[config.titleField] || id,
-  });
+  // Bugfix (permintaan user, item speed): logAction() dipindah ke after() — lihat catatan di
+  // POST /api/tasks.
+  after(() =>
+    logAction({
+      actorUserId: guard.session.userId,
+      actorName: guard.session.name,
+      action: 'update',
+      entityType: config.key,
+      entityId: id,
+      entityLabel: updated[config.titleField] || id,
+    })
+  );
 
   return NextResponse.json({ data: updated });
 }
@@ -88,14 +92,16 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ entity:
 
   await SheetTable.softDeleteRow(config.key, id);
 
-  await logAction({
-    actorUserId: guard.session.userId,
-    actorName: guard.session.name,
-    action: 'delete',
-    entityType: config.key,
-    entityId: id,
-    entityLabel: existing?.[config.titleField] || id,
-  });
+  after(() =>
+    logAction({
+      actorUserId: guard.session.userId,
+      actorName: guard.session.name,
+      action: 'delete',
+      entityType: config.key,
+      entityId: id,
+      entityLabel: existing?.[config.titleField] || id,
+    })
+  );
 
   return NextResponse.json({ ok: true });
 }

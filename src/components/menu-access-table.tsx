@@ -3,6 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { apiFetch } from '@/lib/csrf-client';
 import { useToast } from '@/components/toast-provider';
+import { useLanguage } from '@/components/language-provider';
+import type { TranslationKey } from '@/lib/i18n/translations';
 
 type RoleOption = { value: string; label: string; roleKey: string };
 type MenuDef = { key: string; label: string; href: string };
@@ -15,16 +17,20 @@ type MatrixRow = {
   can_export: boolean;
 };
 
-const ACTIONS: { key: keyof Omit<MatrixRow, 'menu_key'>; label: string }[] = [
-  { key: 'can_view', label: 'Lihat' },
-  { key: 'can_create', label: 'Tambah' },
-  { key: 'can_edit', label: 'Ubah' },
-  { key: 'can_delete', label: 'Hapus' },
-  { key: 'can_export', label: 'Ekspor' },
+// Bugfix (permintaan user, item i18n): label aksi ini dulu string statis Indonesia — sekarang
+// di-resolve lewat translation key di dalam komponen (lihat ACTION_DEFS + resolveActions di bawah)
+// supaya ikut berganti ID/EN.
+const ACTION_DEFS: { key: keyof Omit<MatrixRow, 'menu_key'>; labelKey: TranslationKey }[] = [
+  { key: 'can_view', labelKey: 'menu_access_action_view' },
+  { key: 'can_create', labelKey: 'menu_access_action_create' },
+  { key: 'can_edit', labelKey: 'menu_access_action_edit' },
+  { key: 'can_delete', labelKey: 'menu_access_action_delete' },
+  { key: 'can_export', labelKey: 'menu_access_action_export' },
 ];
 
 export default function MenuAccessTable() {
   const toast = useToast();
+  const { t } = useLanguage();
   const [roles, setRoles] = useState<RoleOption[]>([]);
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [menus, setMenus] = useState<MenuDef[]>([]);
@@ -122,19 +128,16 @@ export default function MenuAccessTable() {
   return (
     <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
       <div className="border-b border-gray-200 p-4">
-        <h1 className="text-lg font-semibold text-gray-900">Menu &amp; Access Control</h1>
-        <p className="mt-1 text-sm text-gray-500">
-          Atur menu apa saja yang boleh dilihat/ditambah/diubah/dihapus oleh tiap role. Role Admin selalu
-          punya akses penuh dan tidak diatur di sini.
-        </p>
+        <h1 className="text-lg font-semibold text-gray-900">{t('menu_access_page_title')}</h1>
+        <p className="mt-1 text-sm text-gray-500">{t('menu_access_subtitle')}</p>
       </div>
 
       <div className="border-b border-gray-200 p-4">
-        <label className="mb-1.5 block text-sm font-medium text-gray-700">Role</label>
+        <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('menu_access_role_label')}</label>
         {loadingRoles ? (
-          <p className="text-sm text-gray-400">Memuat daftar role...</p>
+          <p className="text-sm text-gray-400">{t('menu_access_loading_roles')}</p>
         ) : roles.length === 0 ? (
-          <p className="text-sm text-gray-400">Belum ada role selain Admin.</p>
+          <p className="text-sm text-gray-400">{t('menu_access_no_roles')}</p>
         ) : (
           <select
             value={selectedRoleId}
@@ -157,10 +160,10 @@ export default function MenuAccessTable() {
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
-              <th className="px-4 py-2 font-medium">Menu</th>
-              {ACTIONS.map((a) => (
+              <th className="px-4 py-2 font-medium">{t('menu_access_col_menu')}</th>
+              {ACTION_DEFS.map((a) => (
                 <th key={a.key} className="px-4 py-2 text-center font-medium">
-                  {a.label}
+                  {t(a.labelKey)}
                 </th>
               ))}
             </tr>
@@ -168,8 +171,8 @@ export default function MenuAccessTable() {
           <tbody className="divide-y divide-gray-100">
             {loadingMatrix && (
               <tr>
-                <td colSpan={ACTIONS.length + 1} className="px-4 py-6 text-center text-gray-400">
-                  Memuat...
+                <td colSpan={ACTION_DEFS.length + 1} className="px-4 py-6 text-center text-gray-400">
+                  {t('common_loading')}
                 </td>
               </tr>
             )}
@@ -179,7 +182,7 @@ export default function MenuAccessTable() {
                   <td className="px-4 py-2 font-medium text-gray-700">
                     {menus.find((m) => m.key === row.menu_key)?.label || row.menu_key}
                   </td>
-                  {ACTIONS.map((a) => (
+                  {ACTION_DEFS.map((a) => (
                     <td key={a.key} className="px-4 py-2 text-center">
                       <input
                         type="checkbox"
@@ -201,7 +204,7 @@ export default function MenuAccessTable() {
           disabled={saving || loadingMatrix || !selectedRoleId}
           className="focus-ring rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
         >
-          {saving ? 'Menyimpan...' : 'Simpan Hak Akses'}
+          {saving ? t('menu_access_saving') : t('menu_access_save_button')}
         </button>
       </div>
     </div>

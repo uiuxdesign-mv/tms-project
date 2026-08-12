@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { canAddComment, createComment, getCommentsForTask } from '@/lib/models/comments';
@@ -108,14 +108,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: result.error }, { status: 422 });
   }
 
-  await logAction({
-    actorUserId: session.userId,
-    actorName: session.name,
-    action: 'create',
-    entityType: 'task_comments',
-    entityId: result.comment.id,
-    entityLabel: `Komentar pada task "${task.title}"`,
-  });
+  after(() =>
+    logAction({
+      actorUserId: session.userId,
+      actorName: session.name,
+      action: 'create',
+      entityType: 'task_comments',
+      entityId: result.comment.id,
+      entityLabel: `Komentar pada task "${task.title}"`,
+    })
+  );
 
   return NextResponse.json(
     {

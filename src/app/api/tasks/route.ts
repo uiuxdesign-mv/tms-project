@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { canViewTask, canAssignToOthers } from '@/lib/models/tasks';
@@ -85,14 +85,21 @@ export async function POST(req: NextRequest) {
   if (!priorityId) errors.priority_id = 'Priority wajib dipilih.';
   if (!statusId) errors.status_id = 'Status wajib dipilih.';
 
-  const client = clientId ? await SheetTable.findById('clients', clientId) : undefined;
+  // Bugfix (permintaan user, item speed): client/project/taskType/status/assignee SALING
+  // INDEPENDEN — sebelumnya 5 lookup Sheets berurutan, sekarang paralel dalam satu Promise.all.
+  const wantsAssign = canAssignToOthers(session);
+  const requestedAssignee = wantsAssign ? String(body.assigned_to || '') || session.userId : '';
+  const [client, project, taskType, status, assignee] = await Promise.all([
+    clientId ? SheetTable.findById('clients', clientId) : Promise.resolve(undefined),
+    projectId ? SheetTable.findById('projects', projectId) : Promise.resolve(undefined),
+    taskTypeId ? SheetTable.findById('task_types', taskTypeId) : Promise.resolve(undefined),
+    statusId ? SheetTable.findById('statuses', statusId) : Promise.resolve(undefined),
+    wantsAssign ? SheetTable.findById('users', requestedAssignee) : Promise.resolve(undefined),
+  ]);
   if (clientId && !client) errors.client_id = 'Client tidak ditemukan.';
-
-  const project = projectId ? await SheetTable.findById('projects', projectId) : undefined;
   if (projectId && !project) errors.project_id = 'Project tidak ditemukan.';
-
-  const taskType = taskTypeId ? await SheetTable.findById('task_types', taskTypeId) : undefined;
   if (taskTypeId && !taskType) errors.task_type_id = 'Task Type tidak ditemukan.';
+  if (statusId && !status) errors.status_id = 'Status tidak ditemukan.';
 
   let relatedTaskId = '';
   if (taskType?.requires_related_task === 'Ya') {
@@ -105,20 +112,15 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  const status = statusId ? await SheetTable.findById('statuses', statusId) : undefined;
-  if (statusId && !status) errors.status_id = 'Status tidak ditemukan.';
-
   // Assignee: dihitung ulang independen di server — request client TIDAK dipercaya begitu saja.
   // Kalau user tidak punya hak canAssignToOthers, task otomatis ditugaskan ke dirinya sendiri
   // berapa pun assigned_to yang dikirim dari client.
   let assignedTo = session.userId;
-  if (canAssignToOthers(session)) {
-    const requested = String(body.assigned_to || '') || session.userId;
-    const assignee = await SheetTable.findById('users', requested);
+  if (wantsAssign) {
     if (!assignee) {
       errors.assigned_to = 'User yang ditugaskan tidak ditemukan.';
     } else {
-      assignedTo = requested;
+      assignedTo = requestedAssignee;
     }
   }
 
@@ -145,14 +147,21 @@ export async function POST(req: NextRequest) {
     completed_at: completedAt,
   });
 
-  await logAction({
-    actorUserId: session.userId,
-    actorName: session.name,
-    action: 'create',
-    entityType: 'tasks',
-    entityId: row.id,
-    entityLabel: row.title,
-  });
+  // Bugfix (permintaan user, item speed): logAction TIDAK di-await lagi — sebelumnya menunggu
+  // 1 write Sheets API tambahan (Audit Log) sebelum response balik ke client, padahal
+  // logAction() sendiri sudah didesain fire-and-forget (tidak pernah melempar error). Dipindah ke
+  // after() (Next.js) supaya tetap PASTI jalan sampai selesai (aman dari kematian proses
+  // serverless dini), tapi TIDAK lagi memperlambat response yang dilihat user.
+  after(() =>
+    logAction({
+      actorUserId: session.userId,
+      actorName: session.name,
+      action: 'create',
+      entityType: 'tasks',
+      entityId: row.id,
+      entityLabel: row.title,
+    })
+  );
 
   return NextResponse.json({ data: row }, { status: 201 });
 }

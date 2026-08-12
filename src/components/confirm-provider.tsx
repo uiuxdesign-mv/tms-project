@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
+import { useLanguage } from '@/components/language-provider';
 
 export type ConfirmOptions = {
   title?: string;
@@ -25,6 +26,7 @@ type PendingConfirm = ConfirmOptions & { resolve: (value: boolean) => void };
  * `if (!confirm(...)) return;` sebelumnya, cuma ditambah `await`.
  */
 export function ConfirmProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useLanguage();
   const [pending, setPending] = useState<PendingConfirm | null>(null);
   const resolverRef = useRef<((value: boolean) => void) | null>(null);
 
@@ -50,7 +52,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
           <div className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm" onClick={() => respond(false)} />
           <div className="relative flex max-h-[85vh] w-full max-w-sm flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
-              <h3 className="text-lg font-semibold text-gray-900">{pending.title || 'Konfirmasi'}</h3>
+              <h3 className="text-lg font-semibold text-gray-900">{pending.title || t('confirm_default_title')}</h3>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
               <p className="text-sm text-gray-500">{pending.message}</p>
@@ -60,7 +62,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 onClick={() => respond(false)}
                 className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
               >
-                {pending.cancelLabel || 'Batal'}
+                {pending.cancelLabel || t('action_cancel')}
               </button>
               <button
                 onClick={() => respond(true)}
@@ -68,7 +70,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                   pending.danger ? 'bg-red-600 hover:bg-red-700' : 'bg-indigo-600 hover:bg-indigo-700'
                 }`}
               >
-                {pending.confirmLabel || 'Ya'}
+                {pending.confirmLabel || t('confirm_default_yes')}
               </button>
             </div>
           </div>

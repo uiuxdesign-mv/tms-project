@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { hashPassword, findUserByEmail, omitPasswordHash, generateTemporaryPassword } from '@/lib/models/users';
@@ -13,7 +13,8 @@ export async function GET() {
   const guard = await requireAdmin();
   if ('error' in guard) return guard.error;
 
-  const rows = await SheetTable.getAll('users');
+  // Bugfix (permintaan user, item data-staleness): lihat catatan sama di GET /api/master/[entity].
+  const rows = await SheetTable.getAll('users', { useCache: false });
   return NextResponse.json({ data: rows.map(omitPasswordHash) });
 }
 
@@ -59,7 +60,13 @@ export async function POST(req: NextRequest) {
   if (!autoGeneratePassword && (!password || password.length < 8)) errors.password = 'Password minimal 8 karakter.';
   if (!roleId) errors.role_id = 'Role wajib dipilih.';
 
-  const role = roleId ? await findRoleById(roleId) : undefined;
+  // Bugfix (permintaan user, item speed): role lookup & cek keunikan email SALING INDEPENDEN —
+  // sebelumnya berurutan (role dulu baru email), sekarang paralel.
+  const emailLooksValid = !!email && EMAIL_RE.test(email);
+  const [role, existingByEmail] = await Promise.all([
+    roleId ? findRoleById(roleId) : Promise.resolve(undefined),
+    emailLooksValid ? findUserByEmail(email) : Promise.resolve(undefined),
+  ]);
   if (roleId && !role) errors.role_id = 'Role tidak ditemukan.';
 
   // Employment Type & can_assign_others SELALU dihitung ulang di server dari data
@@ -82,10 +89,7 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  if (!errors.email) {
-    const existing = await findUserByEmail(email);
-    if (existing) errors.email = 'Email sudah dipakai user lain.';
-  }
+  if (!errors.email && existingByEmail) errors.email = 'Email sudah dipakai user lain.';
 
   if (Object.keys(errors).length > 0) {
     return NextResponse.json({ error: 'Validasi gagal.', fieldErrors: errors }, { status: 422 });
@@ -118,14 +122,16 @@ export async function POST(req: NextRequest) {
     photo_url: photoDriveFileId,
   });
 
-  await logAction({
-    actorUserId: guard.session.userId,
-    actorName: guard.session.name,
-    action: 'create',
-    entityType: 'users',
-    entityId: row.id,
-    entityLabel: row.name || row.email,
-  });
+  after(() =>
+    logAction({
+      actorUserId: guard.session.userId,
+      actorName: guard.session.name,
+      action: 'create',
+      entityType: 'users',
+      entityId: row.id,
+      entityLabel: row.name || row.email,
+    })
+  );
 
   // generatedPassword HANYA dikembalikan sekali di response ini (tidak pernah disimpan sebagai
   // plaintext) — dipakai halaman Import CSV untuk ditampilkan ke admin supaya bisa disampaikan

@@ -21,12 +21,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Email atau password salah.' }, { status: 401 });
   }
 
-  const valid = await verifyPassword(password, user.password_hash);
+  // Bugfix (permintaan user, item speed): verifikasi password (bcrypt, CPU-bound) & lookup role
+  // (panggilan Google Sheets) SALING INDEPENDEN — sebelumnya berurutan, sekarang berjalan
+  // bersamaan supaya proses login tidak menunggu keduanya secara berurutan.
+  const [valid, role] = await Promise.all([
+    verifyPassword(password, user.password_hash),
+    user.role_id ? findRoleById(user.role_id) : Promise.resolve(undefined),
+  ]);
   if (!valid) {
     return NextResponse.json({ error: 'Email atau password salah.' }, { status: 401 });
   }
 
-  const role = user.role_id ? await findRoleById(user.role_id) : undefined;
   const roleKey = role?.role_key || '';
   const isAdmin = roleKey === 'admin';
 

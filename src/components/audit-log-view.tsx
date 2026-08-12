@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import { apiFetch } from '@/lib/csrf-client';
 import { Badge } from '@/components/badge';
+import { useLanguage } from '@/components/language-provider';
 
 type AuditLogEntry = {
   id: string;
@@ -31,6 +32,7 @@ function uniqueValues(entries: AuditLogEntry[], key: keyof AuditLogEntry): strin
 }
 
 export default function AuditLogView() {
+  const { t } = useLanguage();
   const [entries, setEntries] = useState<AuditLogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -214,7 +216,7 @@ export default function AuditLogView() {
             {loading && (
               <tr>
                 <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
-                  Memuat...
+                  {t('common_loading')}
                 </td>
               </tr>
             )}

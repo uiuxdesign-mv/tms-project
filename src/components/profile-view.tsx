@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/csrf-client';
 import AvatarEditor from '@/components/avatar-editor';
 import { useToast } from '@/components/toast-provider';
+import { useLanguage } from '@/components/language-provider';
 
 type ProfileData = {
   id: string;
@@ -30,6 +31,7 @@ type ProfileData = {
 export default function ProfileView() {
   const router = useRouter();
   const toast = useToast();
+  const { t } = useLanguage();
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -176,7 +178,7 @@ export default function ProfileView() {
   if (loading)
     return (
       <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center text-gray-400 shadow-card">
-        Memuat...
+        {t('common_loading')}
       </div>
     );
   if (error && !profile) return <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</div>;

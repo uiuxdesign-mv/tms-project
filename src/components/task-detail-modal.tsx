@@ -7,6 +7,7 @@ import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { Badge } from '@/components/badge';
 import TaskComments from '@/components/task-comments';
+import { useLanguage } from '@/components/language-provider';
 
 type TaskRow = {
   id: string;
@@ -138,6 +139,7 @@ export default function TaskDetailModal({
   onChanged: () => void;
 }) {
   const toast = useToast();
+  const { t } = useLanguage();
   const confirmDialog = useConfirm();
 
   const [loading, setLoading] = useState(true);
@@ -155,8 +157,15 @@ export default function TaskDetailModal({
   const [activeTab, setActiveTab] = useState<'work' | 'review'>('work');
   const [nowMs, setNowMs] = useState<number | null>(null);
 
-  const load = async () => {
-    setLoading(true);
+  // Bugfix (permintaan user, item loading-flicker): `load()` dipanggil ulang setelah aksi Time
+  // Tracking/Cancel Task (bukan cuma saat modal pertama dibuka) supaya data terbaru langsung
+  // tampil — sebelumnya SETIAP pemanggilan (termasuk reload diam-diam setelah aksi) mem-blank
+  // seluruh modal ke layar "Memuat..." karena `loading` dipaksa true tanpa syarat. Sekarang
+  // parameter `silent` dipakai untuk reload setelah aksi: data & tampilan tetap ada di layar,
+  // cuma di-refresh di belakang layar begitu response datang — TIDAK ada blank/flash lagi.
+  // Blocking skeleton ("Memuat...") hanya muncul untuk load PERTAMA kali modal dibuka.
+  const load = async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [taskRes, optsRes, ttRes] = await Promise.all([
@@ -203,7 +212,7 @@ export default function TaskDetailModal({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal memuat task.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -276,7 +285,7 @@ export default function TaskDetailModal({
         toast.error(json.error || 'Gagal menjalankan aksi Time Tracking.');
         return;
       }
-      await load();
+      await load({ silent: true });
       onChanged();
       const actionLabel: Record<typeof action, string> = {
         start: 'Task dimulai.',
@@ -329,7 +338,7 @@ export default function TaskDetailModal({
         toast.error(json.error || 'Gagal membatalkan task.');
         return;
       }
-      await load();
+      await load({ silent: true });
       onChanged();
       toast.success('Task berhasil dibatalkan.');
     } catch {
@@ -394,7 +403,7 @@ export default function TaskDetailModal({
           </button>
         </div>
 
-        {loading && <div className="p-8 text-center text-gray-400">Memuat...</div>}
+        {loading && <div className="p-8 text-center text-gray-400">{t('common_loading')}</div>}
         {error && <div className="m-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
         {!loading && task && opts && form && (

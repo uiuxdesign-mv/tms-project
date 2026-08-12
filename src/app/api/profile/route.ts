@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAuth } from '@/lib/auth/require-auth';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { findUserByEmail, omitPasswordHash } from '@/lib/models/users';
@@ -94,14 +94,16 @@ export async function PATCH(req: NextRequest) {
 
   const updated = await SheetTable.updateRow('users', session.userId, patch);
 
-  await logAction({
-    actorUserId: session.userId,
-    actorName: name,
-    action: 'update',
-    entityType: 'users',
-    entityId: session.userId,
-    entityLabel: `${name} (self-service Profile)`,
-  });
+  after(() =>
+    logAction({
+      actorUserId: session.userId,
+      actorName: name,
+      action: 'update',
+      entityType: 'users',
+      entityId: session.userId,
+      entityLabel: `${name} (self-service Profile)`,
+    })
+  );
 
   // name/email ikut dipakai di sesi JWT (ditampilkan di Dashboard/topbar) — terbitkan ulang token
   // supaya perubahan langsung terlihat tanpa perlu logout/login manual (pola sama seperti

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import { getEntityConfig } from '@/lib/master-data/config';
 import { reassignReferences, getReverseReferenceDefs } from '@/lib/master-data/references';
@@ -29,7 +29,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ entity: st
   if (!toId) return NextResponse.json({ error: 'Pilihan pengganti wajib dipilih.' }, { status: 422 });
   if (toId === id) return NextResponse.json({ error: 'Pilihan pengganti tidak boleh sama dengan data yang dihapus.' }, { status: 422 });
 
-  const existing = await SheetTable.findById(config.key, id);
+  // Bugfix (permintaan user, item speed): 2 lookup independen ini (baris asal & baris pengganti,
+  // sama-sama dari sheet yang sama tapi id berbeda) sebelumnya berurutan — sekarang paralel.
+  const [existing, replacement] = await Promise.all([
+    SheetTable.findById(config.key, id),
+    SheetTable.findById(config.key, toId),
+  ]);
   if (!existing) return NextResponse.json({ error: 'Data tidak ditemukan.' }, { status: 404 });
 
   if (config.systemFlagField && existing[config.systemFlagField] === 'Ya') {
@@ -39,20 +44,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ entity: st
     );
   }
 
-  const replacement = await SheetTable.findById(config.key, toId);
   if (!replacement) return NextResponse.json({ error: 'Data pengganti tidak ditemukan.' }, { status: 404 });
 
   const movedCount = await reassignReferences(config.key, id, toId);
   await SheetTable.softDeleteRow(config.key, id);
 
-  await logAction({
-    actorUserId: guard.session.userId,
-    actorName: guard.session.name,
-    action: 'delete',
-    entityType: config.key,
-    entityId: id,
-    entityLabel: `${existing[config.titleField] || id} (dipindahkan ke "${replacement[config.titleField] || toId}", ${movedCount} data terdampak)`,
-  });
+  after(() =>
+    logAction({
+      actorUserId: guard.session.userId,
+      actorName: guard.session.name,
+      action: 'delete',
+      entityType: config.key,
+      entityId: id,
+      entityLabel: `${existing[config.titleField] || id} (dipindahkan ke "${replacement[config.titleField] || toId}", ${movedCount} data terdampak)`,
+    })
+  );
 
   return NextResponse.json({ ok: true, movedCount });
 }

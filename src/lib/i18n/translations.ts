@@ -26,6 +26,18 @@ export const translations = {
   nav_logout: { id: 'Keluar', en: 'Log Out' },
   nav_open_menu: { id: 'Buka menu', en: 'Open menu' },
 
+  // Bugfix (permintaan user, item i18n): entity Master Data di sidebar sebelumnya dibangun dinamis
+  // dari config (MASTER_DATA_ENTITIES) TANPA labelKey sama sekali, jadi selalu tampil dalam Bahasa
+  // Inggris/label mentah apa pun bahasa yang dipilih. Ditambahkan di sini + di-wire lewat labelKey
+  // di src/app/(app)/layout.tsx (masterDataLinks).
+  nav_master_clients: { id: 'Klien', en: 'Clients' },
+  nav_master_projects: { id: 'Proyek', en: 'Projects' },
+  nav_master_priorities: { id: 'Prioritas', en: 'Priorities' },
+  nav_master_task_types: { id: 'Tipe Tugas', en: 'Task Types' },
+  nav_master_employment_types: { id: 'Tipe Kepegawaian', en: 'Employment Types' },
+  nav_master_statuses: { id: 'Status', en: 'Statuses' },
+  nav_master_roles: { id: 'Role', en: 'Roles' },
+
   // Toggle tema & bahasa — topbar
   theme_to_dark: { id: 'Mode gelap', en: 'Dark mode' },
   theme_to_light: { id: 'Mode terang', en: 'Light mode' },
@@ -110,6 +122,62 @@ export const translations = {
   action_delete: { id: 'Hapus', en: 'Delete' },
   action_edit: { id: 'Edit', en: 'Edit' },
   action_add: { id: 'Tambah', en: 'Add' },
+  action_search: { id: 'Cari...', en: 'Search...' },
+  action_filter: { id: 'Filter', en: 'Filter' },
+  action_reset: { id: 'Reset', en: 'Reset' },
+  action_apply: { id: 'Terapkan', en: 'Apply' },
+  action_export: { id: 'Ekspor', en: 'Export' },
+  action_import: { id: 'Impor', en: 'Import' },
+  common_loading: { id: 'Memuat...', en: 'Loading...' },
+  common_no_data: { id: 'Tidak ada data.', en: 'No data.' },
+  common_saving: { id: 'Menyimpan...', en: 'Saving...' },
+  form_save_changes: { id: 'Simpan Perubahan', en: 'Save Changes' },
+  form_create: { id: 'Buat', en: 'Create' },
+
+  // Modal konfirmasi global (ConfirmProvider) — dipakai di HAMPIR SEMUA tombol Hapus di seluruh
+  // aplikasi (Fase 22, permintaan user item i18n), jadi dampaknya luas walau cuma 3 string.
+  confirm_default_title: { id: 'Konfirmasi', en: 'Confirm' },
+  confirm_default_yes: { id: 'Ya', en: 'Yes' },
+
+  // Halaman Tasks (List/Kanban/Calendar) — chrome bersama (Fase 22, permintaan user item i18n).
+  tasks_add_button: { id: '+ Tambah Task', en: '+ Add Task' },
+  tasks_kanban_subtitle: {
+    id: 'Seret kartu ke kolom lain untuk mengubah statusnya. Klik kartu untuk melihat/mengedit.',
+    en: 'Drag a card to another column to change its status. Click a card to view/edit.',
+  },
+
+  // Halaman Master Data (tabel generik) — chrome bersama semua entity.
+  master_data_add_button: { id: '+ Tambah', en: '+ Add' },
+  master_data_edit_title: { id: 'Ubah', en: 'Edit' },
+  master_data_add_title: { id: 'Tambah', en: 'Add' },
+
+  // Halaman Master Users.
+  users_page_title: { id: 'Master User', en: 'Users' },
+  users_add_button: { id: '+ Tambah User', en: '+ Add User' },
+
+  // Halaman Menu Access.
+  menu_access_page_title: { id: 'Menu & Kontrol Akses', en: 'Menu & Access Control' },
+  menu_access_subtitle: {
+    id: 'Atur menu apa saja yang boleh dilihat/ditambah/diubah/dihapus oleh tiap role. Role Admin selalu punya akses penuh dan tidak diatur di sini.',
+    en: 'Configure which menus each role may view/create/edit/delete. The Admin role always has full access and is not configured here.',
+  },
+  menu_access_role_label: { id: 'Role', en: 'Role' },
+  menu_access_loading_roles: { id: 'Memuat daftar role...', en: 'Loading roles...' },
+  menu_access_no_roles: { id: 'Belum ada role selain Admin.', en: 'No roles besides Admin yet.' },
+  menu_access_col_menu: { id: 'Menu', en: 'Menu' },
+  menu_access_action_view: { id: 'Lihat', en: 'View' },
+  menu_access_action_create: { id: 'Tambah', en: 'Create' },
+  menu_access_action_edit: { id: 'Ubah', en: 'Edit' },
+  menu_access_action_delete: { id: 'Hapus', en: 'Delete' },
+  menu_access_action_export: { id: 'Ekspor', en: 'Export' },
+  menu_access_save_button: { id: 'Simpan Hak Akses', en: 'Save Permissions' },
+  menu_access_saving: { id: 'Menyimpan...', en: 'Saving...' },
+
+  // Halaman Reports.
+  report_page_title: { id: 'Report', en: 'Reports' },
+
+  // Halaman Profil Saya.
+  profile_page_title: { id: 'Profil Saya', en: 'My Profile' },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

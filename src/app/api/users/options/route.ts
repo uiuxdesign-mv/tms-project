@@ -7,8 +7,11 @@ export async function GET() {
   const guard = await requireAdmin();
   if ('error' in guard) return guard.error;
 
-  const roles = await getAllRoles();
-  const employmentTypes = await SheetTable.getAll('employment_types');
+  // Bugfix (permintaan user, item data-staleness): lihat catatan sama di GET /api/master/[entity].
+  const [roles, employmentTypes] = await Promise.all([
+    getAllRoles({ useCache: false }),
+    SheetTable.getAll('employment_types', { useCache: false }),
+  ]);
 
   // `active` dikirim ke client supaya dropdown Tambah/Edit User bisa menyembunyikan role/tipe
   // kepegawaian yang sudah Inactive (Fase 7) — kecuali baris yang sedang dipilih user yang

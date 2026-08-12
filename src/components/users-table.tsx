@@ -9,6 +9,7 @@ import { useTableControls } from '@/lib/hooks/use-table-controls';
 import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/table-controls';
 import { Badge, StatusBadge } from '@/components/badge';
 import AvatarEditor from '@/components/avatar-editor';
+import { useLanguage } from '@/components/language-provider';
 
 type UserRow = {
   id: string;
@@ -82,6 +83,7 @@ export default function UsersTable({
   permissions: Permissions;
 }) {
   const toast = useToast();
+  const { t } = useLanguage();
   const confirmDialog = useConfirm();
   const [rows, setRows] = useState<UserRow[]>([]);
   const [roles, setRoles] = useState<RoleOption[]>([]);
@@ -104,8 +106,11 @@ export default function UsersTable({
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importResults, setImportResults] = useState<ImportRowResult[] | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // Bugfix (permintaan user, item loading-flicker): sama seperti komponen Task/Master Data —
+  // reload setelah aksi Tambah/Edit/Import (`silent: true`) tidak lagi mengganti baris tabel
+  // dengan "Memuat..." sesaat.
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [usersRes, optsRes] = await Promise.all([apiFetch('/api/users'), apiFetch('/api/users/options')]);
@@ -118,7 +123,7 @@ export default function UsersTable({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal memuat data.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -209,7 +214,7 @@ export default function UsersTable({
         return;
       }
       setModalOpen(false);
-      await load();
+      await load({ silent: true });
       toast.success(editingId ? 'Perubahan user berhasil disimpan.' : 'User baru berhasil ditambahkan.');
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
@@ -228,7 +233,7 @@ export default function UsersTable({
         toast.error(json.error || 'Gagal menghapus data.');
         return;
       }
-      await load();
+      await load({ silent: true });
       toast.success(`User "${row.name}" berhasil dihapus.`);
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
@@ -360,7 +365,7 @@ export default function UsersTable({
 
     setImportResults(results);
     setImporting(false);
-    await load();
+    await load({ silent: true });
     const okCount = results.filter((r) => r.ok).length;
     const failCount = results.length - okCount;
     if (failCount === 0) toast.success(`Import selesai — ${okCount} user berhasil ditambahkan.`);
@@ -436,7 +441,7 @@ export default function UsersTable({
               {loading && (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
-                    Memuat...
+                    {t('common_loading')}
                   </td>
                 </tr>
               )}

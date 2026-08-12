@@ -7,6 +7,7 @@ import { apiFetch } from '@/lib/csrf-client';
 import { DonutChart } from '@/components/charts/donut-chart';
 import { VerticalBarChart } from '@/components/charts/vertical-bar-chart';
 import { LineChart, type LineChartPoint } from '@/components/charts/line-chart';
+import { useLanguage } from '@/components/language-provider';
 
 type Option = { value: string; label: string };
 
@@ -128,6 +129,7 @@ function formatDisplayDate(value: string): string {
 }
 
 export default function ReportsView({ canExport }: { canExport: boolean }) {
+  const { t } = useLanguage();
   const [tasks, setTasks] = useState<EnrichedTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -434,7 +436,7 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
             {loading && (
               <tr>
                 <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
-                  Memuat...
+                  {t('common_loading')}
                 </td>
               </tr>
             )}

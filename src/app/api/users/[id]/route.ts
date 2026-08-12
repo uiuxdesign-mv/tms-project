@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { hashPassword, findUserByEmail, omitPasswordHash } from '@/lib/models/users';
@@ -47,12 +47,14 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (!email || !EMAIL_RE.test(email)) errors.email = 'Email tidak valid.';
   if (!roleId) errors.role_id = 'Role wajib dipilih.';
 
-  if (!errors.email && email.toLowerCase() !== existing.email.toLowerCase()) {
-    const dupe = await findUserByEmail(email);
-    if (dupe) errors.email = 'Email sudah dipakai user lain.';
-  }
-
-  const role = roleId ? await findRoleById(roleId) : undefined;
+  // Bugfix (permintaan user, item speed): cek duplikat email & lookup role SALING INDEPENDEN —
+  // sebelumnya berurutan, sekarang paralel.
+  const needsDupeCheck = !errors.email && email.toLowerCase() !== existing.email.toLowerCase();
+  const [dupe, role] = await Promise.all([
+    needsDupeCheck ? findUserByEmail(email) : Promise.resolve(undefined),
+    roleId ? findRoleById(roleId) : Promise.resolve(undefined),
+  ]);
+  if (dupe) errors.email = 'Email sudah dipakai user lain.';
   if (roleId && !role) errors.role_id = 'Role tidak ditemukan.';
 
   let employmentTypeId = '';
@@ -118,14 +120,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   const updated = await SheetTable.updateRow('users', id, patch);
 
-  await logAction({
-    actorUserId: guard.session.userId,
-    actorName: guard.session.name,
-    action: 'update',
-    entityType: 'users',
-    entityId: id,
-    entityLabel: updated?.name || updated?.email || id,
-  });
+  after(() =>
+    logAction({
+      actorUserId: guard.session.userId,
+      actorName: guard.session.name,
+      action: 'update',
+      entityType: 'users',
+      entityId: id,
+      entityLabel: updated?.name || updated?.email || id,
+    })
+  );
 
   return NextResponse.json({ data: omitPasswordHash(updated!) });
 }
@@ -143,14 +147,16 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
 
   await SheetTable.softDeleteRow('users', id);
 
-  await logAction({
-    actorUserId: guard.session.userId,
-    actorName: guard.session.name,
-    action: 'delete',
-    entityType: 'users',
-    entityId: id,
-    entityLabel: existing?.name || existing?.email || id,
-  });
+  after(() =>
+    logAction({
+      actorUserId: guard.session.userId,
+      actorName: guard.session.name,
+      action: 'delete',
+      entityType: 'users',
+      entityId: id,
+      entityLabel: existing?.name || existing?.email || id,
+    })
+  );
 
   return NextResponse.json({ ok: true });
 }

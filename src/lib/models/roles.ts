@@ -12,8 +12,8 @@ export async function findRoleById(id: string): Promise<Role | undefined> {
   return row as Role | undefined;
 }
 
-export async function getAllRoles(): Promise<Role[]> {
-  const rows = await SheetTable.getAll('roles');
+export async function getAllRoles(opts: { useCache?: boolean } = {}): Promise<Role[]> {
+  const rows = await SheetTable.getAll('roles', opts);
   return rows as Role[];
 }
 

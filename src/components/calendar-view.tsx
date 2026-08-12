@@ -5,6 +5,7 @@ import { apiFetch } from '@/lib/csrf-client';
 import { TasksPageHeader } from '@/components/tasks-view-header';
 import TaskDetailModal from '@/components/task-detail-modal';
 import TaskFilterBar from '@/components/task-filter-bar';
+import { useLanguage } from '@/components/language-provider';
 
 type TaskRow = {
   id: string;
@@ -62,6 +63,7 @@ export default function CalendarView({
   isAdmin: boolean;
   permissions: { canEdit: boolean };
 }) {
+  const { t } = useLanguage();
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth); // 1-12
   const [rows, setRows] = useState<TaskRow[]>([]);
@@ -89,8 +91,11 @@ export default function CalendarView({
     setFilterAssignee('');
   }
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // Bugfix (permintaan user, item loading-flicker): sama seperti kanban-board.tsx/task-detail-modal.tsx
+  // — reload setelah aksi di modal (`onChanged`) sekarang diam-diam (`silent: true`), tidak lagi
+  // mem-blank seluruh kalender ke "Memuat..." setiap kali user selesai mengubah task dari modal.
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [tasksRes, optsRes] = await Promise.all([apiFetch('/api/tasks'), apiFetch('/api/tasks/options')]);
@@ -102,7 +107,7 @@ export default function CalendarView({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal memuat data.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
@@ -110,13 +115,15 @@ export default function CalendarView({
     load();
   }, [load]);
 
+  const silentReload = useCallback(() => load({ silent: true }), [load]);
+
   function goToMonth(deltaMonths: number) {
     const d = new Date(year, month - 1 + deltaMonths, 1);
     setYear(d.getFullYear());
     setMonth(d.getMonth() + 1);
   }
 
-  if (loading) return <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center text-gray-400 shadow-card">Memuat...</div>;
+  if (loading) return <div className="rounded-2xl border border-gray-200 bg-white p-6 text-center text-gray-400 shadow-card">{t('common_loading')}</div>;
   if (error) return <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
 
   const term = search.trim().toLowerCase();
@@ -303,7 +310,7 @@ export default function CalendarView({
           isAdmin={isAdmin}
           permissions={{ canEdit: permissions.canEdit, canDelete: permissions.canEdit }}
           onClose={() => setDetailTaskId(null)}
-          onChanged={load}
+          onChanged={silentReload}
         />
       )}
     </div>

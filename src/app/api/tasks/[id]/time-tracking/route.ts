@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { canManageTask } from '@/lib/models/tasks';
@@ -70,14 +70,16 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
     return NextResponse.json({ error: result.error }, { status: 422 });
   }
 
-  await logAction({
-    actorUserId: session.userId,
-    actorName: session.name,
-    action: 'update',
-    entityType: 'task_time_logs',
-    entityId: id,
-    entityLabel: `${existing.title || id} — Time Tracking: ${action}`,
-  });
+  after(() =>
+    logAction({
+      actorUserId: session.userId,
+      actorName: session.name,
+      action: 'update',
+      entityType: 'task_time_logs',
+      entityId: id,
+      entityLabel: `${existing.title || id} — Time Tracking: ${action}`,
+    })
+  );
 
   return NextResponse.json({ data: { task: result.task, state: result.state, events: result.events } });
 }

@@ -12,7 +12,8 @@ export async function GET() {
   const guard = await requireAdmin();
   if ('error' in guard) return guard.error;
 
-  const roles = await getAllRoles();
+  // Bugfix (permintaan user, item data-staleness): lihat catatan sama di GET /api/master/[entity].
+  const roles = await getAllRoles({ useCache: false });
   const data = roles
     .filter((r) => r.role_key !== 'admin')
     // Bugfix (Fase 13): role yang sudah di-nonaktifkan lewat Master Role sebelumnya masih muncul

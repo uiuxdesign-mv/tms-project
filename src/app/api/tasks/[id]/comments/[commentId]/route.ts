@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAuth } from '@/lib/auth/require-auth';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { hasMenuPermission } from '@/lib/menu-access/permissions';
@@ -59,14 +59,16 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
 
   await deleteComment(commentId);
 
-  await logAction({
-    actorUserId: session.userId,
-    actorName: session.name,
-    action: 'delete',
-    entityType: 'task_comments',
-    entityId: commentId,
-    entityLabel: existing.comment || existing.attachment_original_name || commentId,
-  });
+  after(() =>
+    logAction({
+      actorUserId: session.userId,
+      actorName: session.name,
+      action: 'delete',
+      entityType: 'task_comments',
+      entityId: commentId,
+      entityLabel: existing.comment || existing.attachment_original_name || commentId,
+    })
+  );
 
   return NextResponse.json({ ok: true });
 }

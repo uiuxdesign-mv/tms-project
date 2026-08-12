@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import { findRoleById } from '@/lib/models/roles';
 import { MENU_KEYS } from '@/lib/menu-access/config';
@@ -18,7 +18,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Hak akses role Admin tidak diatur di sini (selalu penuh).' }, { status: 400 });
   }
 
-  const matrix = await getPermissionMatrixForRole(roleId);
+  // Bugfix (permintaan user, item data-staleness): lihat catatan sama di GET /api/master/[entity].
+  const matrix = await getPermissionMatrixForRole(roleId, { useCache: false });
   return NextResponse.json({ data: { matrix, menus: MENU_KEYS } });
 }
 
@@ -50,18 +51,20 @@ export async function POST(req: NextRequest) {
 
   const matrix = await getPermissionMatrixForRole(roleId);
 
-  await logAction({
-    actorUserId: guard.session.userId,
-    actorName: guard.session.name,
-    action: 'update',
-    entityType: 'menu_access',
-    entityId: roleId,
-    entityLabel: `Hak akses role ${role.role_name}`,
-    details: matrix
-      .filter((m) => m.can_view || m.can_create || m.can_edit || m.can_delete)
-      .map((m) => `${m.menu_key}(${[m.can_view && 'L', m.can_create && 'T', m.can_edit && 'U', m.can_delete && 'H'].filter(Boolean).join('')})`)
-      .join(', ') || 'Semua akses dicabut',
-  });
+  after(() =>
+    logAction({
+      actorUserId: guard.session.userId,
+      actorName: guard.session.name,
+      action: 'update',
+      entityType: 'menu_access',
+      entityId: roleId,
+      entityLabel: `Hak akses role ${role.role_name}`,
+      details: matrix
+        .filter((m) => m.can_view || m.can_create || m.can_edit || m.can_delete)
+        .map((m) => `${m.menu_key}(${[m.can_view && 'L', m.can_create && 'T', m.can_edit && 'U', m.can_delete && 'H'].filter(Boolean).join('')})`)
+        .join(', ') || 'Semua akses dicabut',
+    })
+  );
 
   return NextResponse.json({ data: { matrix, menus: MENU_KEYS } });
 }

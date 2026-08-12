@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { canViewTask, canManageTask, canAssignToOthers } from '@/lib/models/tasks';
@@ -75,8 +75,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   if (!priorityId) errors.priority_id = 'Priority wajib dipilih.';
   if (!statusId) errors.status_id = 'Status wajib dipilih.';
 
-  const taskType = taskTypeId ? await SheetTable.findById('task_types', taskTypeId) : undefined;
+  // Bugfix (permintaan user, item speed): taskType, status, dan assignee SALING INDEPENDEN —
+  // sebelumnya berurutan, sekarang paralel.
+  const wantsReassign = canAssignToOthers(session) && !!body.assigned_to;
+  const [taskType, status, assignee] = await Promise.all([
+    taskTypeId ? SheetTable.findById('task_types', taskTypeId) : Promise.resolve(undefined),
+    statusId ? SheetTable.findById('statuses', statusId) : Promise.resolve(undefined),
+    wantsReassign ? SheetTable.findById('users', String(body.assigned_to)) : Promise.resolve(undefined),
+  ]);
   if (taskTypeId && !taskType) errors.task_type_id = 'Task Type tidak ditemukan.';
+  if (statusId && !status) errors.status_id = 'Status tidak ditemukan.';
 
   let relatedTaskId = String(existing.related_task_id ?? '');
   if (taskType?.requires_related_task === 'Ya') {
@@ -93,20 +101,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     relatedTaskId = '';
   }
 
-  const status = statusId ? await SheetTable.findById('statuses', statusId) : undefined;
-  if (statusId && !status) errors.status_id = 'Status tidak ditemukan.';
-
   // Reassignment ke user lain hanya diproses kalau session punya hak canAssignToOthers.
   // Kalau tidak, assigned_to dipertahankan seperti semula (bukan dipaksa balik ke diri sendiri,
   // supaya user tanpa hak ini tetap bisa mengubah field lain dari task yang sudah ditugaskan ke dia).
   let assignedTo = String(existing.assigned_to);
-  if (canAssignToOthers(session) && body.assigned_to) {
-    const requested = String(body.assigned_to);
-    const assignee = await SheetTable.findById('users', requested);
+  if (wantsReassign) {
     if (!assignee) {
       errors.assigned_to = 'User yang ditugaskan tidak ditemukan.';
     } else {
-      assignedTo = requested;
+      assignedTo = String(body.assigned_to);
     }
   }
 
@@ -167,14 +170,16 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     completed_at: completedAt,
   });
 
-  await logAction({
-    actorUserId: session.userId,
-    actorName: session.name,
-    action: 'update',
-    entityType: 'tasks',
-    entityId: id,
-    entityLabel: updated?.title || id,
-  });
+  after(() =>
+    logAction({
+      actorUserId: session.userId,
+      actorName: session.name,
+      action: 'update',
+      entityType: 'tasks',
+      entityId: id,
+      entityLabel: updated?.title || id,
+    })
+  );
 
   return NextResponse.json({ data: updated });
 }
@@ -197,14 +202,16 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
 
   await SheetTable.softDeleteRow('tasks', id);
 
-  await logAction({
-    actorUserId: session.userId,
-    actorName: session.name,
-    action: 'delete',
-    entityType: 'tasks',
-    entityId: id,
-    entityLabel: existing.title || id,
-  });
+  after(() =>
+    logAction({
+      actorUserId: session.userId,
+      actorName: session.name,
+      action: 'delete',
+      entityType: 'tasks',
+      entityId: id,
+      entityLabel: existing.title || id,
+    })
+  );
 
   return NextResponse.json({ ok: true });
 }

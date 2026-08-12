@@ -12,6 +12,7 @@ import { Badge } from '@/components/badge';
 import { TasksPageHeader } from '@/components/tasks-view-header';
 import TaskDetailModal from '@/components/task-detail-modal';
 import TaskFilterBar from '@/components/task-filter-bar';
+import { useLanguage } from '@/components/language-provider';
 
 type TaskRow = {
   id: string;
@@ -78,6 +79,7 @@ export default function TasksTable({
 }) {
   const toast = useToast();
   const confirmDialog = useConfirm();
+  const { t } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [rows, setRows] = useState<TaskRow[]>([]);
@@ -111,8 +113,11 @@ export default function TasksTable({
     setFilterAssignee('');
   }
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  // Bugfix (permintaan user, item loading-flicker): sama seperti kanban-board.tsx/calendar-view.tsx
+  // — reload setelah aksi di modal (`onChanged`) sekarang diam-diam (`silent: true`), baris tabel
+  // tidak lagi diganti "Memuat..." setiap kali user selesai mengubah task dari modal.
+  const load = useCallback(async ({ silent = false }: { silent?: boolean } = {}) => {
+    if (!silent) setLoading(true);
     setError(null);
     try {
       const [tasksRes, optsRes] = await Promise.all([apiFetch('/api/tasks'), apiFetch('/api/tasks/options')]);
@@ -124,13 +129,15 @@ export default function TasksTable({
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal memuat data.');
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  const silentReload = useCallback(() => load({ silent: true }), [load]);
 
   // Kanban & Calendar (Fase 10) tidak punya form Tambah Task sendiri — tombol "+ Add Task" di
   // sana mengarah ke /tasks?new=1 supaya modal yang sama (satu-satunya implementasi) langsung
@@ -201,7 +208,7 @@ export default function TasksTable({
         return;
       }
       setModalOpen(false);
-      await load();
+      await load({ silent: true });
       toast.success(editingId ? 'Perubahan task berhasil disimpan.' : 'Task baru berhasil ditambahkan.');
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
@@ -220,7 +227,7 @@ export default function TasksTable({
         toast.error(json.error || 'Gagal menghapus data.');
         return;
       }
-      await load();
+      await load({ silent: true });
       toast.success(`Task "${row.title}" berhasil dihapus.`);
     } catch {
       toast.error('Terjadi kesalahan jaringan.');
@@ -316,7 +323,7 @@ export default function TasksTable({
               {loading && (
                 <tr>
                   <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
-                    Memuat...
+                    {t('common_loading')}
                   </td>
                 </tr>
               )}
@@ -384,7 +391,7 @@ export default function TasksTable({
           isAdmin={isAdmin}
           permissions={{ canEdit: permissions.canEdit, canDelete: permissions.canDelete }}
           onClose={() => setModalOpen(false)}
-          onChanged={load}
+          onChanged={silentReload}
         />
       )}
 
