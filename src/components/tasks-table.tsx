@@ -7,10 +7,11 @@ import type { TimeTrackingState } from '@/components/time-tracking-controls';
 import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { useTableControls } from '@/lib/hooks/use-table-controls';
-import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/table-controls';
+import { SortableHeader, PaginationBar } from '@/components/table-controls';
 import { Badge } from '@/components/badge';
 import { TasksPageHeader } from '@/components/tasks-view-header';
 import TaskDetailModal from '@/components/task-detail-modal';
+import TaskFilterBar from '@/components/task-filter-bar';
 
 type TaskRow = {
   id: string;
@@ -90,40 +91,21 @@ export default function TasksTable({
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
-  // Filter dropdown (Fase 10 — video-fidelity pass): ikon filter di sebelah search box video.
-  // Bugfix (permintaan user): filter sekarang tidak langsung diterapkan tiap dropdown diganti —
-  // pilihan ditampung dulu di state "draft" (draftStatus/dst), baru benar-benar diterapkan ke
-  // tabel (filterStatus/dst, dipakai `filteredRows`) saat tombol "Apply" ditekan. "Reset"
-  // mengosongkan draft SEKALIGUS filter yang sedang aktif.
-  const [filterOpen, setFilterOpen] = useState(false);
+  // Filter Status/Priority/Assignee (Fase 10 — video-fidelity pass, UI-nya sekarang di komponen
+  // bersama `TaskFilterBar`, dipakai juga oleh Kanban & Calendar — permintaan user). Nilai yang
+  // sudah DITERAPKAN (bukan draft — draft-nya ada di dalam TaskFilterBar sendiri) disimpan di sini
+  // karena `filteredRows` di bawah butuh nilainya.
   const [filterStatus, setFilterStatus] = useState('');
   const [filterPriority, setFilterPriority] = useState('');
   const [filterAssignee, setFilterAssignee] = useState('');
-  const [draftStatus, setDraftStatus] = useState('');
-  const [draftPriority, setDraftPriority] = useState('');
-  const [draftAssignee, setDraftAssignee] = useState('');
-  const activeFilterCount = [filterStatus, filterPriority, filterAssignee].filter(Boolean).length;
 
-  function openFilterDropdown() {
-    // Sinkronkan draft dengan filter yang SEDANG aktif tiap kali dropdown dibuka — supaya kalau
-    // sebelumnya ditutup tanpa menekan Apply, draft tidak menyisakan pilihan yang belum diterapkan.
-    setDraftStatus(filterStatus);
-    setDraftPriority(filterPriority);
-    setDraftAssignee(filterAssignee);
-    setFilterOpen((v) => !v);
-  }
-
-  function applyFilters() {
-    setFilterStatus(draftStatus);
-    setFilterPriority(draftPriority);
-    setFilterAssignee(draftAssignee);
-    setFilterOpen(false);
+  function applyFilters(next: { status: string; priority: string; assignee: string }) {
+    setFilterStatus(next.status);
+    setFilterPriority(next.priority);
+    setFilterAssignee(next.assignee);
   }
 
   function resetFilters() {
-    setDraftStatus('');
-    setDraftPriority('');
-    setDraftAssignee('');
     setFilterStatus('');
     setFilterPriority('');
     setFilterAssignee('');
@@ -296,94 +278,19 @@ export default function TasksTable({
       />
 
       <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
-        <div className="flex flex-wrap items-center gap-2 border-b border-gray-200 p-4">
-          <TableSearchBox value={table.search} onChange={table.setSearch} placeholder="Search title..." />
-          <div className="relative">
-            <button
-              type="button"
-              onClick={openFilterDropdown}
-              className={`relative flex h-[34px] w-[38px] items-center justify-center rounded-lg border transition-colors ${
-                activeFilterCount > 0 ? 'border-indigo-300 bg-indigo-50 text-indigo-600' : 'border-gray-300 text-gray-500 hover:bg-gray-50'
-              }`}
-              title="Filter"
-              aria-label="Filter"
-            >
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h18M6 9.75h12M10.5 15h3" />
-              </svg>
-              {activeFilterCount > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-medium text-white">
-                  {activeFilterCount}
-                </span>
-              )}
-            </button>
-            {filterOpen && (
-              <div className="absolute left-0 z-20 mt-2 w-64 space-y-3 rounded-lg border border-gray-200 bg-white p-3 shadow-popover">
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">Status</label>
-                  <select
-                    value={draftStatus}
-                    onChange={(e) => setDraftStatus(e.target.value)}
-                    className="select-field-sm w-full appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-2.5 pr-7 text-sm text-gray-900 focus-ring"
-                  >
-                    <option value="">Semua status</option>
-                    {opts?.statuses.map((s) => (
-                      <option key={s.value} value={s.value}>
-                        {s.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">Priority</label>
-                  <select
-                    value={draftPriority}
-                    onChange={(e) => setDraftPriority(e.target.value)}
-                    className="select-field-sm w-full appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-2.5 pr-7 text-sm text-gray-900 focus-ring"
-                  >
-                    <option value="">Semua priority</option>
-                    {opts?.priorities.map((p) => (
-                      <option key={p.value} value={p.value}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-medium text-gray-500">Assignee</label>
-                  <select
-                    value={draftAssignee}
-                    onChange={(e) => setDraftAssignee(e.target.value)}
-                    className="select-field-sm w-full appearance-none rounded-lg border border-gray-300 bg-white py-1.5 pl-2.5 pr-7 text-sm text-gray-900 focus-ring"
-                  >
-                    <option value="">Semua assignee</option>
-                    {opts?.assignees.map((a) => (
-                      <option key={a.value} value={a.value}>
-                        {a.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="flex items-center justify-between gap-2 border-t border-gray-100 pt-2.5">
-                  <button
-                    type="button"
-                    onClick={resetFilters}
-                    className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50"
-                  >
-                    Reset
-                  </button>
-                  <button
-                    type="button"
-                    onClick={applyFilters}
-                    className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
-                  >
-                    Apply
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        <TaskFilterBar
+          className="border-b border-gray-200 p-4"
+          search={table.search}
+          onSearchChange={table.setSearch}
+          statuses={opts?.statuses || []}
+          priorities={opts?.priorities || []}
+          assignees={opts?.assignees || []}
+          filterStatus={filterStatus}
+          filterPriority={filterPriority}
+          filterAssignee={filterAssignee}
+          onApply={applyFilters}
+          onReset={resetFilters}
+        />
 
         {error && <div className="border-b border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 

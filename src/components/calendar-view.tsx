@@ -3,8 +3,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { apiFetch } from '@/lib/csrf-client';
 import { TasksPageHeader } from '@/components/tasks-view-header';
-import { TableSearchBox } from '@/components/table-controls';
 import TaskDetailModal from '@/components/task-detail-modal';
+import TaskFilterBar from '@/components/task-filter-bar';
 
 type TaskRow = {
   id: string;
@@ -20,6 +20,11 @@ type StatusOption = Option & { isFinal: boolean; colorCode?: string | null };
 
 type OptionsData = {
   statuses: StatusOption[];
+  // Bugfix (permintaan user): Calendar sekarang juga punya filter Priority & Assignee seperti
+  // List/Kanban — sebelumnya cuma `statuses` yang diambil dari /api/tasks/options (dipakai untuk
+  // warna badge status di sel kalender), padahal endpoint-nya sudah selalu mengirim semuanya.
+  priorities: Option[];
+  assignees: Option[];
 };
 
 const MONTH_NAMES = [
@@ -66,6 +71,24 @@ export default function CalendarView({
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
 
+  // Filter Status/Priority/Assignee (permintaan user) — sama seperti List & Kanban, pakai
+  // komponen bersama `TaskFilterBar`.
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterPriority, setFilterPriority] = useState('');
+  const [filterAssignee, setFilterAssignee] = useState('');
+
+  function applyFilters(next: { status: string; priority: string; assignee: string }) {
+    setFilterStatus(next.status);
+    setFilterPriority(next.priority);
+    setFilterAssignee(next.assignee);
+  }
+
+  function resetFilters() {
+    setFilterStatus('');
+    setFilterPriority('');
+    setFilterAssignee('');
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -97,7 +120,13 @@ export default function CalendarView({
   if (error) return <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm text-red-700">{error}</div>;
 
   const term = search.trim().toLowerCase();
-  const visibleRows = term ? rows.filter((t) => t.title.toLowerCase().includes(term)) : rows;
+  const visibleRows = rows.filter((t) => {
+    if (term && !t.title.toLowerCase().includes(term)) return false;
+    if (filterStatus && t.status_id !== filterStatus) return false;
+    if (filterPriority && t.priority_id !== filterPriority) return false;
+    if (filterAssignee && t.assigned_to !== filterAssignee) return false;
+    return true;
+  });
 
   const tasksByDate = new Map<string, TaskRow[]>();
   const unscheduled: TaskRow[] = [];
@@ -137,8 +166,23 @@ export default function CalendarView({
         addTaskHref="/tasks?new=1"
         canCreate={canCreate}
       />
-      <div className="mb-3">
-        <TableSearchBox value={search} onChange={setSearch} placeholder="Search title..." />
+      {/* Bugfix (permintaan user): search box & filter digabung dalam satu container bordered yang
+          sama seperti di view List — sebelumnya search box di sini berdiri sendiri tanpa card
+          pembungkus, dan belum ada filter Status/Priority/Assignee sama sekali. */}
+      <div className="mb-3 rounded-2xl border border-gray-200 bg-white shadow-card">
+        <TaskFilterBar
+          className="p-4"
+          search={search}
+          onSearchChange={setSearch}
+          statuses={opts?.statuses || []}
+          priorities={opts?.priorities || []}
+          assignees={opts?.assignees || []}
+          filterStatus={filterStatus}
+          filterPriority={filterPriority}
+          filterAssignee={filterAssignee}
+          onApply={applyFilters}
+          onReset={resetFilters}
+        />
       </div>
       <div className="flex flex-col gap-4 lg:flex-row">
       <div className="flex-1 rounded-2xl border border-gray-200 bg-white shadow-card">

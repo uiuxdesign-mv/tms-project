@@ -6,8 +6,8 @@ import { TimeTrackingControls, type TimeTrackingState } from '@/components/time-
 import { useToast } from '@/components/toast-provider';
 import { Badge } from '@/components/badge';
 import { TasksPageHeader } from '@/components/tasks-view-header';
-import { TableSearchBox } from '@/components/table-controls';
 import TaskDetailModal from '@/components/task-detail-modal';
+import TaskFilterBar from '@/components/task-filter-bar';
 
 type TaskRow = {
   id: string;
@@ -89,6 +89,24 @@ export default function KanbanBoard({
   const [search, setSearch] = useState('');
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
 
+  // Filter Status/Priority/Assignee (permintaan user) — sama seperti List, sekarang pakai
+  // komponen bersama `TaskFilterBar` supaya Kanban juga punya kemampuan filter yang sama.
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterPriority, setFilterPriority] = useState('');
+  const [filterAssignee, setFilterAssignee] = useState('');
+
+  function applyFilters(next: { status: string; priority: string; assignee: string }) {
+    setFilterStatus(next.status);
+    setFilterPriority(next.priority);
+    setFilterAssignee(next.assignee);
+  }
+
+  function resetFilters() {
+    setFilterStatus('');
+    setFilterPriority('');
+    setFilterAssignee('');
+  }
+
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -122,9 +140,14 @@ export default function KanbanBoard({
 
   const visibleRows = useMemo(() => {
     const term = search.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((r) => r.title.toLowerCase().includes(term));
-  }, [rows, search]);
+    return rows.filter((r) => {
+      if (term && !r.title.toLowerCase().includes(term)) return false;
+      if (filterStatus && r.status_id !== filterStatus) return false;
+      if (filterPriority && r.priority_id !== filterPriority) return false;
+      if (filterAssignee && r.assigned_to !== filterAssignee) return false;
+      return true;
+    });
+  }, [rows, search, filterStatus, filterPriority, filterAssignee]);
 
   function canManage(row: TaskRow) {
     if (!permissions.canEdit) return false;
@@ -228,8 +251,23 @@ export default function KanbanBoard({
         canCreate={permissions.canEdit}
       />
 
-      <div className="mb-3">
-        <TableSearchBox value={search} onChange={setSearch} placeholder="Search title..." />
+      {/* Bugfix (permintaan user): search box & filter sekarang digabung dalam satu container
+          bordered yang sama seperti di view List — sebelumnya search box di sini berdiri sendiri
+          tanpa card pembungkus, dan belum ada filter Status/Priority/Assignee sama sekali. */}
+      <div className="mb-3 rounded-2xl border border-gray-200 bg-white shadow-card">
+        <TaskFilterBar
+          className="p-4"
+          search={search}
+          onSearchChange={setSearch}
+          statuses={opts.statuses}
+          priorities={opts.priorities}
+          assignees={opts.assignees}
+          filterStatus={filterStatus}
+          filterPriority={filterPriority}
+          filterAssignee={filterAssignee}
+          onApply={applyFilters}
+          onReset={resetFilters}
+        />
       </div>
 
       <div className="overflow-x-auto pb-4">
