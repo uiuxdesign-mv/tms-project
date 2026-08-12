@@ -4,10 +4,12 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/csrf-client';
 import { useLanguage } from '@/components/language-provider';
+import { useToast } from '@/components/toast-provider';
 
 export default function LoginPage() {
   const router = useRouter();
   const { t } = useLanguage();
+  const toast = useToast();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -156,6 +158,16 @@ export default function LoginPage() {
                 />
                 <span className="text-sm text-gray-500">Ingat saya</span>
               </label>
+              {/* Fase 12 (QA sesuai video): link ini ada di video tapi aplikasi belum punya alur
+                  reset password lewat email (tidak ada layanan email) — tampilkan info kontak
+                  admin, bukan link mati, supaya tetap jujur ke user. */}
+              <button
+                type="button"
+                onClick={() => toast.info('Fitur reset kata sandi mandiri belum tersedia. Hubungi admin untuk reset password Anda.')}
+                className="text-sm font-medium text-indigo-600 hover:text-indigo-700 hover:underline"
+              >
+                Lupa kata sandi?
+              </button>
             </div>
 
             {error && (
