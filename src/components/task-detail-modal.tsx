@@ -48,7 +48,7 @@ type OptionsData = {
 };
 
 type TimeAction = 'start' | 'pause' | 'resume' | 'stop';
-type TimeLogEvent = { id: string; session_no: string; action: TimeAction; is_review: string; occurred_at: string };
+type TimeLogEvent = { id: string; session_no: string; action: TimeAction; is_review: string; occurred_at: string; user_id?: string };
 type DerivedState = {
   state: 'idle' | 'running' | 'paused';
   currentSessionIsReview: boolean;
@@ -57,7 +57,19 @@ type DerivedState = {
   liveSince: string | null;
 };
 
-type SessionInterval = { startAt: string; endAt: string | null; seconds: number; closedBy: 'pause' | 'stop' | null };
+// Bugfix (Fase 19, spec Kanban & Time Tracking §6): History Log sekarang menyertakan aksi
+// pembuka (`openedBy`: start/resume) beserta user yang melakukannya (`startedByUserId`), dan user
+// yang menutup sesi (`endedByUserId`) — sebelumnya cuma timestamp+durasi, tidak ada info aksi/user
+// sama sekali walau datanya (`user_id`) sudah tersedia dari server sejak awal.
+type SessionInterval = {
+  startAt: string;
+  endAt: string | null;
+  seconds: number;
+  openedBy: 'start' | 'resume';
+  closedBy: 'pause' | 'stop' | null;
+  startedByUserId?: string;
+  endedByUserId?: string;
+};
 
 /** Pecah event log jadi interval Work/Review terpisah — tiap baris di tabel Work Session/Review
  *  Session (video) adalah SATU interval start/resume -> pause/stop berikutnya, BUKAN 1 baris per
@@ -65,21 +77,36 @@ type SessionInterval = { startAt: string; endAt: string | null; seconds: number;
 function deriveIntervals(events: TimeLogEvent[]): { work: SessionInterval[]; review: SessionInterval[] } {
   const work: SessionInterval[] = [];
   const review: SessionInterval[] = [];
-  let open: { startAt: string; isReview: boolean } | null = null;
+  let open: { startAt: string; isReview: boolean; openedBy: 'start' | 'resume'; userId?: string } | null = null;
 
   for (const ev of events) {
     if (ev.action === 'start' || ev.action === 'resume') {
-      open = { startAt: ev.occurred_at, isReview: ev.is_review === 'Ya' };
+      open = { startAt: ev.occurred_at, isReview: ev.is_review === 'Ya', openedBy: ev.action, userId: ev.user_id };
     } else if ((ev.action === 'pause' || ev.action === 'stop') && open) {
       const seconds = Math.max(0, Math.round((new Date(ev.occurred_at).getTime() - new Date(open.startAt).getTime()) / 1000));
-      const interval: SessionInterval = { startAt: open.startAt, endAt: ev.occurred_at, seconds, closedBy: ev.action };
+      const interval: SessionInterval = {
+        startAt: open.startAt,
+        endAt: ev.occurred_at,
+        seconds,
+        openedBy: open.openedBy,
+        closedBy: ev.action,
+        startedByUserId: open.userId,
+        endedByUserId: ev.user_id,
+      };
       (open.isReview ? review : work).push(interval);
       open = null;
     }
   }
   if (open) {
-    const cur: { startAt: string; isReview: boolean } = open;
-    const interval: SessionInterval = { startAt: cur.startAt, endAt: null, seconds: 0, closedBy: null };
+    const cur = open;
+    const interval: SessionInterval = {
+      startAt: cur.startAt,
+      endAt: null,
+      seconds: 0,
+      openedBy: cur.openedBy,
+      closedBy: null,
+      startedByUserId: cur.userId,
+    };
     (cur.isReview ? review : work).push(interval);
   }
   // Terbaru di atas, seperti video.
@@ -199,6 +226,17 @@ export default function TaskDetailModal({
     return list?.find((o) => o.value === value)?.label || '-';
   }
 
+  // Bugfix (Fase 19, spec §6): resolusi nama user yang melakukan sebuah aksi Time Tracking untuk
+  // ditampilkan di History Log. `opts.assignees` bisa saja tidak lengkap untuk viewer non-privileged
+  // (daftar assignee difilter), jadi ada fallback "You" untuk diri sendiri dan "Other User" kalau
+  // ID-nya tidak ada di daftar yang kebetulan tersedia untuk user ini.
+  function resolveActorName(userId: string | undefined): string {
+    if (!userId) return '-';
+    if (userId === currentUserId) return 'You';
+    const found = opts?.assignees.find((a) => a.value === userId);
+    return found ? found.label : 'Other User';
+  }
+
   const status = opts?.statuses.find((s) => s.value === task?.status_id);
   const canManage =
     permissions.canEdit && !!task && (isAdmin || !!opts?.canAssignOthers || task.assigned_to === currentUserId);
@@ -255,14 +293,19 @@ export default function TaskDetailModal({
 
     setBusy(true);
     try {
-      const res = await apiFetch(`/api/tasks/${taskId}`, {
-        method: 'PATCH',
+      // Bugfix (Fase 19, spec Kanban & Time Tracking §7): sebelumnya di sini PATCH status_id
+      // mentah — kalau ada sesi Time Tracking yang sedang berjalan/di-pause, sesi itu tidak pernah
+      // resmi ditutup (Work/Review Time yang sudah lewat tidak ter-simpan, History Log tidak
+      // mencatat kapan berhenti). Sekarang lewat aksi `cancel` di endpoint Time Tracking, yang
+      // menutup sesi terbuka dulu (persis seperti Stop/Done) baru memindahkan status ke Cancelled.
+      const res = await apiFetch(`/api/tasks/${taskId}/time-tracking`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status_id: cancelStatus.value }),
+        body: JSON.stringify({ action: 'cancel' }),
       });
       const json = await res.json();
       if (!res.ok) {
-        toast.error(json.fieldErrors?.status_id || json.error || 'Gagal membatalkan task.');
+        toast.error(json.error || 'Gagal membatalkan task.');
         return;
       }
       await load();
@@ -381,9 +424,18 @@ export default function TaskDetailModal({
                         ) : (
                           <>
                             {timeState.state === 'idle' && (
-                              <button disabled={busy} onClick={() => runTimeAction('start')} className={startBtn}>
-                                ▶ Start
-                              </button>
+                              <>
+                                <button disabled={busy} onClick={() => runTimeAction('start')} className={startBtn}>
+                                  ▶ Start
+                                </button>
+                                {/* Bugfix (Fase 19, spec §2 "Kondisi Awal"): tombol Stop tetap
+                                    DITAMPILKAN (dalam kondisi disabled) saat status To Do —
+                                    sebelumnya disembunyikan total. Pause memang sengaja tidak
+                                    ditampilkan sama sekali di kondisi ini, sesuai spesifikasi. */}
+                                <button disabled className={stopBtn}>
+                                  Stop
+                                </button>
+                              </>
                             )}
                             {timeState.state === 'running' && (
                               <>
@@ -445,22 +497,47 @@ export default function TaskDetailModal({
                             <thead className="text-[10px] uppercase text-gray-400">
                               <tr>
                                 <th className="pb-1 pr-2 font-medium">Start/Resume</th>
-                                <th className="pb-1 pr-2 font-medium">Pause/Stop</th>
+                                <th className="pb-1 pr-2 font-medium">{activeTab === 'review' ? 'Back/Done' : 'Pause/Stop'}</th>
                                 <th className="pb-1 font-medium">Duration</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {(activeTab === 'work' ? workIntervals : reviewIntervals).map((iv, i) => (
-                                <tr key={i}>
-                                  <td className="py-1 pr-2 font-medium text-emerald-600">{formatLogTimestamp(iv.startAt)}</td>
-                                  <td className={`py-1 pr-2 font-medium ${iv.endAt ? 'text-red-600' : 'text-amber-600'}`}>
-                                    {iv.endAt ? formatLogTimestamp(iv.endAt) : 'Running'}
-                                  </td>
-                                  <td className="py-1 tabular-nums text-gray-700">
-                                    {iv.endAt ? formatDuration(iv.seconds) : formatDuration(currentSessionSeconds)}
-                                  </td>
-                                </tr>
-                              ))}
+                              {(activeTab === 'work' ? workIntervals : reviewIntervals).map((iv, i) => {
+                                // Bugfix (Fase 19, spec §6): label + warna Action/Activity meniru tabel warna aplikasi
+                                // lama — Start=Blue, Resume=Green, Pause=Orange, Stop=Red. Sesi review cuma bisa
+                                // ditutup lewat tombol Back atau Done (tidak ada Pause/Stop di tahap review), jadi
+                                // penutupan sesi review dilabeli "Done" + hijau, bukan "Stop" + merah, konsisten
+                                // dengan warna "Review Done = Green" di spec (event mentahnya tetap sama-sama `stop`,
+                                // yang membedakan cuma konteks tab-nya).
+                                const openLabel = iv.openedBy === 'start' ? 'Start' : 'Resume';
+                                const openColor = iv.openedBy === 'start' ? 'text-blue-600' : 'text-emerald-600';
+                                const closeLabel = iv.closedBy === null ? 'Running' : activeTab === 'review' ? 'Done' : iv.closedBy === 'pause' ? 'Pause' : 'Stop';
+                                const closeColor =
+                                  iv.closedBy === null
+                                    ? 'text-gray-400'
+                                    : activeTab === 'review'
+                                      ? 'text-emerald-600'
+                                      : iv.closedBy === 'pause'
+                                        ? 'text-amber-600'
+                                        : 'text-red-600';
+                                return (
+                                  <tr key={i} className="align-top">
+                                    <td className="py-1 pr-2">
+                                      <div className={`font-medium ${openColor}`}>{openLabel}</div>
+                                      <div className="text-gray-500">{formatLogTimestamp(iv.startAt)}</div>
+                                      <div className="text-[10px] text-gray-400">{resolveActorName(iv.startedByUserId)}</div>
+                                    </td>
+                                    <td className="py-1 pr-2">
+                                      <div className={`font-medium ${closeColor}`}>{closeLabel}</div>
+                                      <div className="text-gray-500">{iv.endAt ? formatLogTimestamp(iv.endAt) : '-'}</div>
+                                      {iv.endAt && <div className="text-[10px] text-gray-400">{resolveActorName(iv.endedByUserId)}</div>}
+                                    </td>
+                                    <td className="py-1 tabular-nums text-gray-700">
+                                      {iv.endAt ? formatDuration(iv.seconds) : formatDuration(currentSessionSeconds)}
+                                    </td>
+                                  </tr>
+                                );
+                              })}
                             </tbody>
                           </table>
                         )}

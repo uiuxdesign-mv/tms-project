@@ -131,6 +131,18 @@ export default function KanbanBoard({
     return isAdmin || !!opts?.canAssignOthers || row.assigned_to === currentUserId;
   }
 
+  /**
+   * Fase 19 (permintaan user, spec Kanban & Time Tracking §8.4 "Drag & Drop Menjalankan Business
+   * Rule"): sebelumnya drop di sini SELALU PATCH `status_id` mentah — task pindah kolom, tapi Time
+   * Tracking (Work Time/Review Time) & History Log-nya TIDAK ikut berjalan seperti kalau user
+   * menekan tombol Start/Stop/Done. Akibatnya kalau task di-drag dari "In Progress" ke "In Review",
+   * Work Time tidak pernah berhenti dicatat dan Review Time tidak pernah mulai — timer jadi
+   * "menggantung". Sekarang: drag yang valid (lolos aturan "persis satu tahap maju" di bawah) di
+   * -route ke aksi Time Tracking yang sepadan (start/stop/done) kalau transisinya cocok, supaya
+   * hasil akhirnya SAMA PERSIS dengan klik tombol — PATCH mentah cuma dipakai untuk transisi lain
+   * yang tidak mengubah Time Tracking sama sekali (tahap kustom tambahan di luar To Do/In
+   * Progress/In Review/Done).
+   */
   async function handleDrop(targetStatus: StatusOption) {
     const taskId = dragTaskId;
     setDragTaskId(null);
@@ -140,12 +152,51 @@ export default function KanbanBoard({
     if (!task || task.status_id === targetStatus.value) return;
     if (!canManage(task)) return;
 
+    const currentStatus = opts?.statuses.find((s) => s.value === task.status_id);
+
+    // Validasi "persis satu tahap maju" dicek di client dulu (sama seperti Rule Kanban di server,
+    // PATCH /api/tasks/[id]) SEBELUM memutuskan aksi Time Tracking mana yang dijalankan di bawah —
+    // supaya drag yang melompat tahap tetap ditolak dengan pesan yang sama seperti sebelumnya,
+    // bukan diam-diam "dikoreksi" jadi cuma maju satu tahap tanpa penjelasan.
+    const oldLevel = currentStatus?.workflowLevel;
+    const newLevel = targetStatus.workflowLevel;
+    const bothLevelsSet = oldLevel !== null && oldLevel !== undefined && newLevel !== null && newLevel !== undefined;
+    if (!bothLevelsSet || newLevel !== oldLevel + 1) {
+      toast.error('Drag di Kanban hanya boleh menggeser task persis satu tahap ke depan. Untuk mundur, gunakan form Edit.');
+      return;
+    }
+
     try {
-      const res = await apiFetch(`/api/tasks/${taskId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status_id: targetStatus.value, viaKanbanDrag: true }),
-      });
+      let res: Response;
+      if (currentStatus?.isDefault) {
+        // To Do -> In Progress via drag = setara klik "Start".
+        res = await apiFetch(`/api/tasks/${taskId}/time-tracking`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'start' }),
+        });
+      } else if (targetStatus.isReview && !currentStatus?.isReview) {
+        // In Progress -> In Review via drag = setara klik "Stop".
+        res = await apiFetch(`/api/tasks/${taskId}/time-tracking`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'stop' }),
+        });
+      } else if (currentStatus?.isReview && targetStatus.isFinal) {
+        // In Review -> Done via drag = setara klik "Done".
+        res = await apiFetch(`/api/tasks/${taskId}/time-tracking`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'done' }),
+        });
+      } else {
+        // Transisi lain (tahap kustom tanpa efek Time Tracking) — tetap PATCH biasa seperti semula.
+        res = await apiFetch(`/api/tasks/${taskId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status_id: targetStatus.value, viaKanbanDrag: true }),
+        });
+      }
       const json = await res.json();
       if (!res.ok) {
         toast.error(json.fieldErrors?.status_id || json.error || 'Gagal memindahkan task.');
@@ -214,7 +265,11 @@ export default function KanbanBoard({
                 <div className="flex-1 space-y-2 p-2">
                   {columnTasks.length === 0 && <p className="px-2 py-4 text-center text-xs text-gray-400">No tasks</p>}
                   {columnTasks.map((row) => {
-                    const manageable = canManage(row);
+                    // Fase 19: task yang statusnya sudah Final (Done/Cancelled) tidak boleh di-drag
+                    // sama sekali — konsisten dengan tombol Time Tracking yang juga ikut terkunci
+                    // di status final (spec §5.7: "seluruh action button ... tidak dapat digunakan
+                    // kembali").
+                    const manageable = canManage(row) && !status.isFinal;
                     const overdue = isOverdue(row, opts.statuses);
                     // Meta line "Project · Task Type · Client" seperti video — bagian yang kosong
                     // (mis. Client opsional tidak diisi) dilewati, bukan ditampilkan sebagai "-".

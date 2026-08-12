@@ -5,7 +5,7 @@ import { canManageTask } from '@/lib/models/tasks';
 import { runTimeAction, getTimeStateForTask } from '@/lib/models/time-tracking';
 import { logAction } from '@/lib/models/audit-log';
 
-const VALID_ACTIONS = new Set(['start', 'pause', 'resume', 'stop', 'back', 'done']);
+const VALID_ACTIONS = new Set(['start', 'pause', 'resume', 'stop', 'back', 'done', 'cancel']);
 
 /** Ambil state Time Tracking saat ini (dipakai UI untuk hydrate live-ticking badge). */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -31,7 +31,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   }
 }
 
-/** Jalankan 1 aksi Time Tracking: start | pause | resume | stop | back | done. */
+/** Jalankan 1 aksi Time Tracking: start | pause | resume | stop | back | done | cancel. */
 export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const guard = await requirePermission('tasking', 'edit');
   if ('error' in guard) return guard.error;

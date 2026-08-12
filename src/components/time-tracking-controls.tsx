@@ -174,10 +174,18 @@ export function TimeTrackingControls({
     <div className={wrapClass}>
       <span className="tabular-nums text-gray-600">{formatDuration(displaySeconds)}</span>
       {tt.state === 'idle' && (
-        <button disabled={busy} onClick={(e) => runAction('start', e)} className={startClass}>
-          {IconPlay}
-          Start
-        </button>
+        <>
+          <button disabled={busy} onClick={(e) => runAction('start', e)} className={startClass}>
+            {IconPlay}
+            Start
+          </button>
+          {/* Bugfix (Fase 19, spec §2 "Kondisi Awal"): tombol Stop tetap ditampilkan (disabled)
+              saat status To Do, bukan disembunyikan total — konsisten dengan task-detail-modal.tsx. */}
+          <button disabled className={stopClass}>
+            {IconStop}
+            Stop
+          </button>
+        </>
       )}
       {tt.state === 'running' && (
         <>

@@ -143,6 +143,16 @@ async function getStatusesSorted(): Promise<StatusRow[]> {
     .sort((a, b) => Number(a.workflow_level) - Number(b.workflow_level));
 }
 
+/**
+ * Status "Cancelled" (Fase 19) — sama definisinya dengan yang dipakai UI (handleCancelTask di
+ * task-detail-modal.tsx): status final TANPA `workflow_level` (sengaja dikecualikan dari urutan
+ * linear supaya bisa dituju dari status manapun, persis seperti Cancelled di aplikasi lama).
+ */
+async function getCancelStatus(): Promise<StatusRow | undefined> {
+  const rows = await SheetTable.getAll('statuses');
+  return rows.find((s) => s.is_final === 'Ya' && s.workflow_level === '');
+}
+
 export type TimeActionResult =
   | { ok: true; task: SheetRow; events: TimeLogRow[]; state: DerivedTimeState }
   | { ok: false; error: string };
@@ -155,7 +165,7 @@ export type TimeActionResult =
 export async function runTimeAction(
   taskId: string,
   userId: string,
-  action: 'start' | 'pause' | 'resume' | 'stop' | 'back' | 'done'
+  action: 'start' | 'pause' | 'resume' | 'stop' | 'back' | 'done' | 'cancel'
 ): Promise<TimeActionResult> {
   const taskRow = await SheetTable.findById('tasks', taskId);
   if (!taskRow) return { ok: false, error: 'Task tidak ditemukan.' };
@@ -281,6 +291,33 @@ export async function runTimeAction(
 
     await SheetTable.updateRow('tasks', taskId, {
       status_id: finalStatus.id,
+      completed_at: task.completed_at || now,
+    });
+    return finish(taskId);
+  }
+
+  if (action === 'cancel') {
+    // Fase 19 (permintaan user, spec Kanban & Time Tracking §7): "Cancel" boleh dipakai dari status
+    // manapun yang BELUM final (To Do/In Progress/In Review — sudah dijamin oleh guard `isFinal` di
+    // atas fungsi ini). Sebelumnya tombol "Cancel Task" di UI langsung PATCH status_id mentah TANPA
+    // lewat runTimeAction sama sekali — akibatnya sesi Time Tracking yang sedang berjalan/di-pause
+    // tidak pernah ditutup (jadi "menggantung": Work/Review Time yang sudah lewat tidak
+    // ter-persist, dan History Log tidak mencatat kapan sesi itu berhenti). Sekarang: tutup dulu
+    // sesi yang masih terbuka (running/paused) dengan event `stop` biasa — SAMA seperti aksi
+    // Stop/Done menutup sesi — baru pindahkan status ke Cancelled.
+    const now = new Date().toISOString();
+    if (derived.state !== 'idle') {
+      await logEvent(derived.currentSessionNo!, 'stop', derived.currentSessionIsReview, now);
+      if (derived.state === 'running') await persistDuration(secondsBetween(derived.liveSince!, now));
+    }
+
+    const cancelStatus = await getCancelStatus();
+    if (!cancelStatus) {
+      return { ok: false, error: 'Tidak ada status "Cancelled" (final tanpa Urutan Workflow) yang dikonfigurasi di Master Status.' };
+    }
+
+    await SheetTable.updateRow('tasks', taskId, {
+      status_id: cancelStatus.id,
       completed_at: task.completed_at || now,
     });
     return finish(taskId);
