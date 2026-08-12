@@ -241,6 +241,17 @@ export default function TaskDetailModal({
   const canManage =
     permissions.canEdit && !!task && (isAdmin || !!opts?.canAssignOthers || task.assigned_to === currentUserId);
 
+  // Bugfix (permintaan user): detail Task (Title/Description/Project/Client/Priority/Task Type/
+  // Assignee/tanggal) cuma boleh diedit bebas selama status masih To Do (default) — begitu task
+  // mulai berjalan, perubahan wajib lewat tombol aksi Time Tracking (Start/Pause/Stop/Back/Done)
+  // atau Cancel Task supaya business rule & History Log tetap konsisten, bukan lewat edit form
+  // bebas. Field Status DIKECUALIKAN dari kunci ini (tetap pakai `canManage` seperti semula) —
+  // form ini satu-satunya cara resmi memindahkan status MUNDUR (mis. In Review balik ke In
+  // Progress kalau salah proses, lihat komentar handleDrop di kanban-board.tsx), jadi tetap harus
+  // bisa diedit manual di sini, tervalidasi seperti biasa oleh Rule A/B di server.
+  const isDefaultStatus = status?.isDefault ?? false;
+  const canEditFields = canManage && isDefaultStatus;
+
   const { work: workIntervals, review: reviewIntervals } = useMemo(() => deriveIntervals(events), [events]);
 
   const liveExtra =
@@ -552,12 +563,19 @@ export default function TaskDetailModal({
                 {/* Bugfix (Fase 14): id di sini dipakai tombol "Save changes" di footer bawah
                     (di luar area scroll) lewat atribut `form=` — supaya tombolnya tidak ikut
                     hilang ke-scroll padahal secara DOM sudah dipindah keluar dari <form> ini. */}
+                {canManage && !isDefaultStatus && (
+                  <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                    Detail task ini terkunci karena status sudah bukan To Do lagi. Field Status masih bisa diubah manual
+                    (misalnya untuk koreksi mundur) — field lainnya hanya bisa diubah lewat tombol aksi di panel Time
+                    Tracking (Start/Pause/Stop/Back/Done) atau Cancel Task.
+                  </div>
+                )}
                 <form id="task-edit-form" onSubmit={handleSave} className="space-y-3">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-gray-700">Title</label>
                     <input
                       value={form.title}
-                      disabled={!canManage}
+                      disabled={!canEditFields}
                       onChange={(e) => setForm((f) => (f ? { ...f, title: e.target.value } : f))}
                       placeholder="Contoh: Perbaiki bug login di halaman utama"
                       className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
@@ -569,7 +587,7 @@ export default function TaskDetailModal({
                     <label className="mb-1.5 block text-sm font-medium text-gray-700">Description</label>
                     <textarea
                       value={form.description}
-                      disabled={!canManage}
+                      disabled={!canEditFields}
                       onChange={(e) => setForm((f) => (f ? { ...f, description: e.target.value } : f))}
                       placeholder="Jelaskan detail tugas ini, langkah pengerjaan, atau referensi yang dibutuhkan..."
                       rows={3}
@@ -582,7 +600,7 @@ export default function TaskDetailModal({
                       <label className="mb-1.5 block text-sm font-medium text-gray-700">Project</label>
                       <select
                         value={form.project_id}
-                        disabled={!canManage}
+                        disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, project_id: e.target.value } : f))}
                         className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
@@ -601,7 +619,7 @@ export default function TaskDetailModal({
                       <label className="mb-1.5 block text-sm font-medium text-gray-700">Client (optional)</label>
                       <select
                         value={form.client_id}
-                        disabled={!canManage}
+                        disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, client_id: e.target.value } : f))}
                         className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
@@ -620,7 +638,7 @@ export default function TaskDetailModal({
                       <label className="mb-1.5 block text-sm font-medium text-gray-700">Priority *</label>
                       <select
                         value={form.priority_id}
-                        disabled={!canManage}
+                        disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, priority_id: e.target.value } : f))}
                         className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
@@ -637,7 +655,7 @@ export default function TaskDetailModal({
                       <label className="mb-1.5 block text-sm font-medium text-gray-700">Task Type *</label>
                       <select
                         value={form.task_type_id}
-                        disabled={!canManage}
+                        disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, task_type_id: e.target.value, related_task_id: '' } : f))}
                         className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
@@ -657,7 +675,7 @@ export default function TaskDetailModal({
                       <label className="mb-1.5 block text-sm font-medium text-gray-700">Task Terkait *</label>
                       <select
                         value={form.related_task_id}
-                        disabled={!canManage}
+                        disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, related_task_id: e.target.value } : f))}
                         className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
@@ -697,7 +715,7 @@ export default function TaskDetailModal({
                     {opts.canAssignOthers ? (
                       <select
                         value={form.assigned_to}
-                        disabled={!canManage}
+                        disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, assigned_to: e.target.value } : f))}
                         className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
@@ -713,7 +731,7 @@ export default function TaskDetailModal({
                         {label(opts.assignees, form.assigned_to)}
                       </p>
                     )}
-                    {opts.canAssignOthers && canManage && form.assigned_to !== currentUserId && (
+                    {opts.canAssignOthers && canEditFields && form.assigned_to !== currentUserId && (
                       <button
                         type="button"
                         onClick={() => setForm((f) => (f ? { ...f, assigned_to: currentUserId } : f))}
@@ -731,7 +749,7 @@ export default function TaskDetailModal({
                       <input
                         type="datetime-local"
                         value={form.start_date}
-                        disabled={!canManage}
+                        disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, start_date: e.target.value } : f))}
                         className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       />
@@ -741,7 +759,7 @@ export default function TaskDetailModal({
                       <input
                         type="datetime-local"
                         value={form.due_date}
-                        disabled={!canManage}
+                        disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, due_date: e.target.value } : f))}
                         className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       />
@@ -754,7 +772,7 @@ export default function TaskDetailModal({
                         step="0.25"
                         placeholder="e.g., 8"
                         value={form.estimated_hours}
-                        disabled={!canManage}
+                        disabled={!canEditFields}
                         onChange={(e) => setForm((f) => (f ? { ...f, estimated_hours: e.target.value } : f))}
                         className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       />
