@@ -971,6 +971,7 @@ function FieldInput({
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder}
           rows={3}
           className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
         />
@@ -1002,6 +1003,7 @@ function FieldInput({
           value={value}
           disabled={disabled}
           onChange={(e) => onChange(e.target.value)}
+          placeholder={field.placeholder}
           className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
         />
       )}

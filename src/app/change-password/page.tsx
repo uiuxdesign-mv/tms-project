@@ -69,7 +69,8 @@ export default function ChangePasswordPage() {
               required
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
+              placeholder="Masukkan password sementara Anda"
+              className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
             />
             {fieldErrors.currentPassword && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.currentPassword}</p>
@@ -82,7 +83,8 @@ export default function ChangePasswordPage() {
               required
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
+              placeholder="Minimal 8 karakter"
+              className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
             />
             {fieldErrors.newPassword && <p className="mt-1 text-xs text-red-600">{fieldErrors.newPassword}</p>}
           </div>
@@ -93,7 +95,8 @@ export default function ChangePasswordPage() {
               required
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
+              placeholder="Ulangi password baru"
+              className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
             />
             {fieldErrors.confirmPassword && (
               <p className="mt-1 text-xs text-red-600">{fieldErrors.confirmPassword}</p>

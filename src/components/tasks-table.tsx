@@ -447,6 +447,7 @@ export default function TasksTable({
                 <input
                   value={form.title}
                   onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
+                  placeholder="Contoh: Perbaiki bug login di halaman utama"
                   className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                 />
                 {fieldErrors.title && <p className="mt-1 text-xs text-red-600">{fieldErrors.title}</p>}
@@ -457,6 +458,7 @@ export default function TasksTable({
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                  placeholder="Jelaskan detail tugas ini, langkah pengerjaan, atau referensi yang dibutuhkan..."
                   rows={3}
                   className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                 />

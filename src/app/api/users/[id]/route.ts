@@ -91,6 +91,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   // Foto (Fase 11) — kalau Edit User menyertakan foto baru, upload dulu SEBELUM updateRow, lalu
   // hapus foto lama dari Drive (best-effort, tidak menggagalkan alur utama kalau gagal).
+  // Fase 17: atau kalau user memilih "Hapus Foto" (remove_photo), cukup hapus foto lama dari Drive
+  // dan kosongkan photo_url — tanpa foto baru menggantikannya.
   if (photoFile) {
     const uploadResult = await uploadUserPhoto(photoFile.buffer, photoFile.originalName);
     if (!uploadResult.ok) {
@@ -98,6 +100,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     }
     patch.photo_url = uploadResult.driveFileId;
     if (existing.photo_url) await deleteUserPhoto(existing.photo_url).catch(() => undefined);
+  } else if (String(body.remove_photo ?? '') === '1' || body.remove_photo === 'true') {
+    if (existing.photo_url) await deleteUserPhoto(existing.photo_url).catch(() => undefined);
+    patch.photo_url = '';
   }
 
   if (body.password) {

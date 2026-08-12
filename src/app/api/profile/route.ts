@@ -4,8 +4,31 @@ import * as SheetTable from '@/lib/google/sheet-table';
 import { findUserByEmail, omitPasswordHash } from '@/lib/models/users';
 import { createSessionToken, SESSION_COOKIE_NAME } from '@/lib/auth/session';
 import { logAction } from '@/lib/models/audit-log';
+import { uploadUserPhoto, deleteUserPhoto, extractPhotoFile } from '@/lib/models/user-photo';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Fase 17 (permintaan user): self-service Profile sekarang juga bisa upload/ganti/hapus foto
+ * profil sendiri (sebelumnya sengaja dikecualikan — lihat catatan lama di ProfileView). Body bisa
+ * JSON biasa (tanpa perubahan foto) atau multipart/form-data (menyertakan foto baru, atau flag
+ * remove_photo) — sama polanya dengan /api/users & /api/users/[id].
+ */
+async function parseRequestBody(req: NextRequest): Promise<{ body: Record<string, unknown>; photoFile: { buffer: Buffer; originalName: string } | null }> {
+  const contentType = req.headers.get('content-type') || '';
+  if (contentType.includes('multipart/form-data')) {
+    const form = await req.formData();
+    const body: Record<string, unknown> = {};
+    for (const [key, value] of form.entries()) {
+      if (key === 'photo') continue;
+      body[key] = value;
+    }
+    const photoFile = await extractPhotoFile(form);
+    return { body, photoFile };
+  }
+  const body = (await req.json().catch(() => null)) || {};
+  return { body, photoFile: null };
+}
 
 /**
  * Self-service Profile (Fase 8) — beda dari `/api/users/[id]` (admin-only, Fase 7 dikunci
@@ -28,7 +51,7 @@ export async function PATCH(req: NextRequest) {
   if ('error' in guard) return guard.error;
   const { session } = guard;
 
-  const body = await req.json().catch(() => null);
+  const { body, photoFile } = await parseRequestBody(req);
   if (!body) return NextResponse.json({ error: 'Request tidak valid.' }, { status: 400 });
 
   const existing = await SheetTable.findById('users', session.userId);
@@ -52,7 +75,24 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Validasi gagal.', fieldErrors: errors }, { status: 422 });
   }
 
-  const updated = await SheetTable.updateRow('users', session.userId, { name, email, phone, department });
+  const patch: Record<string, string> = { name, email, phone, department };
+
+  // Foto (Fase 17) — upload foto baru (sudah di-crop di client) SEBELUM updateRow, lalu hapus foto
+  // lama dari Drive (best-effort). Kalau bukan foto baru tapi flag remove_photo dikirim, cukup
+  // hapus foto lama & kosongkan photo_url.
+  if (photoFile) {
+    const uploadResult = await uploadUserPhoto(photoFile.buffer, photoFile.originalName);
+    if (!uploadResult.ok) {
+      return NextResponse.json({ error: 'Validasi gagal.', fieldErrors: { photo: uploadResult.error } }, { status: 422 });
+    }
+    patch.photo_url = uploadResult.driveFileId;
+    if (existing.photo_url) await deleteUserPhoto(existing.photo_url).catch(() => undefined);
+  } else if (String(body.remove_photo ?? '') === '1' || body.remove_photo === 'true') {
+    if (existing.photo_url) await deleteUserPhoto(existing.photo_url).catch(() => undefined);
+    patch.photo_url = '';
+  }
+
+  const updated = await SheetTable.updateRow('users', session.userId, patch);
 
   await logAction({
     actorUserId: session.userId,

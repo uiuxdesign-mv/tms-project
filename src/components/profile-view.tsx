@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { apiFetch } from '@/lib/csrf-client';
+import AvatarEditor from '@/components/avatar-editor';
 
 type ProfileData = {
   id: string;
@@ -11,13 +12,16 @@ type ProfileData = {
   phone: string;
   department: string;
   status: string;
+  photo_url?: string;
 };
 
 /**
  * Self-service Profile (Fase 8) — user mengubah nama/email/telp/departemen sendiri (tanpa perlu
- * admin), plus ganti password sendiri dengan verifikasi password lama. TIDAK termasuk upload foto
- * profil — sengaja dikecualikan (alasan arsitektural: Google Sheets/serverless tanpa persistent
- * blob storage, dicatat di AUDIT-KOMPARASI-OLD-vs-NEW.md sebagai gap yang sah, bukan oversight).
+ * admin), plus ganti password sendiri dengan verifikasi password lama.
+ * Fase 17 (permintaan user): upload/ganti/hapus foto profil sendiri sekarang JUGA tersedia di
+ * sini, dengan penyesuaian posisi & crop (komponen sama dengan Master User Add/Edit — lihat
+ * AvatarEditor) — sebelumnya sengaja dikecualikan, sekarang sudah didukung lewat proxy foto yang
+ * sama (`/api/users/[id]/photo`, Google Drive) yang dipakai Master User.
  * Forgot/Reset Password lewat email JUGA sengaja tidak dibangun di fase ini (butuh keputusan
  * penyedia layanan email dari pemilik produk) — ganti password di sini tetap mewajibkan tahu
  * password lama, sama seperti aplikasi lama.
@@ -32,6 +36,9 @@ export default function ProfileView() {
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -55,6 +62,9 @@ export default function ProfileView() {
         phone: json.data.phone || '',
         department: json.data.department || '',
       });
+      setPhotoFile(null);
+      setPhotoPreview(json.data.photo_url ? `/api/users/${json.data.id}/photo` : null);
+      setRemovePhoto(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal memuat profil.');
     } finally {
@@ -66,17 +76,32 @@ export default function ProfileView() {
     load();
   }, [load]);
 
+  function handlePhotoReady(file: File, previewUrl: string) {
+    setPhotoFile(file);
+    setPhotoPreview(previewUrl);
+    setRemovePhoto(false);
+  }
+
+  function handlePhotoRemove() {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setRemovePhoto(true);
+  }
+
   async function handleSaveProfile(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
     setFieldErrors({});
     setSavedMsg(null);
     try {
-      const res = await apiFetch('/api/profile', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
+      // Fase 17: dikirim sebagai FormData (bukan JSON) supaya foto profil (kalau dipilih/di-crop)
+      // ikut terkirim dalam satu request yang sama, konsisten dengan pola Add/Edit User.
+      const formData = new FormData();
+      Object.entries(form).forEach(([key, value]) => formData.append(key, value));
+      if (photoFile) formData.append('photo', photoFile);
+      else if (removePhoto) formData.append('remove_photo', '1');
+
+      const res = await apiFetch('/api/profile', { method: 'PATCH', body: formData });
       const json = await res.json();
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
@@ -84,6 +109,9 @@ export default function ProfileView() {
         return;
       }
       setSavedMsg('Profil berhasil disimpan.');
+      setPhotoFile(null);
+      setRemovePhoto(false);
+      setPhotoPreview(json.data.photo_url ? `/api/users/${json.data.id}/photo` : null);
       router.refresh();
     } catch {
       setError('Terjadi kesalahan jaringan.');
@@ -145,10 +173,16 @@ export default function ProfileView() {
         </div>
         <div className="p-5">
           <form onSubmit={handleSaveProfile} className="space-y-4">
-            <div className="flex items-center gap-4">
-              <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xl font-medium text-indigo-700">
-                {initial}
-              </span>
+            <div className="flex flex-wrap items-center gap-4">
+              <AvatarEditor
+                label={null}
+                previewUrl={photoPreview}
+                fallbackInitial={initial}
+                onFileReady={handlePhotoReady}
+                onRemove={handlePhotoRemove}
+                canRemove={!!photoPreview}
+                error={fieldErrors.photo}
+              />
               <div className="text-sm text-gray-500">
                 <p className="font-medium text-gray-900">{profile?.name}</p>
                 <p>{profile?.email}</p>
@@ -160,6 +194,7 @@ export default function ProfileView() {
               <input
                 value={form.name}
                 onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                placeholder="Contoh: Budi Santoso"
                 className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
               />
               {fieldErrors.name && <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>}
@@ -170,6 +205,7 @@ export default function ProfileView() {
                 type="email"
                 value={form.email}
                 onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                placeholder="nama@perusahaan.com"
                 className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
               />
               {fieldErrors.email && <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>}
@@ -180,6 +216,7 @@ export default function ProfileView() {
                 <input
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                  placeholder="Contoh: 081234567890"
                   className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                 />
               </div>
@@ -188,6 +225,7 @@ export default function ProfileView() {
                 <input
                   value={form.department}
                   onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
+                  placeholder="Contoh: Marketing"
                   className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                 />
               </div>
@@ -222,6 +260,7 @@ export default function ProfileView() {
                 type="password"
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
+                placeholder="Masukkan password Anda saat ini"
                 className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
               />
               {pwErrors.currentPassword && <p className="mt-1 text-xs text-red-600">{pwErrors.currentPassword}</p>}
@@ -233,6 +272,7 @@ export default function ProfileView() {
                   type="password"
                   value={newPassword}
                   onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Minimal 8 karakter"
                   className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                 />
                 {pwErrors.newPassword && <p className="mt-1 text-xs text-red-600">{pwErrors.newPassword}</p>}
@@ -243,6 +283,7 @@ export default function ProfileView() {
                   type="password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Ulangi password baru"
                   className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
                 />
                 {pwErrors.confirmPassword && <p className="mt-1 text-xs text-red-600">{pwErrors.confirmPassword}</p>}

@@ -182,8 +182,9 @@ export default function TaskComments({
                       <textarea
                         value={editText}
                         onChange={(e) => setEditText(e.target.value)}
+                        placeholder="Tulis komentar..."
                         rows={2}
-                        className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors"
+                        className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                       />
                       <div className="flex items-center gap-2">
                         <button

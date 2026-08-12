@@ -482,7 +482,8 @@ export default function TaskDetailModal({
                       value={form.title}
                       disabled={!canManage}
                       onChange={(e) => setForm((f) => (f ? { ...f, title: e.target.value } : f))}
-                      className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                      placeholder="Contoh: Perbaiki bug login di halaman utama"
+                      className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                     />
                     {fieldErrors.title && <p className="mt-1 text-xs text-red-600">{fieldErrors.title}</p>}
                   </div>
@@ -493,8 +494,9 @@ export default function TaskDetailModal({
                       value={form.description}
                       disabled={!canManage}
                       onChange={(e) => setForm((f) => (f ? { ...f, description: e.target.value } : f))}
+                      placeholder="Jelaskan detail tugas ini, langkah pengerjaan, atau referensi yang dibutuhkan..."
                       rows={3}
-                      className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                      className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                     />
                   </div>
 

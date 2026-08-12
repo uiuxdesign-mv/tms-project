@@ -48,6 +48,13 @@ export type FieldConfig = {
   displayAs?: 'radio' | 'checkbox' | 'select';
   /** Label custom untuk displayAs:'select' pada type 'boolean' — [label utk "Ya", label utk "Tidak"]. */
   selectLabels?: [string, string];
+  /**
+   * Teks contoh yang tampil samar di dalam field kosong (Fase 17, permintaan user: "Untuk Semua
+   * field input, saya ingin terdapat placeholder contoh data yang harus diinputkan"). Dipakai untuk
+   * type 'text' | 'email' | 'textarea' | 'number' | 'date' — bukan instruksi/label pengganti,
+   * murni contoh nilai yang valid supaya user tahu format yang diharapkan.
+   */
+  placeholder?: string;
 };
 
 export type EntityConfig = {
@@ -90,8 +97,14 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
     pageTitle: 'Master Role',
     subtitleTemplate: '{count} roles total',
     fields: [
-      { key: 'role_name', label: 'Nama Role', type: 'text', required: true, unique: true },
-      { key: 'description', label: 'Deskripsi', type: 'textarea', showInTable: false },
+      { key: 'role_name', label: 'Nama Role', type: 'text', required: true, unique: true, placeholder: 'Contoh: Project Manager' },
+      {
+        key: 'description',
+        label: 'Deskripsi',
+        type: 'textarea',
+        showInTable: false,
+        placeholder: 'Contoh: Mengelola proyek, menugaskan task, dan memantau progres tim.',
+      },
       STATUS_FIELD,
       // role_key tetap ada di sheet & dipakai luas sebagai bypass permission admin (role_key ===
       // 'admin'), tapi TIDAK lagi ditampilkan sebagai input di form (Fase 12, sesuai video) — nilai
@@ -106,7 +119,7 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
     pageTitle: 'Client',
     subtitleTemplate: '{count} total records',
     fields: [
-      { key: 'client_name', label: 'Nama Klien', type: 'text', required: true, unique: true },
+      { key: 'client_name', label: 'Nama Klien', type: 'text', required: true, unique: true, placeholder: 'Contoh: PT Maju Bersama' },
       STATUS_FIELD,
     ],
   },
@@ -118,7 +131,7 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
     pageTitle: 'Project',
     subtitleTemplate: '{count} total records',
     fields: [
-      { key: 'project_name', label: 'Nama Proyek', type: 'text', required: true, unique: true },
+      { key: 'project_name', label: 'Nama Proyek', type: 'text', required: true, unique: true, placeholder: 'Contoh: Website Redesign 2026' },
       STATUS_FIELD,
     ],
   },
@@ -130,8 +143,8 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
     pageTitle: 'Priority',
     subtitleTemplate: '{count} total records',
     fields: [
-      { key: 'priority_name', label: 'Nama Prioritas', type: 'text', required: true, unique: true },
-      { key: 'level', label: 'Urutan (angka)', type: 'number', showInTable: false },
+      { key: 'priority_name', label: 'Nama Prioritas', type: 'text', required: true, unique: true, placeholder: 'Contoh: Urgent' },
+      { key: 'level', label: 'Urutan (angka)', type: 'number', showInTable: false, placeholder: 'Contoh: 1' },
       {
         key: 'color_code',
         label: 'Kode Warna',
@@ -152,7 +165,7 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
     pageTitle: 'Task Type',
     subtitleTemplate: '{count} total records',
     fields: [
-      { key: 'type_name', label: 'Nama Tipe Tugas', type: 'text', required: true, unique: true },
+      { key: 'type_name', label: 'Nama Tipe Tugas', type: 'text', required: true, unique: true, placeholder: 'Contoh: Bug Fix' },
       {
         key: 'requires_related_task',
         label: 'Requires Related Task',
@@ -172,7 +185,7 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
     pageTitle: 'Employment Type',
     subtitleTemplate: '{count} total records',
     fields: [
-      { key: 'type_name', label: 'Nama Tipe Kepegawaian', type: 'text', required: true, unique: true },
+      { key: 'type_name', label: 'Nama Tipe Kepegawaian', type: 'text', required: true, unique: true, placeholder: 'Contoh: Full-time' },
       {
         key: 'can_assign_to_others',
         label: 'May Assign Tasks to Other Users',
@@ -192,7 +205,7 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
     pageTitle: 'Status',
     subtitleTemplate: '{count} total records',
     fields: [
-      { key: 'status_name', label: 'Nama Status', type: 'text', required: true, unique: true },
+      { key: 'status_name', label: 'Nama Status', type: 'text', required: true, unique: true, placeholder: 'Contoh: In Progress' },
       {
         key: 'sort_order',
         label: 'Urutan',
@@ -216,6 +229,7 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
         label: 'Urutan Workflow',
         type: 'number',
         showInTable: false,
+        placeholder: 'Contoh: 1 (kosongkan utk status seperti Cancelled)',
         helperText:
           'Position in the linear workflow (1, 2, 3, ...) used to prevent level skipping (e.g. To Do → Complete). Leave blank for statuses like Cancelled that a task can enter/exit at any time.',
       },

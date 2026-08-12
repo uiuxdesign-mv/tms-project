@@ -8,6 +8,7 @@ import { useConfirm } from '@/components/confirm-provider';
 import { useTableControls } from '@/lib/hooks/use-table-controls';
 import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/table-controls';
 import { Badge, StatusBadge } from '@/components/badge';
+import AvatarEditor from '@/components/avatar-editor';
 
 type UserRow = {
   id: string;
@@ -77,8 +78,8 @@ export default function UsersTable({
   const [saving, setSaving] = useState(false);
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [removePhoto, setRemovePhoto] = useState(false);
   const [viewingRow, setViewingRow] = useState<UserRow | null>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -123,6 +124,7 @@ export default function UsersTable({
     setFieldErrors({});
     setPhotoFile(null);
     setPhotoPreview(null);
+    setRemovePhoto(false);
     setModalOpen(true);
   }
 
@@ -142,6 +144,7 @@ export default function UsersTable({
     setFieldErrors({});
     setPhotoFile(null);
     setPhotoPreview(row.photo_url ? `/api/users/${row.id}/photo` : null);
+    setRemovePhoto(false);
     setModalOpen(true);
   }
 
@@ -149,9 +152,16 @@ export default function UsersTable({
     setViewingRow(row);
   }
 
-  function handlePhotoChange(file: File | null) {
+  function handlePhotoReady(file: File, previewUrl: string) {
     setPhotoFile(file);
-    if (file) setPhotoPreview(URL.createObjectURL(file));
+    setPhotoPreview(previewUrl);
+    setRemovePhoto(false);
+  }
+
+  function handlePhotoRemove() {
+    setPhotoFile(null);
+    setPhotoPreview(null);
+    setRemovePhoto(true);
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -170,6 +180,7 @@ export default function UsersTable({
         formData.append(key, value);
       });
       if (photoFile) formData.append('photo', photoFile);
+      else if (removePhoto && editingId) formData.append('remove_photo', '1');
 
       const res = await apiFetch(url, { method, body: formData });
       const json = await res.json();
@@ -478,6 +489,7 @@ export default function UsersTable({
                 <input
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                  placeholder="e.g. Budi Santoso"
                   className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                 />
                 {fieldErrors.name && <p className="mt-1 text-xs text-red-600">{fieldErrors.name}</p>}
@@ -489,6 +501,7 @@ export default function UsersTable({
                   type="email"
                   value={form.email}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
+                  placeholder="name@company.com"
                   className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                 />
                 {fieldErrors.email && <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>}
@@ -499,6 +512,7 @@ export default function UsersTable({
                 <input
                   value={form.phone}
                   onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                  placeholder="e.g. 081234567890"
                   className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                 />
               </div>
@@ -508,36 +522,19 @@ export default function UsersTable({
                 <input
                   value={form.department}
                   onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
+                  placeholder="e.g. Marketing"
                   className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                 />
               </div>
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Photo</label>
-                <div className="flex items-center gap-3">
-                  {photoPreview ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={photoPreview} alt="Preview" className="h-14 w-14 shrink-0 rounded-full object-cover" />
-                  ) : (
-                    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-400">
-                      <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-                      </svg>
-                    </span>
-                  )}
-                  <div>
-                    <input
-                      ref={photoInputRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif"
-                      onChange={(e) => handlePhotoChange(e.target.files?.[0] || null)}
-                      className="block text-sm text-gray-700 file:mr-3 file:rounded-lg file:border file:border-gray-300 file:bg-gray-50 file:px-3 file:py-1.5 file:text-sm file:text-gray-700 hover:file:bg-gray-100"
-                    />
-                    <p className="mt-1 text-xs text-gray-400">JPG, PNG, or WEBP. Max 2MB.</p>
-                  </div>
-                </div>
-                {fieldErrors.photo && <p className="mt-1 text-xs text-red-600">{fieldErrors.photo}</p>}
-              </div>
+              <AvatarEditor
+                label="Photo"
+                previewUrl={photoPreview}
+                onFileReady={handlePhotoReady}
+                onRemove={handlePhotoRemove}
+                canRemove={!!photoPreview}
+                error={fieldErrors.photo}
+              />
 
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -632,6 +629,7 @@ export default function UsersTable({
                   type="password"
                   value={form.password}
                   onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                  placeholder={editingId ? 'Kosongkan jika tidak diubah' : 'Minimal 8 karakter'}
                   className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                 />
                 {fieldErrors.password && <p className="mt-1 text-xs text-red-600">{fieldErrors.password}</p>}

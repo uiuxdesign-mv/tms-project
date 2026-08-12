@@ -356,7 +356,8 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
                 type="number"
                 value={draftValue}
                 onChange={(e) => setDraftValue(e.target.value)}
-                className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
+                placeholder="Contoh: 2026"
+                className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
               />
             ) : (
               <input
