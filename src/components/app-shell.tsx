@@ -33,7 +33,7 @@ function resolveLabel(t: (key: TranslationKey) => string, item: { label: string;
 }
 
 export type AppShellProps = {
-  session: { name: string; email: string; roleName: string };
+  session: { name: string; email: string; roleName: string; photoUrl?: string };
   navGroups: ShellNavGroup[];
   children: React.ReactNode;
 };
@@ -326,9 +326,14 @@ export default function AppShell({ session, navGroups, children }: AppShellProps
                 className="flex items-center gap-3 hover:opacity-80"
                 title={t('nav_profile')}
               >
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-sm font-medium text-indigo-700">
-                  {session.name.slice(0, 1).toUpperCase()}
-                </span>
+                {session.photoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={session.photoUrl} alt={session.name} className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                ) : (
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-100 text-sm font-medium text-indigo-700">
+                    {session.name.slice(0, 1).toUpperCase()}
+                  </span>
+                )}
                 <span className="hidden text-sm text-gray-900 sm:inline">{session.name}</span>
                 <svg
                   className={`hidden h-4 w-4 text-gray-400 transition-transform sm:inline ${profileOpen ? 'rotate-180' : ''}`}

@@ -505,13 +505,14 @@ export default function TaskDetailModal({
                         className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
                       >
                         <option value="">-- Tidak ada --</option>
-                        {opts.projects
-                          .filter((p) => !form.client_id || p.clientId === form.client_id)
-                          .map((p) => (
-                            <option key={p.value} value={p.value}>
-                              {p.label}
-                            </option>
-                          ))}
+                        {/* Fase 12: Project & Client independen (sesuai video) — Project master
+                            data tidak lagi punya field Client, jadi daftar Project TIDAK difilter
+                            oleh Client yang dipilih di sini. */}
+                        {opts.projects.map((p) => (
+                          <option key={p.value} value={p.value}>
+                            {p.label}
+                          </option>
+                        ))}
                       </select>
                     </div>
                     <div>

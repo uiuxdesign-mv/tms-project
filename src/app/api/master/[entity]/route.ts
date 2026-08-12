@@ -5,6 +5,7 @@ import { validateEntityPayload } from '@/lib/master-data/validate';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { logAction } from '@/lib/models/audit-log';
 import { enforceSingleDefaultStatus, enforceSingleReviewStatus } from '@/lib/master-data/status-hooks';
+import { generateUniqueRoleKey } from '@/lib/models/roles';
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ entity: string }> }) {
   const { entity } = await ctx.params;
@@ -38,7 +39,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ entity: st
     return NextResponse.json({ error: 'Validasi gagal.', fieldErrors: result.errors }, { status: 422 });
   }
 
-  const row = await SheetTable.insertRow(config.key, result.data);
+  // Role: role_key tidak lagi diinput manual di form (Fase 12, sesuai video) — generate otomatis
+  // dari role_name di sini, sebelum insert.
+  let insertData = result.data;
+  if (config.key === 'roles') {
+    const roleKey = await generateUniqueRoleKey(result.data.role_name);
+    insertData = { ...result.data, role_key: roleKey };
+  }
+
+  const row = await SheetTable.insertRow(config.key, insertData);
 
   // Status: pastikan hanya tepat satu baris is_default="Ya" (Fase 7) — meniru
   // Status::clearDefaultFlag() di aplikasi lama.

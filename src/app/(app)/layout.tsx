@@ -2,7 +2,8 @@ import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/get-session';
 import { getVisibleMenuKeys } from '@/lib/menu-access/permissions';
 import { MASTER_MENU_KEYS } from '@/lib/menu-access/config';
-import AppShell, { type ShellNavGroup } from '@/components/app-shell';
+import AppShell, { type ShellNavGroup, type ShellNavLink } from '@/components/app-shell';
+import * as SheetTable from '@/lib/google/sheet-table';
 
 /**
  * Layout persisten (Fase 10) untuk semua halaman setelah login — sidebar + topbar dihitung SEKALI
@@ -40,38 +41,51 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
     navGroups.push({ key: 'report', label: 'Report', labelKey: 'nav_report', href: '/reports' });
   }
 
-  if (visibleMasterMenus.length > 0) {
+  // Fase 12: sesuai video, sidebar cuma punya SATU grup "Master Data" yang menampung Master User,
+  // ketujuh entity master data generik, dan Menu Access sekaligus — sebelumnya Master User &
+  // Menu Access ada di grup terpisah "Administrasi" yang tidak muncul di video sama sekali.
+  const masterDataLinks: ShellNavLink[] = [];
+  if (isAdmin) {
+    masterDataLinks.push({ key: 'master-users', label: 'Users', labelKey: 'nav_master_users', href: '/master/users' });
+  }
+  masterDataLinks.push(
+    // Nama entity (Clients, Projects, dst.) dibangun dinamis dari config Menu Access dan TIDAK
+    // punya translation key — di luar cakupan i18n Fase 10 (lihat catatan di translations.ts).
+    ...visibleMasterMenus.map((m) => ({
+      key: m.key,
+      label: m.label.replace(/^Master /, ''),
+      href: m.href,
+    }))
+  );
+  if (isAdmin) {
+    masterDataLinks.push({ key: 'menu-access', label: 'Menu Access', labelKey: 'nav_menu_access', href: '/master/menu-access' });
+  }
+
+  if (masterDataLinks.length > 0) {
     navGroups.push({
       key: 'master-data',
       label: 'Master Data',
       labelKey: 'nav_master_data',
-      // Nama entity (Clients, Projects, dst.) dibangun dinamis dari config Menu Access dan TIDAK
-      // punya translation key — di luar cakupan i18n Fase 10 (lihat catatan di translations.ts).
-      links: visibleMasterMenus.map((m) => ({
-        key: m.key,
-        label: m.label.replace(/^Master /, ''),
-        href: m.href,
-      })),
+      links: masterDataLinks,
     });
   }
 
-  if (isAdmin) {
-    navGroups.push({
-      key: 'admin',
-      label: 'Administrasi',
-      labelKey: 'nav_admin',
-      links: [
-        { key: 'master-users', label: 'Master User', labelKey: 'nav_master_users', href: '/master/users' },
-        { key: 'menu-access', label: 'Menu Access', labelKey: 'nav_menu_access', href: '/master/menu-access' },
-        { key: 'audit-log', label: 'Audit Log', labelKey: 'nav_audit_log', href: '/audit-log' },
-      ],
-    });
-  }
+  // Audit Log (Fase 12): tidak ada di sidebar video sama sekali — disembunyikan dari navigasi,
+  // tapi rute /audit-log tetap bisa diakses langsung lewat URL untuk admin (tidak dihapus).
+  // Profil Saya juga tidak ada di sidebar video — sudah bisa diakses lewat dropdown user di
+  // topbar (lihat app-shell.tsx), jadi tidak perlu didobel di sini.
 
-  navGroups.push({ key: 'profile', label: 'Profil Saya', labelKey: 'nav_profile', href: '/profile' });
+  // Foto profil (Fase 11) — di-fetch sekali di sini (bukan dari JWT session, yang tidak menyimpan
+  // photo_url) supaya avatar di topbar langsung terlihat tanpa perlu logout/login setelah admin
+  // mengganti foto lewat Master User atau user sendiri lewat Profile.
+  const userRow = await SheetTable.findById('users', session.userId);
+  const photoUrl = userRow?.photo_url ? `/api/users/${session.userId}/photo` : undefined;
 
   return (
-    <AppShell session={{ name: session.name, email: session.email, roleName: session.roleName }} navGroups={navGroups}>
+    <AppShell
+      session={{ name: session.name, email: session.email, roleName: session.roleName, photoUrl }}
+      navGroups={navGroups}
+    >
       {children}
     </AppShell>
   );

@@ -5,6 +5,7 @@ import { hashPassword, findUserByEmail, omitPasswordHash, generateTemporaryPassw
 import { findRoleById } from '@/lib/models/roles';
 import { getCanAssignMap } from '@/lib/models/employment-types';
 import { logAction } from '@/lib/models/audit-log';
+import { uploadUserPhoto, extractPhotoFile } from '@/lib/models/user-photo';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -16,11 +17,28 @@ export async function GET() {
   return NextResponse.json({ data: rows.map(omitPasswordHash) });
 }
 
+/** Body request bisa JSON biasa, atau multipart/form-data kalau menyertakan foto (Fase 11, Add User). */
+async function parseRequestBody(req: NextRequest): Promise<{ body: Record<string, unknown>; photoFile: { buffer: Buffer; originalName: string } | null }> {
+  const contentType = req.headers.get('content-type') || '';
+  if (contentType.includes('multipart/form-data')) {
+    const form = await req.formData();
+    const body: Record<string, unknown> = {};
+    for (const [key, value] of form.entries()) {
+      if (key === 'photo') continue;
+      body[key] = value;
+    }
+    const photoFile = await extractPhotoFile(form);
+    return { body, photoFile };
+  }
+  const body = (await req.json().catch(() => null)) || {};
+  return { body, photoFile: null };
+}
+
 export async function POST(req: NextRequest) {
   const guard = await requireAdmin();
   if ('error' in guard) return guard.error;
 
-  const body = await req.json().catch(() => null);
+  const { body, photoFile } = await parseRequestBody(req);
   if (!body) return NextResponse.json({ error: 'Request tidak valid.' }, { status: 400 });
 
   // Import CSV (Fase 7) minta password acak dibuatkan server, bukan dikirim dari CSV — supaya
@@ -75,6 +93,17 @@ export async function POST(req: NextRequest) {
 
   const passwordHash = await hashPassword(password);
 
+  // Foto (Fase 11) — upload ke Drive dulu SEBELUM insertRow, supaya kalau upload gagal (mis. jenis
+  // file tidak didukung / kebesaran), baris user belum sempat dibuat sama sekali.
+  let photoDriveFileId = '';
+  if (photoFile) {
+    const uploadResult = await uploadUserPhoto(photoFile.buffer, photoFile.originalName);
+    if (!uploadResult.ok) {
+      return NextResponse.json({ error: 'Validasi gagal.', fieldErrors: { photo: uploadResult.error } }, { status: 422 });
+    }
+    photoDriveFileId = uploadResult.driveFileId;
+  }
+
   const row = await SheetTable.insertRow('users', {
     name,
     email,
@@ -84,6 +113,9 @@ export async function POST(req: NextRequest) {
     can_assign_others: canAssignOthers,
     status,
     must_change_password: autoGeneratePassword ? 'Ya' : 'Tidak',
+    phone: String(body.phone ?? '').trim(),
+    department: String(body.department ?? '').trim(),
+    photo_url: photoDriveFileId,
   });
 
   await logAction({

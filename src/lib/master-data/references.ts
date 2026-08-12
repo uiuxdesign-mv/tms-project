@@ -16,7 +16,9 @@ import * as SheetTable from '@/lib/google/sheet-table';
  */
 const REVERSE_REFERENCES: Partial<Record<SheetKey, { sheet: SheetKey; field: string; label: string }[]>> = {
   clients: [
-    { sheet: 'projects', field: 'client_id', label: 'Project' },
+    // Fase 12: Project master data tidak lagi punya field Client (sesuai video) — Project
+    // tidak lagi memblokir penghapusan Client, hanya Task (lewat client_id-nya sendiri) yang
+    // masih memblokir.
     { sheet: 'tasks', field: 'client_id', label: 'Task' },
   ],
   projects: [{ sheet: 'tasks', field: 'project_id', label: 'Task' }],

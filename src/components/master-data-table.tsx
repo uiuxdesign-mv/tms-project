@@ -34,6 +34,7 @@ export default function MasterDataTable({
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingRow, setEditingRow] = useState<Row | null>(null);
+  const [viewingRow, setViewingRow] = useState<Row | null>(null);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -74,7 +75,13 @@ export default function MasterDataTable({
     setEditingRow(null);
     const defaults: Record<string, string> = {};
     config.fields.forEach((f) => {
-      defaults[f.key] = f.type === 'boolean' ? 'Tidak' : '';
+      if (f.type !== 'boolean') {
+        defaults[f.key] = '';
+        return;
+      }
+      // Boolean displayAs:'select' (mis. Status Active/Inactive) default ke "Ya" (opsi pertama)
+      // supaya data baru langsung usable; checkbox/radio biasa default ke "Tidak" (unchecked).
+      defaults[f.key] = f.displayAs === 'select' ? 'Ya' : 'Tidak';
     });
     setFormValues(defaults);
     setFieldErrors({});
@@ -90,6 +97,10 @@ export default function MasterDataTable({
     setFormValues(values);
     setFieldErrors({});
     setModalOpen(true);
+  }
+
+  function openDetailModal(row: Row) {
+    setViewingRow(row);
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -122,8 +133,8 @@ export default function MasterDataTable({
   async function handleDelete(row: Row) {
     const title = row[config.titleField] || row.id;
     const ok = await confirmDialog({
-      message: `Hapus "${title}"? Data akan ditandai terhapus (soft-delete).`,
-      confirmLabel: 'Hapus',
+      message: `Delete ${config.label.toLowerCase()} "${title}"?`,
+      confirmLabel: 'Delete',
       danger: true,
     });
     if (!ok) return;
@@ -172,11 +183,6 @@ export default function MasterDataTable({
     const header = config.fields.map((f) => f.label);
     const lines = [header, ...rows.map((row) => config.fields.map((f) => csvCellValue(f, row[f.key], options[f.key])))];
     downloadCsv(`master-${entityKey}-${new Date().toISOString().slice(0, 10)}.csv`, buildCsv(lines));
-  }
-
-  function handleDownloadTemplate() {
-    const header = config.fields.map((f) => f.key);
-    downloadCsv(`template-master-${entityKey}.csv`, buildCsv([header]));
   }
 
   function openImportPicker() {
@@ -274,12 +280,16 @@ export default function MasterDataTable({
     .map((f) => f.key);
   const table = useTableControls(rows, { searchFields: searchFields.length > 0 ? searchFields : [config.titleField] });
 
+  const subtitle = config.subtitleTemplate.replace('{count}', String(rows.length));
+
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 p-4">
-        <h1 className="text-lg font-semibold text-gray-900">Master {config.labelPlural}</h1>
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900">{config.pageTitle}</h1>
+          <p className="text-sm text-gray-500">{subtitle}</p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
-          <TableSearchBox value={table.search} onChange={table.setSearch} placeholder={`Cari ${config.labelPlural.toLowerCase()}...`} />
           {permissions.canExport && (
             <button
               onClick={handleExportCsv}
@@ -292,17 +302,11 @@ export default function MasterDataTable({
           {permissions.canCreate && (
             <>
               <button
-                onClick={handleDownloadTemplate}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Template CSV
-              </button>
-              <button
                 onClick={openImportPicker}
                 disabled={importing}
                 className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
-                {importing ? `Mengimpor... (${importProgress.current}/${importProgress.total})` : 'Import CSV'}
+                {importing ? `Importing... (${importProgress.current}/${importProgress.total})` : 'Import CSV'}
               </button>
               <input
                 ref={fileInputRef}
@@ -319,16 +323,21 @@ export default function MasterDataTable({
                 onClick={openCreateModal}
                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
               >
-                + Tambah {config.label}
+                + Add {config.label}
               </button>
             </>
           )}
         </div>
       </div>
 
-      {error && <div className="border-b border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
+        <div className="border-b border-gray-200 p-4">
+          <TableSearchBox value={table.search} onChange={table.setSearch} placeholder={`Search ${config.labelPlural.toLowerCase()}...`} />
+        </div>
 
-      <div className="overflow-x-auto">
+        {error && <div className="border-b border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+        <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
@@ -341,7 +350,7 @@ export default function MasterDataTable({
                   onClick={() => table.toggleSort(f.key)}
                 />
               ))}
-              <th className="px-4 py-2 font-medium">Aksi</th>
+              <th className="px-4 py-2 font-medium">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
@@ -373,7 +382,7 @@ export default function MasterDataTable({
                   <tr key={row.id}>
                     {tableFields.map((f, idx) => (
                       <td key={f.key} className="px-4 py-2 text-gray-700">
-                        {f.key === 'status' ? <StatusBadge value={row[f.key]} /> : renderCellValue(f, row[f.key], options[f.key])}
+                        {renderCellForTable(f, row[f.key], options[f.key])}
                         {idx === 0 && isSystemRow && (
                           <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium uppercase text-gray-500">
                             Bawaan Sistem
@@ -382,14 +391,17 @@ export default function MasterDataTable({
                       </td>
                     ))}
                     <td className="px-4 py-2">
+                      <button onClick={() => openDetailModal(row)} className="mr-3 text-gray-600 hover:text-gray-900">
+                        Detail
+                      </button>
                       {permissions.canEdit && (
-                        <button onClick={() => openEditModal(row)} className="mr-3 text-gray-600 hover:text-gray-900">
+                        <button onClick={() => openEditModal(row)} className="mr-3 text-indigo-600 hover:text-indigo-800">
                           Edit
                         </button>
                       )}
                       {permissions.canDelete && !isSystemRow && (
                         <button onClick={() => handleDelete(row)} className="text-red-600 hover:text-red-800">
-                          Hapus
+                          Delete
                         </button>
                       )}
                       {permissions.canDelete && isSystemRow && (
@@ -397,31 +409,29 @@ export default function MasterDataTable({
                           -
                         </span>
                       )}
-                      {!permissions.canEdit && !permissions.canDelete && (
-                        <span className="text-gray-300">-</span>
-                      )}
                     </td>
                   </tr>
                 );
               })}
           </tbody>
         </table>
-      </div>
+        </div>
 
-      <PaginationBar
-        page={table.page}
-        totalPages={table.totalPages}
-        totalCount={table.totalCount}
-        pageSize={table.pageSize}
-        onPageChange={table.setPage}
-      />
+        <PaginationBar
+          page={table.page}
+          totalPages={table.totalPages}
+          totalCount={table.totalCount}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+        />
+      </div>
 
       {modalOpen && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
           <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
               <h2 className="text-lg font-semibold text-gray-900">
-                {editingRow ? `Edit ${config.label}` : `Tambah ${config.label}`}
+                {editingRow ? `Edit ${config.label}` : `Add ${config.label}`}
               </h2>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
@@ -443,17 +453,45 @@ export default function MasterDataTable({
                     onClick={() => setModalOpen(false)}
                     className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
                   >
-                    Batal
+                    Cancel
                   </button>
                   <button
                     type="submit"
                     disabled={saving}
                     className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                   >
-                    {saving ? 'Menyimpan...' : 'Simpan'}
+                    {saving ? 'Saving...' : editingRow ? 'Save Changes' : `Create ${config.label}`}
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingRow && (
+        <div className="fixed inset-0 z-10 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
+            <div className="shrink-0 border-b border-gray-200 px-5 py-4">
+              <h2 className="text-lg font-semibold text-gray-900">{config.label} Detail</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <dl className="space-y-3 text-sm">
+                {config.fields.map((f) => (
+                  <div key={f.key} className="flex justify-between gap-4">
+                    <dt className="text-gray-500">{f.label}</dt>
+                    <dd className="text-right text-gray-900">{renderCellForTable(f, viewingRow[f.key], options[f.key])}</dd>
+                  </div>
+                ))}
+              </dl>
+              <div className="mt-5 flex justify-end">
+                <button
+                  onClick={() => setViewingRow(null)}
+                  className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -554,6 +592,27 @@ export default function MasterDataTable({
   );
 }
 
+/** Dipakai baik di kolom tabel maupun modal Detail — render sesuai tipe field, termasuk badge
+ * Active/Inactive untuk boolean displayAs:'select' (mis. is_active Master Status) dan Ya/Tidak
+ * untuk checkbox biasa. */
+function renderCellForTable(field: FieldConfig, value: string, fieldOptions?: SelectOption[]) {
+  if (field.key === 'status') return <StatusBadge value={value} />;
+  if (field.type === 'boolean' && field.displayAs === 'select') {
+    const labels = field.selectLabels || ['Active', 'Inactive'];
+    return <StatusBadge value={value === 'Ya' ? labels[0] : labels[1]} />;
+  }
+  if (field.type === 'boolean') return value === 'Ya' ? 'Yes' : 'No';
+  if (field.type === 'color' && value) {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <span className="inline-block h-3.5 w-3.5 rounded-full border border-gray-200" style={{ backgroundColor: value }} />
+        {value}
+      </span>
+    );
+  }
+  return renderCellValue(field, value, fieldOptions);
+}
+
 function renderCellValue(field: FieldConfig, value: string, fieldOptions?: SelectOption[]) {
   if (field.type === 'select' && fieldOptions) {
     const match = fieldOptions.find((o) => o.value === value);
@@ -587,6 +646,27 @@ function FieldInput({
   disabled?: boolean;
   onChange: (v: string) => void;
 }) {
+  // Checkbox tunggal (Fase 12, sesuai video) — label field dipakai sebagai teks di samping
+  // checkbox, jadi TIDAK menampilkan label judul terpisah di atasnya seperti field lain.
+  if (field.type === 'boolean' && field.displayAs === 'checkbox') {
+    return (
+      <div>
+        <label className="flex items-center gap-2 text-sm text-gray-700">
+          <input
+            type="checkbox"
+            checked={value === 'Ya'}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.checked ? 'Ya' : 'Tidak')}
+            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus-ring"
+          />
+          {field.label}
+        </label>
+        {field.helperText && <p className="mt-1 text-xs text-gray-400">{field.helperText}</p>}
+        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      </div>
+    );
+  }
+
   return (
     <div>
       <label className="mb-1.5 block text-sm font-medium text-gray-700">
@@ -611,7 +691,22 @@ function FieldInput({
         </select>
       )}
 
-      {field.type === 'boolean' && (
+      {field.type === 'boolean' && field.displayAs === 'select' && (
+        <select
+          value={value === 'Ya' ? (field.selectLabels || ['Active', 'Inactive'])[0] : (field.selectLabels || ['Active', 'Inactive'])[1]}
+          disabled={disabled}
+          onChange={(e) => onChange(e.target.value === (field.selectLabels || ['Active', 'Inactive'])[0] ? 'Ya' : 'Tidak')}
+          className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
+        >
+          {(field.selectLabels || ['Active', 'Inactive']).map((label) => (
+            <option key={label} value={label}>
+              {label}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {field.type === 'boolean' && (!field.displayAs || field.displayAs === 'radio') && (
         <div className="flex gap-4">
           {['Ya', 'Tidak'].map((opt) => (
             <label key={opt} className="flex items-center gap-1.5 text-sm text-gray-700">
@@ -638,6 +733,26 @@ function FieldInput({
         />
       )}
 
+      {field.type === 'color' && (
+        <div className="flex items-center gap-2">
+          <input
+            type="color"
+            value={/^#([0-9a-fA-F]{6})$/.test(value) ? value : '#6366f1'}
+            disabled={disabled}
+            onChange={(e) => onChange(e.target.value)}
+            className="h-10 w-14 shrink-0 cursor-pointer rounded-lg border border-gray-300 bg-white p-1 disabled:cursor-not-allowed"
+          />
+          <input
+            type="text"
+            value={value}
+            disabled={disabled}
+            placeholder="#2563eb"
+            onChange={(e) => onChange(e.target.value)}
+            className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
+          />
+        </div>
+      )}
+
       {(field.type === 'text' || field.type === 'email' || field.type === 'number' || field.type === 'date') && (
         <input
           type={field.type === 'number' ? 'number' : field.type === 'date' ? 'date' : field.type === 'email' ? 'email' : 'text'}
@@ -648,6 +763,7 @@ function FieldInput({
         />
       )}
 
+      {field.helperText && <p className="mt-1 text-xs text-gray-400">{field.helperText}</p>}
       {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
     </div>
   );

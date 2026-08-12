@@ -5,15 +5,33 @@ import { hashPassword, findUserByEmail, omitPasswordHash } from '@/lib/models/us
 import { findRoleById } from '@/lib/models/roles';
 import { getCanAssignMap } from '@/lib/models/employment-types';
 import { logAction } from '@/lib/models/audit-log';
+import { uploadUserPhoto, deleteUserPhoto, extractPhotoFile } from '@/lib/models/user-photo';
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** Sama seperti di route.ts (POST) — body bisa JSON biasa atau multipart/form-data kalau ganti foto. */
+async function parseRequestBody(req: NextRequest): Promise<{ body: Record<string, unknown>; photoFile: { buffer: Buffer; originalName: string } | null }> {
+  const contentType = req.headers.get('content-type') || '';
+  if (contentType.includes('multipart/form-data')) {
+    const form = await req.formData();
+    const body: Record<string, unknown> = {};
+    for (const [key, value] of form.entries()) {
+      if (key === 'photo') continue;
+      body[key] = value;
+    }
+    const photoFile = await extractPhotoFile(form);
+    return { body, photoFile };
+  }
+  const body = (await req.json().catch(() => null)) || {};
+  return { body, photoFile: null };
+}
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const guard = await requireAdmin();
   if ('error' in guard) return guard.error;
   const { id } = await ctx.params;
 
-  const body = await req.json().catch(() => null);
+  const { body, photoFile } = await parseRequestBody(req);
   if (!body) return NextResponse.json({ error: 'Request tidak valid.' }, { status: 400 });
 
   const existing = await SheetTable.findById('users', id);
@@ -70,6 +88,17 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     phone: String(body.phone ?? existing.phone ?? ''),
     department: String(body.department ?? existing.department ?? ''),
   };
+
+  // Foto (Fase 11) — kalau Edit User menyertakan foto baru, upload dulu SEBELUM updateRow, lalu
+  // hapus foto lama dari Drive (best-effort, tidak menggagalkan alur utama kalau gagal).
+  if (photoFile) {
+    const uploadResult = await uploadUserPhoto(photoFile.buffer, photoFile.originalName);
+    if (!uploadResult.ok) {
+      return NextResponse.json({ error: 'Validasi gagal.', fieldErrors: { photo: uploadResult.error } }, { status: 422 });
+    }
+    patch.photo_url = uploadResult.driveFileId;
+    if (existing.photo_url) await deleteUserPhoto(existing.photo_url).catch(() => undefined);
+  }
 
   if (body.password) {
     const password = String(body.password);

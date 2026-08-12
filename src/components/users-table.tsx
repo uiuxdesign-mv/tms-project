@@ -20,6 +20,7 @@ type UserRow = {
   must_change_password: string;
   phone: string;
   department: string;
+  photo_url?: string;
 };
 
 type RoleOption = { value: string; label: string; roleKey: string; active: boolean };
@@ -37,6 +38,20 @@ const emptyForm = {
   phone: '',
   department: '',
 };
+
+/** Avatar bundar — pakai foto asli (proxy lewat /api/users/[id]/photo) kalau ada, fallback huruf awal nama. */
+function UserAvatar({ userId, name, photoUrl, size = 8 }: { userId: string; name: string; photoUrl?: string; size?: 8 | 10 }) {
+  const dim = size === 10 ? 'h-10 w-10' : 'h-8 w-8';
+  if (photoUrl) {
+    // eslint-disable-next-line @next/next/no-img-element
+    return <img src={`/api/users/${userId}/photo`} alt={name} className={`${dim} shrink-0 rounded-full object-cover`} />;
+  }
+  return (
+    <span className={`flex ${dim} shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-medium text-indigo-700`}>
+      {(name || '?').slice(0, 1).toUpperCase()}
+    </span>
+  );
+}
 
 type Permissions = { canCreate: boolean; canEdit: boolean; canDelete: boolean };
 
@@ -60,6 +75,10 @@ export default function UsersTable({
   const [form, setForm] = useState({ ...emptyForm });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+  const [viewingRow, setViewingRow] = useState<UserRow | null>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
@@ -102,6 +121,8 @@ export default function UsersTable({
     setEditingId(null);
     setForm({ ...emptyForm });
     setFieldErrors({});
+    setPhotoFile(null);
+    setPhotoPreview(null);
     setModalOpen(true);
   }
 
@@ -119,7 +140,18 @@ export default function UsersTable({
       department: row.department || '',
     });
     setFieldErrors({});
+    setPhotoFile(null);
+    setPhotoPreview(row.photo_url ? `/api/users/${row.id}/photo` : null);
     setModalOpen(true);
+  }
+
+  function openDetailModal(row: UserRow) {
+    setViewingRow(row);
+  }
+
+  function handlePhotoChange(file: File | null) {
+    setPhotoFile(file);
+    if (file) setPhotoPreview(URL.createObjectURL(file));
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -129,14 +161,17 @@ export default function UsersTable({
     try {
       const url = editingId ? `/api/users/${editingId}` : '/api/users';
       const method = editingId ? 'PATCH' : 'POST';
-      const payload: Record<string, string> = { ...form };
-      if (editingId && !payload.password) delete payload.password; // biarkan password lama kalau tidak diisi
 
-      const res = await apiFetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+      // Selalu kirim sebagai FormData (Fase 11) — supaya foto ikut terkirim kalau dipilih,
+      // sekaligus tetap kompatibel untuk kasus tanpa foto (field `photo` cukup tidak disertakan).
+      const formData = new FormData();
+      Object.entries(form).forEach(([key, value]) => {
+        if (key === 'password' && editingId && !value) return; // biarkan password lama kalau tidak diisi
+        formData.append(key, value);
       });
+      if (photoFile) formData.append('photo', photoFile);
+
+      const res = await apiFetch(url, { method, body: formData });
       const json = await res.json();
       if (!res.ok) {
         if (json.fieldErrors) setFieldErrors(json.fieldErrors);
@@ -153,7 +188,7 @@ export default function UsersTable({
   }
 
   async function handleDelete(row: UserRow) {
-    const ok = await confirmDialog({ message: `Nonaktifkan user "${row.name}"?`, confirmLabel: 'Nonaktifkan', danger: true });
+    const ok = await confirmDialog({ message: `Delete user "${row.name}"?`, confirmLabel: 'Delete', danger: true });
     if (!ok) return;
     try {
       const res = await apiFetch(`/api/users/${row.id}`, { method: 'DELETE' });
@@ -195,10 +230,6 @@ export default function UsersTable({
       ]),
     ];
     downloadCsv(`master-users-${new Date().toISOString().slice(0, 10)}.csv`, buildCsv(lines));
-  }
-
-  function handleDownloadTemplate() {
-    downloadCsv('template-master-users.csv', buildCsv([['name', 'email', 'role', 'employment_type', 'status']]));
   }
 
   function openImportPicker() {
@@ -301,11 +332,13 @@ export default function UsersTable({
   }
 
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-gray-200 p-4">
-        <h1 className="text-lg font-semibold text-gray-900">Master Users</h1>
+    <div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <h1 className="text-lg font-semibold text-gray-900">Master User</h1>
+          <p className="text-sm text-gray-500">{rows.length} total users</p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
-          <TableSearchBox value={table.search} onChange={table.setSearch} placeholder="Cari nama, email, telepon..." />
           <button
             onClick={handleExportCsv}
             disabled={rows.length === 0}
@@ -316,17 +349,11 @@ export default function UsersTable({
           {permissions.canCreate && (
             <>
               <button
-                onClick={handleDownloadTemplate}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                Template CSV
-              </button>
-              <button
                 onClick={openImportPicker}
                 disabled={importing}
                 className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50 disabled:opacity-50"
               >
-                {importing ? `Mengimpor... (${importProgress.current}/${importProgress.total})` : 'Import CSV'}
+                {importing ? `Importing... (${importProgress.current}/${importProgress.total})` : 'Import CSV'}
               </button>
               <input
                 ref={fileInputRef}
@@ -343,107 +370,107 @@ export default function UsersTable({
                 onClick={openCreateModal}
                 className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700"
               >
-                + Tambah User
+                + Add User
               </button>
             </>
           )}
         </div>
       </div>
 
-      {error && <div className="border-b border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
+        <div className="border-b border-gray-200 p-4">
+          <TableSearchBox value={table.search} onChange={table.setSearch} placeholder="Search name, email, department..." />
+        </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-left text-sm">
-          <thead className="bg-gray-50 text-xs uppercase text-gray-500">
-            <tr>
-              <SortableHeader label="Nama" active={table.sortKey === 'name'} dir={table.sortDir} onClick={() => table.toggleSort('name')} />
-              <SortableHeader label="Email" active={table.sortKey === 'email'} dir={table.sortDir} onClick={() => table.toggleSort('email')} />
-              <th className="px-4 py-2 font-medium">Role</th>
-              <th className="px-4 py-2 font-medium">Tipe Kepegawaian</th>
-              <th className="px-4 py-2 font-medium">Boleh Menugaskan</th>
-              <SortableHeader label="Status" active={table.sortKey === 'status'} dir={table.sortDir} onClick={() => table.toggleSort('status')} />
-              <th className="px-4 py-2 font-medium">Aksi</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {loading && (
+        {error && <div className="border-b border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-gray-50 text-xs uppercase text-gray-500">
               <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
-                  Memuat...
-                </td>
+                <SortableHeader label="Name" active={table.sortKey === 'name'} dir={table.sortDir} onClick={() => table.toggleSort('name')} />
+                <SortableHeader label="Email" active={table.sortKey === 'email'} dir={table.sortDir} onClick={() => table.toggleSort('email')} />
+                <SortableHeader label="Department" active={table.sortKey === 'department'} dir={table.sortDir} onClick={() => table.toggleSort('department')} />
+                <th className="px-4 py-2 font-medium">Role</th>
+                <SortableHeader label="Status" active={table.sortKey === 'status'} dir={table.sortDir} onClick={() => table.toggleSort('status')} />
+                <th className="px-4 py-2 font-medium">Actions</th>
               </tr>
-            )}
-            {!loading && rows.length > 0 && table.paged.length === 0 && (
-              <tr>
-                <td colSpan={7} className="px-4 py-6 text-center text-gray-400">
-                  Tidak ada data yang cocok dengan pencarian.
-                </td>
-              </tr>
-            )}
-            {!loading &&
-              table.paged.map((row) => (
-                <tr key={row.id}>
-                  <td className="px-4 py-2 text-gray-700">
-                    <div className="flex items-center gap-3">
-                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-sm font-medium text-indigo-700">
-                        {(row.name || '?').slice(0, 1).toUpperCase()}
-                      </span>
-                      <span>{row.name}</span>
-                    </div>
-                    {row.must_change_password === 'Ya' && (
-                      <span className="ml-11 mt-0.5 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase text-amber-700">
-                        Belum ganti password
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-4 py-2 text-gray-500">{row.email}</td>
-                  <td className="px-4 py-2 text-gray-700">
-                    <Badge label={roleLabel(row.role_id)} tone={roleIsAdmin(row.role_id) ? 'info' : 'neutral'} />
-                  </td>
-                  <td className="px-4 py-2 text-gray-500">
-                    {row.employment_type_id ? employmentTypeLabel(row.employment_type_id) : '-'}
-                  </td>
-                  <td className="px-4 py-2 text-gray-500">{row.can_assign_others || 'Tidak'}</td>
-                  <td className="px-4 py-2"><StatusBadge value={row.status} /></td>
-                  <td className="px-4 py-2">
-                    {permissions.canEdit && (
-                      <button onClick={() => openEditModal(row)} className="mr-3 text-gray-600 hover:text-gray-900">
-                        Edit
-                      </button>
-                    )}
-                    {permissions.canDelete && row.id !== currentUserId && (
-                      <button onClick={() => handleDelete(row)} className="text-red-600 hover:text-red-800">
-                        Nonaktifkan
-                      </button>
-                    )}
-                    {!permissions.canEdit && (!permissions.canDelete || row.id === currentUserId) && (
-                      <span className="text-gray-300">-</span>
-                    )}
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
+                    Memuat...
                   </td>
                 </tr>
-              ))}
-          </tbody>
-        </table>
-      </div>
+              )}
+              {!loading && rows.length > 0 && table.paged.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
+                    Tidak ada data yang cocok dengan pencarian.
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                table.paged.map((row) => (
+                  <tr key={row.id}>
+                    <td className="px-4 py-2 text-gray-700">
+                      <div className="flex items-center gap-3">
+                        <UserAvatar userId={row.id} name={row.name} photoUrl={row.photo_url} />
+                        <span>{row.name}</span>
+                      </div>
+                      {row.must_change_password === 'Ya' && (
+                        <span className="ml-11 mt-0.5 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase text-amber-700">
+                          Belum ganti password
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-4 py-2 text-gray-500">{row.email}</td>
+                    <td className="px-4 py-2 text-gray-500">{row.department || '-'}</td>
+                    <td className="px-4 py-2 text-gray-700">
+                      <Badge label={roleLabel(row.role_id)} tone={roleIsAdmin(row.role_id) ? 'info' : 'neutral'} />
+                    </td>
+                    <td className="px-4 py-2"><StatusBadge value={row.status} /></td>
+                    <td className="px-4 py-2">
+                      <button onClick={() => openDetailModal(row)} className="mr-3 text-gray-600 hover:text-gray-900">
+                        Detail
+                      </button>
+                      {permissions.canEdit && (
+                        <button onClick={() => openEditModal(row)} className="mr-3 text-indigo-600 hover:text-indigo-800">
+                          Edit
+                        </button>
+                      )}
+                      {permissions.canDelete && row.id !== currentUserId && (
+                        <button onClick={() => handleDelete(row)} className="text-red-600 hover:text-red-800">
+                          Delete
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+        </div>
 
-      <PaginationBar
-        page={table.page}
-        totalPages={table.totalPages}
-        totalCount={table.totalCount}
-        pageSize={table.pageSize}
-        onPageChange={table.setPage}
-      />
+        <PaginationBar
+          page={table.page}
+          totalPages={table.totalPages}
+          totalCount={table.totalCount}
+          pageSize={table.pageSize}
+          onPageChange={table.setPage}
+        />
+      </div>
 
       {modalOpen && (
         <div className="fixed inset-0 z-10 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
           <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
             <div className="shrink-0 border-b border-gray-200 px-5 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">{editingId ? 'Edit User' : 'Tambah User'}</h2>
+              <h2 className="text-lg font-semibold text-gray-900">{editingId ? 'Edit User' : 'Add User'}</h2>
             </div>
             <div className="flex-1 overflow-y-auto p-5">
             <form onSubmit={handleSave} className="space-y-3">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Nama *</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Full Name *</label>
                 <input
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -453,7 +480,7 @@ export default function UsersTable({
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Email *</label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Email Address *</label>
                 <input
                   type="email"
                   value={form.email}
@@ -463,67 +490,94 @@ export default function UsersTable({
                 {fieldErrors.email && <p className="mt-1 text-xs text-red-600">{fieldErrors.email}</p>}
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Telepon</label>
-                  <input
-                    value={form.phone}
-                    onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
-                    className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Departemen</label>
-                  <input
-                    value={form.department}
-                    onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
-                    className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
-                  />
-                </div>
-              </div>
-
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                  Password {editingId ? '(kosongkan jika tidak ingin diubah)' : '*'}
-                </label>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Phone</label>
                 <input
-                  type="password"
-                  value={form.password}
-                  onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                  value={form.phone}
+                  onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
                   className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
                 />
-                {fieldErrors.password && <p className="mt-1 text-xs text-red-600">{fieldErrors.password}</p>}
               </div>
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Role *</label>
-                <select
-                  value={form.role_id}
-                  onChange={(e) =>
-                    setForm((f) => ({ ...f, role_id: e.target.value, employment_type_id: '', can_assign_others: 'Tidak' }))
-                  }
-                  className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
-                >
-                  <option value="">-- Pilih Role --</option>
-                  {roleOptionsForForm.map((r) => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
-                      {!r.active ? ' (Inactive)' : ''}
-                    </option>
-                  ))}
-                </select>
-                {fieldErrors.role_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.role_id}</p>}
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Department</label>
+                <input
+                  value={form.department}
+                  onChange={(e) => setForm((f) => ({ ...f, department: e.target.value }))}
+                  className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">Photo</label>
+                <div className="flex items-center gap-3">
+                  {photoPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={photoPreview} alt="Preview" className="h-14 w-14 shrink-0 rounded-full object-cover" />
+                  ) : (
+                    <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-gray-100 text-gray-400">
+                      <svg className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                      </svg>
+                    </span>
+                  )}
+                  <div>
+                    <input
+                      ref={photoInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      onChange={(e) => handlePhotoChange(e.target.files?.[0] || null)}
+                      className="block text-sm text-gray-700 file:mr-3 file:rounded-lg file:border file:border-gray-300 file:bg-gray-50 file:px-3 file:py-1.5 file:text-sm file:text-gray-700 hover:file:bg-gray-100"
+                    />
+                    <p className="mt-1 text-xs text-gray-400">JPG, PNG, or WEBP. Max 2MB.</p>
+                  </div>
+                </div>
+                {fieldErrors.photo && <p className="mt-1 text-xs text-red-600">{fieldErrors.photo}</p>}
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Role *</label>
+                  <select
+                    value={form.role_id}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, role_id: e.target.value, employment_type_id: '', can_assign_others: 'Tidak' }))
+                    }
+                    className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
+                  >
+                    <option value="">-- Pilih Role --</option>
+                    {roleOptionsForForm.map((r) => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
+                        {!r.active ? ' (Inactive)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                  {fieldErrors.role_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.role_id}</p>}
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Status *</label>
+                  <select
+                    value={form.status}
+                    onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
+                    className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
               </div>
 
               {!isAdminRole && form.role_id && (
                 <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Tipe Kepegawaian *</label>
+                  <label className="mb-1.5 block text-sm font-medium text-gray-700">Employment Type *</label>
                   <select
                     value={form.employment_type_id}
                     onChange={(e) => setForm((f) => ({ ...f, employment_type_id: e.target.value, can_assign_others: 'Tidak' }))}
                     className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
                   >
-                    <option value="">-- Pilih Tipe Kepegawaian --</option>
+                    <option value="">-- Select an employment type... --</option>
                     {employmentTypeOptionsForForm.map((e) => (
                       <option key={e.value} value={e.value}>
                         {e.label}
@@ -540,10 +594,10 @@ export default function UsersTable({
               {showCanAssign && (
                 <div>
                   <label className="mb-1.5 block text-sm font-medium text-gray-700">
-                    Boleh Menugaskan ke User Lain *
+                    Is this user allowed to assign tasks to other users?
                   </label>
                   <div className="flex gap-4">
-                    {['Ya', 'Tidak'].map((opt) => (
+                    {(['Ya', 'Tidak'] as const).map((opt) => (
                       <label key={opt} className="flex items-center gap-1.5 text-sm text-gray-700">
                         <input
                           type="radio"
@@ -552,10 +606,14 @@ export default function UsersTable({
                           onChange={() => setForm((f) => ({ ...f, can_assign_others: opt }))}
                           className="text-indigo-600 focus-ring"
                         />
-                        {opt}
+                        {opt === 'Ya' ? 'Yes' : 'No'}
                       </label>
                     ))}
                   </div>
+                  <p className="mt-1 text-xs text-gray-400">
+                    If &quot;Yes&quot;, this user can assign tasks to other users besides themselves on the Add/Edit Task
+                    page. If &quot;No&quot;, this user can only assign tasks to themselves.
+                  </p>
                   {fieldErrors.can_assign_others && (
                     <p className="mt-1 text-xs text-red-600">{fieldErrors.can_assign_others}</p>
                   )}
@@ -563,15 +621,16 @@ export default function UsersTable({
               )}
 
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">Status *</label>
-                <select
-                  value={form.status}
-                  onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}
-                  className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
+                <label className="mb-1.5 block text-sm font-medium text-gray-700">
+                  Password {editingId ? '(leave blank to keep unchanged)' : '*'}
+                </label>
+                <input
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
+                  className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
+                />
+                {fieldErrors.password && <p className="mt-1 text-xs text-red-600">{fieldErrors.password}</p>}
               </div>
 
               <div className="mt-5 flex justify-end gap-2">
@@ -580,17 +639,68 @@ export default function UsersTable({
                   onClick={() => setModalOpen(false)}
                   className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
                 >
-                  Batal
+                  Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
                   className="focus-ring rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
                 >
-                  {saving ? 'Menyimpan...' : 'Simpan'}
+                  {saving ? 'Saving...' : editingId ? 'Save Changes' : 'Create User'}
                 </button>
               </div>
             </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {viewingRow && (
+        <div className="fixed inset-0 z-10 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
+            <div className="shrink-0 border-b border-gray-200 px-5 py-4">
+              <h2 className="text-lg font-semibold text-gray-900">User Detail</h2>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5">
+              <div className="mb-4 flex items-center gap-3">
+                <UserAvatar userId={viewingRow.id} name={viewingRow.name} photoUrl={viewingRow.photo_url} size={10} />
+                <div>
+                  <p className="font-medium text-gray-900">{viewingRow.name}</p>
+                  <p className="text-sm text-gray-500">{viewingRow.email}</p>
+                </div>
+              </div>
+              <dl className="space-y-3 text-sm">
+                <div className="flex justify-between gap-4">
+                  <dt className="text-gray-500">Phone</dt>
+                  <dd className="text-right text-gray-900">{viewingRow.phone || '-'}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-gray-500">Department</dt>
+                  <dd className="text-right text-gray-900">{viewingRow.department || '-'}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-gray-500">Role</dt>
+                  <dd className="text-right text-gray-900">{roleLabel(viewingRow.role_id)}</dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-gray-500">Employment Type</dt>
+                  <dd className="text-right text-gray-900">
+                    {viewingRow.employment_type_id ? employmentTypeLabel(viewingRow.employment_type_id) : '-'}
+                  </dd>
+                </div>
+                <div className="flex justify-between gap-4">
+                  <dt className="text-gray-500">Status</dt>
+                  <dd className="text-right"><StatusBadge value={viewingRow.status} /></dd>
+                </div>
+              </dl>
+              <div className="mt-5 flex justify-end">
+                <button
+                  onClick={() => setViewingRow(null)}
+                  className="focus-ring rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-900 hover:bg-gray-200"
+                >
+                  Close
+                </button>
+              </div>
             </div>
           </div>
         </div>
