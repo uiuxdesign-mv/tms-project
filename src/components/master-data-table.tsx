@@ -8,7 +8,7 @@ import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { useTableControls } from '@/lib/hooks/use-table-controls';
 import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/table-controls';
-import { StatusBadge } from '@/components/badge';
+import { Badge, StatusBadge } from '@/components/badge';
 
 type Row = Record<string, string>;
 type SelectOption = { value: string; label: string };
@@ -46,6 +46,8 @@ export default function MasterDataTable({
   const [deleteBlocked, setDeleteBlocked] = useState<DeleteBlockedState | null>(null);
   const [reassignToId, setReassignToId] = useState('');
   const [reassigning, setReassigning] = useState(false);
+  // Fase 15: tombol naik/turun urutan di tabel Master Status (lihat handleMoveStatus).
+  const [reorderingStatus, setReorderingStatus] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,13 +100,22 @@ export default function MasterDataTable({
     setModalOpen(true);
   }
 
-  function openEditModal(row: Row) {
-    setEditingRow(row);
+  // Ambil nilai SEMUA field config dari satu baris (dengan fallback default per tipe) — dipakai
+  // baik untuk mengisi form Edit maupun untuk membangun payload PATCH "diam-diam" di
+  // handleMoveStatus (naik/turun urutan Master Status) yang tidak melalui form sama sekali. Field
+  // `hiddenInForm` (mis. sort_order) TETAP disertakan di sini supaya nilainya tidak hilang/ke-reset
+  // saat form di-submit untuk mengubah field lain.
+  function fullFieldPayload(row: Row): Record<string, string> {
     const values: Record<string, string> = {};
     config.fields.forEach((f) => {
       values[f.key] = row[f.key] ?? (f.type === 'boolean' ? 'Tidak' : '');
     });
-    setFormValues(values);
+    return values;
+  }
+
+  function openEditModal(row: Row) {
+    setEditingRow(row);
+    setFormValues(fullFieldPayload(row));
     setFieldErrors({});
     setModalOpen(true);
   }
@@ -186,6 +197,46 @@ export default function MasterDataTable({
       toast.error('Terjadi kesalahan jaringan.');
     } finally {
       setReassigning(false);
+    }
+  }
+
+  // Fase 15: tombol naik/turun urutan (kolom "Kanban Order" khusus Master Status) — menukar nilai
+  // sort_order antara baris ini dan tetangganya (dicari dari urutan sort_order SEBENARNYA di
+  // `rows`, bukan dari urutan tampilan tabel saat ini yang bisa saja sedang di-sort/di-filter
+  // kolom lain). Mengirim SELURUH field baris lewat fullFieldPayload() -- bukan cuma
+  // `{ sort_order }` -- karena PATCH generik di server tidak menerima partial update: field yang
+  // tidak disertakan di body akan dianggap kosong dan menimpa nilai lama (lihat validateEntityPayload).
+  async function handleMoveStatus(row: Row, direction: 'up' | 'down') {
+    const kanbanSorted = [...rows].sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0));
+    const idx = kanbanSorted.findIndex((r) => r.id === row.id);
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1;
+    if (idx === -1 || swapIdx < 0 || swapIdx >= kanbanSorted.length) return;
+    const other = kanbanSorted[swapIdx];
+
+    setReorderingStatus(true);
+    try {
+      const res1 = await apiFetch(`/api/master/${entityKey}/${row.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...fullFieldPayload(row), sort_order: other.sort_order }),
+      });
+      const json1 = await res1.json();
+      if (!res1.ok) throw new Error(json1.error || 'Gagal mengubah urutan.');
+
+      const res2 = await apiFetch(`/api/master/${entityKey}/${other.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...fullFieldPayload(other), sort_order: row.sort_order }),
+      });
+      const json2 = await res2.json();
+      if (!res2.ok) throw new Error(json2.error || 'Gagal mengubah urutan.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Gagal mengubah urutan.');
+    } finally {
+      // Selalu reload, sukses ataupun gagal di tengah jalan — supaya tabel selalu mencerminkan
+      // urutan yang SEBENARNYA tersimpan di server, bukan asumsi optimistik di client.
+      await load();
+      setReorderingStatus(false);
     }
   }
 
@@ -283,12 +334,30 @@ export default function MasterDataTable({
 
   const tableFields = config.fields.filter((f) => f.showInTable !== false);
 
+  // Fase 15: tabel Master Status pakai tampilan kustom (kolom Kanban Order + tombol naik/turun,
+  // warna & Workflow Level & Markers ditampilkan, sesuai contoh gambar dari user) — bukan tabel
+  // generik berbasis `tableFields` seperti 6 entity Master Data lainnya. Lihat render kondisional
+  // di bawah (`isStatusesTable`).
+  const isStatusesTable = entityKey === 'statuses';
+
+  // Urutan Kanban SEBENARNYA (naik berdasarkan sort_order numerik) — dipakai sebagai urutan
+  // TAMPILAN DEFAULT tabel Status (bukan urutan mentah dari sheet, yang bisa saja tidak lagi
+  // selaras dengan sort_order setelah beberapa kali tukar-urutan lewat tombol naik/turun — lihat
+  // handleMoveStatus, yang menukar NILAI sort_order, bukan posisi fisik baris di sheet), sekaligus
+  // dipakai untuk menentukan apakah tombol naik/turun suatu baris harus dinonaktifkan (baris
+  // pertama/terakhir).
+  const kanbanSorted = isStatusesTable
+    ? [...rows].sort((a, b) => (Number(a.sort_order) || 0) - (Number(b.sort_order) || 0))
+    : rows;
+
   // Fase 10: search/sort/pagination — search dibatasi ke kolom teks (text/email/textarea) supaya
   // tidak mencocokkan ID mentah dari kolom select yang tidak berarti apa-apa bagi user.
   const searchFields = tableFields
     .filter((f) => f.type === 'text' || f.type === 'email' || f.type === 'textarea')
     .map((f) => f.key);
-  const table = useTableControls(rows, { searchFields: searchFields.length > 0 ? searchFields : [config.titleField] });
+  const table = useTableControls(kanbanSorted, {
+    searchFields: searchFields.length > 0 ? searchFields : [config.titleField],
+  });
 
   const subtitle = config.subtitleTemplate.replace('{count}', String(rows.length));
 
@@ -348,6 +417,137 @@ export default function MasterDataTable({
         {error && <div className="border-b border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
         <div className="overflow-x-auto">
+        {isStatusesTable ? (
+          <table className="w-full text-left text-sm">
+            <thead className="bg-gray-50 text-xs uppercase text-gray-500">
+              <tr>
+                <SortableHeader
+                  label="Kanban Order"
+                  active={table.sortKey === 'sort_order'}
+                  dir={table.sortDir}
+                  onClick={() => table.toggleSort('sort_order')}
+                />
+                <SortableHeader
+                  label="Name"
+                  active={table.sortKey === 'status_name'}
+                  dir={table.sortDir}
+                  onClick={() => table.toggleSort('status_name')}
+                />
+                <SortableHeader
+                  label="Workflow Level"
+                  active={table.sortKey === 'workflow_level'}
+                  dir={table.sortDir}
+                  onClick={() => table.toggleSort('workflow_level')}
+                />
+                <th className="px-4 py-2 font-medium">Markers</th>
+                <SortableHeader
+                  label="Status"
+                  active={table.sortKey === 'is_active'}
+                  dir={table.sortDir}
+                  onClick={() => table.toggleSort('is_active')}
+                />
+                <th className="px-4 py-2 font-medium">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {loading && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
+                    Memuat...
+                  </td>
+                </tr>
+              )}
+              {!loading && rows.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
+                    Belum ada data.
+                  </td>
+                </tr>
+              )}
+              {!loading && rows.length > 0 && table.paged.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-4 py-6 text-center text-gray-400">
+                    Tidak ada data yang cocok dengan pencarian.
+                  </td>
+                </tr>
+              )}
+              {!loading &&
+                table.paged.map((row) => {
+                  const kanbanIdx = kanbanSorted.findIndex((r) => r.id === row.id);
+                  const isFirst = kanbanIdx <= 0;
+                  const isLast = kanbanIdx === -1 || kanbanIdx === kanbanSorted.length - 1;
+                  const validColor = /^#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})$/.test(row.color_code) ? row.color_code : '#9ca3af';
+                  return (
+                    <tr key={row.id}>
+                      <td className="px-4 py-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex flex-col">
+                            <button
+                              type="button"
+                              onClick={() => handleMoveStatus(row, 'up')}
+                              disabled={reorderingStatus || isFirst}
+                              aria-label={`Naikkan urutan ${row.status_name}`}
+                              className="text-gray-400 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
+                            >
+                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 15.75l7.5-7.5 7.5 7.5" />
+                              </svg>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleMoveStatus(row, 'down')}
+                              disabled={reorderingStatus || isLast}
+                              aria-label={`Turunkan urutan ${row.status_name}`}
+                              className="text-gray-400 hover:text-gray-700 disabled:cursor-not-allowed disabled:opacity-30"
+                            >
+                              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+                              </svg>
+                            </button>
+                          </div>
+                          <span className="text-gray-700">{row.sort_order || '-'}</span>
+                        </div>
+                      </td>
+                      <td className="px-4 py-2">
+                        <span className="inline-flex items-center gap-2 font-medium text-gray-900">
+                          <span
+                            className="inline-block h-2.5 w-2.5 shrink-0 rounded-full border border-gray-200"
+                            style={{ backgroundColor: validColor }}
+                          />
+                          {row.status_name}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 text-gray-700">{row.workflow_level || '—'}</td>
+                      <td className="px-4 py-2">
+                        <div className="flex flex-wrap gap-1.5">
+                          {row.is_default === 'Ya' && <Badge label="Default" tone="info" />}
+                          {row.is_final === 'Ya' && <Badge label="Final" tone="success" />}
+                        </div>
+                      </td>
+                      <td className="px-4 py-2">
+                        <StatusBadge value={row.is_active === 'Ya' ? 'Active' : 'Inactive'} />
+                      </td>
+                      <td className="px-4 py-2">
+                        <button onClick={() => openDetailModal(row)} className="mr-3 text-gray-600 hover:text-gray-900">
+                          Detail
+                        </button>
+                        {permissions.canEdit && (
+                          <button onClick={() => openEditModal(row)} className="mr-3 text-indigo-600 hover:text-indigo-800">
+                            Edit
+                          </button>
+                        )}
+                        {permissions.canDelete && (
+                          <button onClick={() => handleDelete(row)} className="text-red-600 hover:text-red-800">
+                            Delete
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+            </tbody>
+          </table>
+        ) : (
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
@@ -425,6 +625,7 @@ export default function MasterDataTable({
               })}
           </tbody>
         </table>
+        )}
         </div>
 
         <PaginationBar
@@ -450,7 +651,11 @@ export default function MasterDataTable({
             <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
               <div className="flex-1 overflow-y-auto p-5">
                 <div className="space-y-3">
-                  {config.fields.map((f) => (
+                  {/* Fase 15: field `hiddenInForm` (mis. sort_order Master Status) sengaja tidak
+                      dirender di form Tambah MAUPUN Edit — nilainya tetap ada & tetap ikut
+                      terkirim lewat formValues (lihat fullFieldPayload/openEditModal di atas),
+                      cuma tidak bisa diketik manual di sini. */}
+                  {config.fields.filter((f) => !f.hiddenInForm).map((f) => (
                     <FieldInput
                       key={f.key}
                       field={f}

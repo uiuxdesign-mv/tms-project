@@ -31,6 +31,15 @@ export type FieldConfig = {
   /** Teks kecil di bawah input, menjelaskan maksud/dampak field ini (Fase 12, sesuai video). */
   helperText?: string;
   /**
+   * Field ini tidak ditampilkan sama sekali di form Tambah MAUPUN Edit (Fase 15) — dipakai untuk
+   * `sort_order` Master Status, yang sekarang di-generate otomatis di server saat baris baru
+   * dibuat, lalu diatur ulang langsung dari tabel lewat tombol naik/turun (bukan diketik manual).
+   * Field ini TETAP ada di data model (tetap muncul di modal Detail serta Export/Import CSV) —
+   * cuma disembunyikan dari form, nilainya tetap ikut terkirim transparan lewat formValues saat
+   * Simpan (lihat openEditModal/handleMoveStatus di master-data-table.tsx).
+   */
+  hiddenInForm?: boolean;
+  /**
    * Untuk type 'boolean' saja (Fase 12): cara menampilkannya di form.
    * - 'radio' (default lama): dua radio button Ya/Tidak.
    * - 'checkbox' : satu checkbox, label field dipakai sebagai teks di sampingnya.
@@ -184,7 +193,15 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
     subtitleTemplate: '{count} total records',
     fields: [
       { key: 'status_name', label: 'Nama Status', type: 'text', required: true, unique: true },
-      { key: 'sort_order', label: 'Urutan', type: 'number', showInTable: false },
+      {
+        key: 'sort_order',
+        label: 'Urutan',
+        type: 'number',
+        showInTable: false,
+        // Fase 15 (permintaan user): tidak lagi diisi manual di form — lihat penjelasan lengkap
+        // pada JSDoc `hiddenInForm` di FieldConfig atas.
+        hiddenInForm: true,
+      },
       {
         key: 'color_code',
         label: 'Kode Warna',

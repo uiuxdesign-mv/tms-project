@@ -47,6 +47,15 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ entity: st
     insertData = { ...result.data, role_key: roleKey };
   }
 
+  // Status: field "Urutan" (sort_order) tidak lagi diisi manual di form Tambah (Fase 15, sesuai
+  // permintaan user) — status baru otomatis ditaruh di posisi PALING BAWAH (urutan tertinggi saat
+  // ini + 1), lalu bisa diatur ulang langsung dari tabel lewat tombol naik/turun.
+  if (config.key === 'statuses') {
+    const existingStatuses = await SheetTable.getAll('statuses');
+    const maxOrder = existingStatuses.reduce((max, r) => Math.max(max, Number(r.sort_order) || 0), 0);
+    insertData = { ...insertData, sort_order: String(maxOrder + 1) };
+  }
+
   const row = await SheetTable.insertRow(config.key, insertData);
 
   // Status: pastikan hanya tepat satu baris is_default="Ya" (Fase 7) — meniru
