@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
-import { canManageTask, canViewTask } from '@/lib/models/tasks';
+import { canManageTaskInfo, canOperateTimeTracking, canViewTask } from '@/lib/models/tasks';
 import { runTimeAction, getTimeStateForTask } from '@/lib/models/time-tracking';
 import { logAction } from '@/lib/models/audit-log';
 
@@ -23,10 +23,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     const existing = await SheetTable.findById('tasks', id, { useCache: false });
     if (!existing) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
-    // Bugfix (permintaan user, fitur Leader Role): MEMBACA state Time Tracking (badge, History
-    // Log) cukup aturan visibilitas (canViewTask) — task view-only tetap boleh dilihat riwayat
-    // Time Tracking-nya, cuma tidak boleh menjalankan aksi apa pun (POST di bawah tetap pakai
-    // canManageTask, tidak berubah).
+    // MEMBACA state Time Tracking (badge, History Log) cukup aturan visibilitas (canViewTask) —
+    // task view-only tetap boleh dilihat riwayat Time Tracking-nya, cuma tidak boleh menjalankan
+    // aksi apa pun (POST di bawah pakai aturan lebih spesifik per-aksi, lihat catatan di sana).
     if (!canViewTask(session, existing)) {
       return NextResponse.json({ error: 'Anda tidak punya akses ke Time Tracking task ini.' }, { status: 403 });
     }
@@ -51,14 +50,21 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
 
   const existing = await SheetTable.findById('tasks', id);
   if (!existing) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
-  if (!canManageTask(session, existing)) {
-    return NextResponse.json({ error: 'Anda tidak punya akses untuk mengubah Time Tracking task ini.' }, { status: 403 });
-  }
 
   const body = await req.json().catch(() => null);
   const action = body?.action;
   if (!action || !VALID_ACTIONS.has(action)) {
     return NextResponse.json({ error: 'Aksi Time Tracking tidak valid.' }, { status: 400 });
+  }
+
+  // Perbaikan (permintaan user, poin 3 — penerima delegasi tetap boleh mengerjakan tugasnya):
+  // Start/Pause/Resume/Stop/Back/Done dibolehkan oleh canOperateTimeTracking (mencakup penerima
+  // delegasi yang bukan pengelola informasi task). Cancel Task DIKECUALIKAN — membatalkan task
+  // tetap harus canManageTaskInfo (penerima tugas tidak boleh membatalkan sepihak task yang
+  // ditugaskan orang lain ke dia, hanya boleh mengerjakan/menghentikan sementara).
+  const allowed = action === 'cancel' ? canManageTaskInfo(session, existing) : canOperateTimeTracking(session, existing);
+  if (!allowed) {
+    return NextResponse.json({ error: 'Anda tidak punya akses untuk mengubah Time Tracking task ini.' }, { status: 403 });
   }
 
   let result;

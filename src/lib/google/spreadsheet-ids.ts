@@ -27,6 +27,9 @@ export const SPREADSHEET_IDS = {
   audit_log: () => requireEnv('SHEET_ID_AUDIT_LOG'),
   task_time_logs: () => requireEnv('SHEET_ID_TASK_TIME_LOGS'),
   task_comments: () => requireEnv('SHEET_ID_TASK_COMMENTS'),
+  // Log history perubahan task (field & status) — permintaan user poin 4. Spreadsheet terpisah
+  // (baru) yang disiapkan & di-share manual oleh user, lihat SKILL/pesan setup di percakapan.
+  task_history: () => requireEnv('SHEET_ID_TASK_HISTORY'),
 } as const;
 
 export type SheetKey = keyof typeof SPREADSHEET_IDS;

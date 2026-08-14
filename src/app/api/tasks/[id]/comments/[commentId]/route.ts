@@ -3,7 +3,7 @@ import { requireAuth } from '@/lib/auth/require-auth';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { hasMenuPermission } from '@/lib/menu-access/permissions';
 import { canEditComment, canDeleteComment, editCommentText, deleteComment, type CommentRow } from '@/lib/models/comments';
-import { canManageTask } from '@/lib/models/tasks';
+import { canManageTaskInfo } from '@/lib/models/tasks';
 import { logAction } from '@/lib/models/audit-log';
 
 /**
@@ -42,11 +42,8 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 /**
  * Hapus komentar: penulis sendiri ATAU (user dengan izin 'delete' pada menu 'tasking' DAN task
- * induknya boleh dia kelola/canManageTask) — dua jalur sekaligus (OR), beda dari PATCH yang murni
- * "penulis saja". Bugfix (permintaan user, fitur Leader Role): sebelumnya jalur kedua cuma cek
- * izin 'delete' tanpa peduli apakah task-nya boleh dikelola session ini — Pemimpin/Manager yang
- * cuma "boleh lihat" (view-only) task orang lain jadi bisa menghapus komentar orang lain di task
- * itu, padahal seharusnya tidak boleh melakukan aksi apa pun. Sekarang task induk ikut dicek.
+ * induknya boleh dia kelola/canManageTaskInfo) — dua jalur sekaligus (OR), beda dari PATCH yang
+ * murni "penulis saja".
  */
 export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string; commentId: string }> }) {
   const guard = await requireAuth();
@@ -58,7 +55,7 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   if (!existing) return NextResponse.json({ error: 'Komentar tidak ditemukan.' }, { status: 404 });
 
   const parentTask = existing.task_id ? await SheetTable.findById('tasks', existing.task_id) : undefined;
-  const canManageParentTask = !!parentTask && canManageTask(session, parentTask);
+  const canManageParentTask = !!parentTask && canManageTaskInfo(session, parentTask);
   const hasDeletePermission = await hasMenuPermission(session, 'tasking', 'delete');
   if (!canDeleteComment(session, existing, hasDeletePermission, canManageParentTask)) {
     return NextResponse.json({ error: 'Anda tidak punya akses untuk menghapus komentar ini.' }, { status: 403 });

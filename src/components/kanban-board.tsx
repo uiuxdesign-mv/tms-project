@@ -24,6 +24,10 @@ type TaskRow = {
   estimated_hours?: string;
   actual_duration_seconds?: string;
   timeTracking?: TimeTrackingState;
+  /** Flag izin server-embedded (GET /api/tasks, lihat src/lib/models/tasks.ts) — permintaan user,
+   *  perbaikan Leader & Pemberi Tugas. */
+  can_manage_info?: boolean;
+  can_operate_time_tracking?: boolean;
 };
 
 type Option = { value: string; label: string };
@@ -161,13 +165,14 @@ export default function KanbanBoard({
     });
   }, [rows, search, filterStatus, filterPriority, filterAssignee]);
 
-  // Bugfix (permintaan user, fitur Leader Role): disamakan dengan canManageTask server yang
-  // DIPERSEMPIT — lihat catatan lengkap di tasks-table.tsx. Klik kartu untuk buka detail TETAP
-  // selalu boleh (lihat onClick di bawah, tidak digerbang canManage) — cuma drag & Time Tracking
-  // yang sekarang dikunci untuk task yang bukan miliknya sendiri.
-  function canManage(row: TaskRow) {
+  // Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas poin 1-3): drag & Time Tracking
+  // di kartu Kanban sekarang dibolehkan oleh canOperateTimeTracking (flag can_operate_time_tracking
+  // dari server) — mencakup Admin/Pemimpin/pemilik/Pemberi Tugas (via canManageTaskInfo) DITAMBAH
+  // penerima delegasi (poin 3: tetap boleh ubah status/Time Tracking walau tidak boleh edit info).
+  // Klik kartu untuk buka detail TETAP selalu boleh (lihat onClick di bawah, tidak digerbang ini).
+  function canOperate(row: TaskRow) {
     if (!permissions.canEdit) return false;
-    return isAdmin || row.assigned_to === currentUserId;
+    return !!row.can_operate_time_tracking;
   }
 
   /**
@@ -189,7 +194,7 @@ export default function KanbanBoard({
     if (!taskId) return;
     const task = rows.find((r) => r.id === taskId);
     if (!task || task.status_id === targetStatus.value) return;
-    if (!canManage(task)) return;
+    if (!canOperate(task)) return;
 
     const currentStatus = opts?.statuses.find((s) => s.value === task.status_id);
 
@@ -324,7 +329,7 @@ export default function KanbanBoard({
                     // sama sekali — konsisten dengan tombol Time Tracking yang juga ikut terkunci
                     // di status final (spec §5.7: "seluruh action button ... tidak dapat digunakan
                     // kembali").
-                    const manageable = canManage(row) && !status.isFinal;
+                    const manageable = canOperate(row) && !status.isFinal;
                     const overdue = isOverdue(row, opts.statuses);
                     // Meta line "Project · Task Type · Client" seperti video — bagian yang kosong
                     // (mis. Client opsional tidak diisi) dilewati, bukan ditampilkan sebagai "-".

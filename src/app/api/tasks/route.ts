@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
-import { canViewTask, canAssignToOthers, canAssignTaskTo } from '@/lib/models/tasks';
+import {
+  canViewTask,
+  canAssignToOthers,
+  canAssignTaskTo,
+  canManageTaskInfo,
+  canEditTaskFieldsNow,
+  canDeleteTask,
+  canOperateTimeTracking,
+} from '@/lib/models/tasks';
 import { findRoleById } from '@/lib/models/roles';
 import { logAction } from '@/lib/models/audit-log';
 import { getTimeStatesForTasks } from '@/lib/models/time-tracking';
+import { getDefaultStatusId } from '@/lib/models/statuses';
 
 export async function GET(req: NextRequest) {
   const guard = await requirePermission('tasking', 'view');
@@ -37,7 +46,23 @@ export async function GET(req: NextRequest) {
     // Fase 8 (Time Tracking): sisipkan state Start/Pause/Stop/Review yang sudah di-derive dari
     // event log, supaya UI (tabel Task, nanti Kanban) tidak perlu 1 request terpisah per task.
     const timeStates = await getTimeStatesForTasks(rows.map((t) => t.id), { useCache: false });
-    const rowsWithTimeTracking = rows.map((t) => ({ ...t, timeTracking: timeStates[t.id] }));
+
+    // Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas): flag izin per-task dihitung
+    // SEKALI di server dan disisipkan langsung ke tiap baris, supaya tasks-table.tsx & kanban-
+    // board.tsx tidak perlu lagi menghitung ulang aturan izin sendiri-sendiri secara terpisah di
+    // client (pola yang sebelumnya sudah pernah menyebabkan bug ketidaksesuaian antar komponen).
+    const defaultStatusId = await getDefaultStatusId({ useCache: false });
+    const rowsWithTimeTracking = rows.map((t) => {
+      const isDefaultStatus = !!defaultStatusId && t.status_id === defaultStatusId;
+      return {
+        ...t,
+        timeTracking: timeStates[t.id],
+        can_manage_info: canManageTaskInfo(session, t),
+        can_edit_fields_now: canEditTaskFieldsNow(session, t, isDefaultStatus),
+        can_delete: canDeleteTask(session, t, isDefaultStatus),
+        can_operate_time_tracking: canOperateTimeTracking(session, t),
+      };
+    });
 
     return NextResponse.json({ data: rowsWithTimeTracking });
   } catch (err) {

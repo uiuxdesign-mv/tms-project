@@ -1,5 +1,6 @@
 import * as SheetTable from '@/lib/google/sheet-table';
 import type { SheetRow } from '@/lib/google/sheet-table';
+import { logTaskChange } from '@/lib/models/task-history';
 
 /**
  * Time Tracking (Fase 8) — meniru spesifikasi Time Tracking di aplikasi lama:
@@ -153,6 +154,24 @@ async function getCancelStatus(): Promise<StatusRow | undefined> {
   return rows.find((s) => s.is_final === 'Ya' && s.workflow_level === '');
 }
 
+/**
+ * Log history perubahan STATUS (permintaan user poin 4): dipanggil di SETIAP titik runTimeAction
+ * yang memindahkan status_id (start-dari-default, stop-ke-review, back, done, cancel). Kedua
+ * StatusRow (lama & baru) sudah tersedia di tiap call site tanpa fetch tambahan, jadi label bisa
+ * langsung diambil dari status_name masing-masing. logTaskChange sendiri sudah fire-and-forget
+ * (tidak pernah melempar), jadi aman langsung di-await di tengah alur Time Tracking.
+ */
+async function logStatusHistory(taskId: string, userId: string, oldStatus: StatusRow | undefined, newStatus: StatusRow | undefined) {
+  await logTaskChange({
+    taskId,
+    changeType: 'status',
+    fieldKey: 'status_id',
+    oldValueLabel: oldStatus?.status_name || '',
+    newValueLabel: newStatus?.status_name || '',
+    changedBy: userId,
+  });
+}
+
 export type TimeActionResult =
   | { ok: true; task: SheetRow; events: TimeLogRow[]; state: DerivedTimeState }
   | { ok: false; error: string };
@@ -212,7 +231,7 @@ export async function runTimeAction(
     await logEvent(sessionNo, 'start', false, now);
 
     if (isDefault) {
-      const advanced = await advanceToNextStatus(task, status);
+      const advanced = await advanceToNextStatus(task, status, userId);
       if (!advanced.ok) return advanced;
     }
     return finish(taskId);
@@ -246,6 +265,7 @@ export async function runTimeAction(
     const reviewStatus = statuses.find((s) => s.is_review === 'Ya');
     if (reviewStatus) {
       await SheetTable.updateRow('tasks', taskId, { status_id: reviewStatus.id });
+      await logStatusHistory(taskId, userId, status, reviewStatus);
       // Otomatis buka sesi review baru begitu masuk tahap review (spesifikasi Time Tracking).
       await logEvent(closingSessionNo + 1, 'start', true, now);
     }
@@ -268,6 +288,7 @@ export async function runTimeAction(
     const previous = statuses.filter((s) => Number(s.workflow_level) < currentLevel).pop();
     if (!previous) return { ok: false, error: 'Tidak ada status sebelumnya untuk kembali (Back).' };
     await SheetTable.updateRow('tasks', taskId, { status_id: previous.id });
+    await logStatusHistory(taskId, userId, status, previous);
     return finish(taskId);
   }
 
@@ -293,6 +314,7 @@ export async function runTimeAction(
       status_id: finalStatus.id,
       completed_at: task.completed_at || now,
     });
+    await logStatusHistory(taskId, userId, status, finalStatus);
     return finish(taskId);
   }
 
@@ -320,18 +342,24 @@ export async function runTimeAction(
       status_id: cancelStatus.id,
       completed_at: task.completed_at || now,
     });
+    await logStatusHistory(taskId, userId, status, cancelStatus);
     return finish(taskId);
   }
 
   return { ok: false, error: 'Aksi tidak dikenal.' };
 }
 
-async function advanceToNextStatus(task: SheetRow, currentStatus: StatusRow): Promise<{ ok: true } | { ok: false; error: string }> {
+async function advanceToNextStatus(
+  task: SheetRow,
+  currentStatus: StatusRow,
+  userId: string
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const statuses = await getStatusesSorted();
   const currentLevel = Number(currentStatus.workflow_level);
   const next = statuses.find((s) => Number(s.workflow_level) === currentLevel + 1);
   if (!next) return { ok: false, error: 'Tidak ada status berikutnya (workflow_level+1) untuk maju.' };
   await SheetTable.updateRow('tasks', task.id, { status_id: next.id });
+  await logStatusHistory(task.id, userId, currentStatus, next);
   return { ok: true };
 }
 

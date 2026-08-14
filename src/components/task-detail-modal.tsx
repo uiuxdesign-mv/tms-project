@@ -7,6 +7,7 @@ import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { Badge } from '@/components/badge';
 import TaskComments from '@/components/task-comments';
+import TaskHistory from '@/components/task-history';
 import { useLanguage } from '@/components/language-provider';
 
 type TaskRow = {
@@ -29,6 +30,14 @@ type TaskRow = {
   estimated_hours?: string;
   created_at?: string;
   updated_at?: string;
+  /** Flag izin yang SUDAH dihitung di server (GET /api/tasks/[id]) — permintaan user, perbaikan
+   *  Leader & Pemberi Tugas: client tidak lagi menghitung ulang aturan izin sendiri, cukup baca
+   *  langsung dari sini supaya selalu konsisten dengan tasks-table.tsx & kanban-board.tsx (lihat
+   *  src/lib/models/tasks.ts untuk aturan lengkapnya). */
+  can_manage_info?: boolean;
+  can_edit_fields_now?: boolean;
+  can_delete?: boolean;
+  can_operate_time_tracking?: boolean;
 };
 
 type Option = { value: string; label: string };
@@ -130,14 +139,16 @@ function formatLogTimestamp(iso: string): string {
 export default function TaskDetailModal({
   taskId,
   currentUserId,
-  isAdmin,
   permissions,
   onClose,
   onChanged,
 }: {
   taskId: string;
   currentUserId: string;
-  isAdmin: boolean;
+  /** Sudah tidak dipakai langsung di sini (aturan izin sekarang dibaca dari flag server-embedded
+   *  task.can_manage_info dkk, lihat catatan di atas) — tetap diterima sebagai prop opsional
+   *  supaya pemanggil lama (tasks-table.tsx/kanban-board.tsx) tidak perlu diubah semua sekaligus. */
+  isAdmin?: boolean;
   permissions: { canEdit: boolean; canDelete: boolean };
   onClose: () => void;
   onChanged: () => void;
@@ -256,23 +267,25 @@ export default function TaskDetailModal({
   }
 
   const status = opts?.statuses.find((s) => s.value === task?.status_id);
-  // Bugfix (permintaan user, fitur Leader Role): disamakan dengan canManageTask server yang
-  // DIPERSEMPIT — HANYA Admin atau task yang assignee-nya dirinya sendiri. Pemimpin & Manager
-  // (canAssignOthers) tetap bisa MEMBUKA modal ini untuk task user lain (lihat kanban-board.tsx/
-  // tasks-table.tsx, tombol buka detail sudah tidak lagi digerbang canManage), tapi begitu masuk
-  // sini semua field/aksi otomatis terkunci view-only karena canManage=false.
-  const canManage = permissions.canEdit && !!task && (isAdmin || task.assigned_to === currentUserId);
 
-  // Bugfix (permintaan user): detail Task (Title/Description/Project/Client/Priority/Task Type/
-  // Assignee/tanggal) cuma boleh diedit bebas selama status masih To Do (default) — begitu task
-  // mulai berjalan, perubahan wajib lewat tombol aksi Time Tracking (Start/Pause/Stop/Back/Done)
-  // atau Cancel Task supaya business rule & History Log tetap konsisten, bukan lewat edit form
-  // bebas. Field Status DIKECUALIKAN dari kunci ini (tetap pakai `canManage` seperti semula) —
-  // form ini satu-satunya cara resmi memindahkan status MUNDUR (mis. In Review balik ke In
-  // Progress kalau salah proses, lihat komentar handleDrop di kanban-board.tsx), jadi tetap harus
-  // bisa diedit manual di sini, tervalidasi seperti biasa oleh Rule A/B di server.
+  // Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas poin 1-3): flag izin dibaca
+  // LANGSUNG dari yang sudah dihitung server (GET /api/tasks/[id], lihat src/lib/models/tasks.ts)
+  // — tidak lagi dihitung ulang di client, supaya selalu konsisten dengan tasks-table.tsx &
+  // kanban-board.tsx.
+  // - canManageInfo: boleh mengelola INFORMASI task (Admin/Pemimpin/pemilik/Pemberi Tugas).
+  //   Penerima delegasi (ditugaskan orang lain ke dia) TIDAK termasuk di sini (poin 3).
+  // - canOperateTT: boleh mengoperasikan status/Time Tracking — mencakup canManageInfo DITAMBAH
+  //   penerima delegasi (poin 3: tetap boleh ubah status & Time Tracking walau tidak boleh edit
+  //   info).
+  const canManageInfo = permissions.canEdit && !!task && !!task.can_manage_info;
+  const canOperateTT = permissions.canEdit && !!task && !!task.can_operate_time_tracking;
+
+  // Detail Task (Title/Description/Project/Client/Priority/Task Type/Assignee/tanggal) cuma boleh
+  // diedit bebas selama status masih To Do (default) DAN session-nya termasuk yang boleh mengelola
+  // info (canManageInfo) — sudah termasuk aturan "Pemberi Tugas hanya selagi status awal" (poin 2)
+  // lewat can_edit_fields_now yang dihitung di server (canEditTaskFieldsNow).
   const isDefaultStatus = status?.isDefault ?? false;
-  const canEditFields = canManage && isDefaultStatus;
+  const canEditFields = permissions.canEdit && !!task && !!task.can_edit_fields_now;
 
   const { work: workIntervals, review: reviewIntervals } = useMemo(() => deriveIntervals(events), [events]);
 
@@ -463,7 +476,7 @@ export default function TaskDetailModal({
                       </div>
                     </div>
 
-                    {canManage && timeState && !status?.isFinal && (
+                    {canOperateTT && timeState && !status?.isFinal && (
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         {status?.isReview ? (
                           <>
@@ -512,13 +525,20 @@ export default function TaskDetailModal({
                             )}
                           </>
                         )}
-                        <button
-                          disabled={busy}
-                          onClick={handleCancelTask}
-                          className={`${btnBase} ml-auto bg-red-600 text-white hover:bg-red-700`}
-                        >
-                          ✕ {t('td_cancel_task_btn')}
-                        </button>
+                        {/* Perbaikan (permintaan user poin 3): Cancel Task TIDAK termasuk "boleh
+                            mengoperasikan status/Time Tracking" — penerima delegasi cuma boleh
+                            mengerjakan (Start/Pause/Resume/Stop/Back/Done), tidak boleh membatalkan
+                            sepihak task yang ditugaskan orang lain ke dia. Tetap digerbangi
+                            canManageInfo, sama seperti field lain. */}
+                        {canManageInfo && (
+                          <button
+                            disabled={busy}
+                            onClick={handleCancelTask}
+                            className={`${btnBase} ml-auto bg-red-600 text-white hover:bg-red-700`}
+                          >
+                            ✕ {t('td_cancel_task_btn')}
+                          </button>
+                        )}
                       </div>
                     )}
 
@@ -609,13 +629,21 @@ export default function TaskDetailModal({
 
               {/* Kolom kanan: form + komentar */}
               <div>
-                {/* Bugfix (permintaan user, fitur Leader Role): notice terpisah untuk task yang
-                    MEMANG cuma boleh dilihat (Pemimpin/Manager membuka task user lain) — beda
-                    dari notice "terkunci sementara karena status berjalan" di bawah, yang cuma
-                    berlaku untuk task milik sendiri. */}
-                {!canManage && (
+                {/* Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas poin 1-3): TIGA
+                    kemungkinan notice tergantung kombinasi canManageInfo/canOperateTT —
+                    (a) murni view-only (tidak bisa apa-apa selain lihat & komentar),
+                    (b) boleh mengerjakan (status/Time Tracking) tapi tidak boleh edit info
+                        (penerima delegasi, poin 3), atau
+                    (c) boleh kelola info tapi field-nya sedang terkunci karena status sudah
+                        bukan status awal (notice ini ada di blok terpisah di bawah). */}
+                {!canManageInfo && !canOperateTT && (
                   <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
                     {t('td_view_only_notice')}
+                  </div>
+                )}
+                {!canManageInfo && canOperateTT && (
+                  <div className="mb-3 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
+                    {t('td_operate_only_notice')}
                   </div>
                 )}
                 {/* Bugfix (permintaan user, item detail tasking): blok info Pemberi Tugas/
@@ -639,7 +667,7 @@ export default function TaskDetailModal({
                 {/* Bugfix (Fase 14): id di sini dipakai tombol "Save changes" di footer bawah
                     (di luar area scroll) lewat atribut `form=` — supaya tombolnya tidak ikut
                     hilang ke-scroll padahal secara DOM sudah dipindah keluar dari <form> ini. */}
-                {canManage && !isDefaultStatus && (
+                {canManageInfo && !isDefaultStatus && (
                   <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
                     {t('td_locked_notice')}
                   </div>
@@ -840,9 +868,14 @@ export default function TaskDetailModal({
                 <TaskComments
                   taskId={taskId}
                   currentUserId={currentUserId}
-                  canDeleteAny={permissions.canDelete && canManage}
-                  readOnly={!canManage}
+                  canDeleteAny={permissions.canDelete && canManageInfo}
+                  // Perbaikan (permintaan user poin 2): menambahkan komentar sekarang cukup bisa
+                  // MELIHAT task-nya (canAddComment=canViewTask di server) — modal ini hanya
+                  // pernah dibuka untuk task yang lolos canViewTask, jadi selalu boleh berkomentar.
+                  readOnly={false}
                 />
+
+                <TaskHistory taskId={taskId} />
               </div>
             </div>
           </div>

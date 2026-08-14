@@ -13,9 +13,8 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const task = await SheetTable.findById('tasks', id);
   if (!task) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
   if (!canReadComments(session, task)) {
-    // Bugfix (permintaan user, fitur Leader Role): sebelumnya dicek pakai canAddComment
-    // (=canManageTask) — task yang cuma boleh DILIHAT (view-only) jadi tidak bisa dibaca
-    // komentarnya sama sekali. Sekarang cukup aturan visibilitas (canReadComments=canViewTask).
+    // Baca komentar cukup aturan visibilitas task (canReadComments=canViewTask) — siapa pun yang
+    // bisa melihat task-nya boleh membaca riwayat komentarnya.
     return NextResponse.json({ error: 'Anda tidak punya akses ke task ini.' }, { status: 403 });
   }
 

@@ -3,22 +3,20 @@ import type { SessionPayload } from '@/lib/auth/session';
 import { isAdminRole, isLeaderRole, type Role } from '@/lib/models/roles';
 
 /**
- * Aturan visibilitas Task (Fase 7, DIPERBARUI — permintaan user, fitur Leader Role & pembatasan
- * visibilitas "Manager"):
+ * Aturan visibilitas Task (DIPERBARUI — permintaan user, perbaikan Leader & Pemberi Tugas):
  * - Admin (session.isAdmin — role_key bawaan sistem 'admin' ATAU role lain yang ditandai
  *   is_admin="Ya" di Master Role) melihat & mengelola semua task (tidak berubah).
- * - Role "Pemimpin" (session.isLeader, ditandai lewat Master Role) melihat SELURUH task milik
- *   user lain, TAPI murni view-only untuk task yang bukan miliknya — tidak pernah bisa mengelola
- *   task user lain (lihat canManageTask di bawah). Task yang assignee-nya dirinya sendiri (kalau
- *   ada, mis. ditugaskan oleh Admin atau Pemimpin menugaskan dirinya sendiri — lihat
- *   canAssignTaskTo) tetap bisa dikelola penuh seperti biasa.
+ * - Role "Pemimpin" (session.isLeader, ditandai lewat Master Role) melihat DAN MENGELOLA PENUH
+ *   seluruh task milik user lain (lihat canManageTaskInfo di bawah — poin 1, pembalikan
+ *   kebijakan eksplisit dari sebelumnya yang membuat Pemimpin view-only untuk task orang lain).
  * - User dengan canAssignToOthers() (setara "Manager", dari flag Employment Type) HANYA melihat:
  *   (a) task yang assignee-nya dirinya sendiri (task miliknya, bebas dikelola), DAN
- *   (b) task yang dia sendiri tugaskan ke user lain (assigned_by === dirinya) — tapi ini
- *   VIEW-ONLY, tidak bisa diapa-apakan (lihat canManageTask). Sebelumnya Manager melihat &
- *   mengelola SEMUA task siapa pun — dipersempit sesuai permintaan user eksplisit.
+ *   (b) task yang dia sendiri tugaskan ke user lain (assigned_by === dirinya) — kelola penuh
+ *   informasinya selagi masih status awal (poin 2, lihat canManageTaskInfo/canEditTaskFieldsNow),
+ *   tapi TIDAK bisa mengedit info task itu di luar jendela status awal.
  * - Role/user lain (setara "Member") HANYA melihat task yang assignee-nya (assigned_to) dirinya
- *   sendiri.
+ *   sendiri — termasuk task hasil delegasi dari orang lain, yang cuma boleh dikerjakan
+ *   (status/Time Tracking) tanpa bisa mengedit informasinya (poin 3, lihat canOperateTimeTracking).
  */
 export function canViewTask(session: SessionPayload, task: SheetRow): boolean {
   if (session.isAdmin) return true;
@@ -33,16 +31,84 @@ export function canViewTask(session: SessionPayload, task: SheetRow): boolean {
   return false;
 }
 
+/** Task "milik sendiri" — assignee-nya dirinya sendiri DAN bukan hasil delegasi dari orang lain
+ *  (assigned_by kosong, atau assigned_by === assigned_to karena self-assign). */
+function isSelfOwnedTask(session: SessionPayload, task: SheetRow): boolean {
+  return task.assigned_to === session.userId && (!task.assigned_by || task.assigned_by === task.assigned_to);
+}
+
+/** Sesi ini adalah "Pemberi Tugas" (delegator) dari task ini — menugaskan ke user LAIN (bukan
+ *  dirinya sendiri). */
+function isTaskDelegator(session: SessionPayload, task: SheetRow): boolean {
+  return task.assigned_by === session.userId && task.assigned_by !== task.assigned_to;
+}
+
 /**
- * Aturan kelola/edit (permintaan user, DIPERSEMPIT dari sebelumnya yang menyamakan dengan
- * canViewTask): HANYA Admin, atau task yang assignee-nya (assigned_to) dirinya sendiri. Pemimpin
- * & Manager tetap bisa MELIHAT task user lain (lewat canViewTask di atas) tapi tidak pernah bisa
- * mengelolanya — murni view-only, tidak boleh mengubah field, Time Tracking, Cancel Task, atau
- * menambah komentar (semua endpoint aksi Task memakai canManageTask sebagai gate, lihat
- * src/app/api/tasks/[id]/route.ts, time-tracking/route.ts, comments/route.ts).
+ * Aturan kelola INFORMASI task (judul/deskripsi/client/project/priority/tipe/assignee/tanggal/dst)
+ * — DIPERBARUI (permintaan user, perbaikan Leader & Pemberi Tugas, poin 1 & 2):
+ * - Admin: selalu bisa (tidak berubah).
+ * - Pemimpin (session.isLeader): SEKARANG bisa mengelola SELURUH task siapa pun, tidak lagi
+ *   view-only seperti sebelumnya — pembalikan kebijakan eksplisit dari permintaan user.
+ * - Task milik sendiri (assignee = dirinya, bukan delegasi dari orang lain): tetap bisa, seperti
+ *   sebelumnya.
+ * - "Pemberi Tugas" (assigned_by = dirinya, ditugaskan ke user LAIN): SEKARANG bisa mengelola
+ *   juga (sebelumnya cuma bisa kalau punya izin lain) — tapi kemampuan mengubah FIELD & MENGHAPUS
+ *   dibatasi lebih lanjut hanya selagi task masih di status awal, lihat canEditTaskFieldsNow &
+ *   canDeleteTask di bawah.
+ * - Penerima tugas (assigned_to = dirinya, tapi hasil delegasi dari orang lain, assigned_by !==
+ *   dirinya): TIDAK BISA mengelola informasi task ini sama sekali (poin 3) — tetap bisa
+ *   mengoperasikan status/Time Tracking, lihat canOperateTimeTracking.
  */
-export function canManageTask(session: SessionPayload, task: SheetRow): boolean {
+export function canManageTaskInfo(session: SessionPayload, task: SheetRow): boolean {
   if (session.isAdmin) return true;
+  if (session.isLeader) return true;
+  if (isSelfOwnedTask(session, task)) return true;
+  if (isTaskDelegator(session, task)) return true;
+  return false;
+}
+
+/**
+ * Aturan BOLEH MENGUBAH FIELD SEKARANG (dipakai untuk validasi server di PATCH & untuk
+ * disabled/enabled form field di client) — meniru formula `canManage && isDefaultStatus` yang
+ * SUDAH ADA sebelumnya di task-detail-modal.tsx, sekarang dijadikan aturan resmi & DITEGAKKAN DI
+ * SERVER juga (sebelumnya cuma pembatasan tampilan di client, tidak divalidasi ulang di API).
+ * - Admin, Pemimpin, & pemilik task sendiri: TIDAK dibatasi status (perilaku lama yang sudah
+ *   berjalan tetap dipertahankan, tidak diperketat tanpa diminta).
+ * - Pemberi Tugas: HANYA selagi task masih di status awal (is_default) — sesuai permintaan user
+ *   poin 2 ("...selagi tasking masih pada status awal").
+ * - Penerima delegasi: selalu false (poin 3), terlepas dari status.
+ */
+export function canEditTaskFieldsNow(session: SessionPayload, task: SheetRow, isDefaultStatus: boolean): boolean {
+  if (!canManageTaskInfo(session, task)) return false;
+  if (session.isAdmin || session.isLeader || isSelfOwnedTask(session, task)) return true;
+  // Sisanya (lolos canManageTaskInfo tapi bukan admin/leader/pemilik) pasti Pemberi Tugas.
+  return isDefaultStatus;
+}
+
+/**
+ * Aturan HAPUS task — sama pola dengan canEditTaskFieldsNow, TAPI sengaja TIDAK menambah
+ * pembatasan status baru untuk Admin/Pemimpin/pemilik task sendiri (permintaan user cuma
+ * menyebut "Pemberi tugas... selagi tasking masih pada status awal", jadi kemampuan hapus
+ * Admin/Pemimpin/pemilik yang sudah berjalan tanpa batas status TIDAK diubah di sini).
+ */
+export function canDeleteTask(session: SessionPayload, task: SheetRow, isDefaultStatus: boolean): boolean {
+  if (session.isAdmin) return true;
+  if (session.isLeader) return true;
+  if (isSelfOwnedTask(session, task)) return true;
+  if (isTaskDelegator(session, task)) return isDefaultStatus;
+  return false;
+}
+
+/**
+ * Aturan mengoperasikan STATUS/Time Tracking (Start/Pause/Resume/Stop/Back/Done, termasuk drag
+ * Kanban untuk transisi standar) — permintaan user poin 3 ("Tetap boleh ubah status + Time
+ * Tracking"): penerima delegasi TETAP boleh mengerjakan tugasnya (ubah status, pakai Time
+ * Tracking) walau tidak boleh mengedit informasi task. Cancel Task TIDAK termasuk di sini —
+ * Cancel tetap digerbangi canManageTaskInfo (penerima tugas tidak boleh membatalkan sepihak task
+ * yang ditugaskan orang lain ke dia, cuma boleh mengerjakan/menghentikan sementara).
+ */
+export function canOperateTimeTracking(session: SessionPayload, task: SheetRow): boolean {
+  if (canManageTaskInfo(session, task)) return true;
   return task.assigned_to === session.userId;
 }
 

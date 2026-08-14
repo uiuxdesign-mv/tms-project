@@ -172,13 +172,14 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
         inlineGroup: 'role_flags',
         exclusiveWith: 'is_leader',
       },
-      // Fitur Leader Role (permintaan user): role yang ditandai Pemimpin tidak bisa ditugaskan
-      // task oleh siapa pun kecuali dirinya sendiri atau Admin, otomatis boleh menugaskan task ke
-      // semua user kecuali Admin (tidak perlu diatur lewat Employment Type seperti Manager), dan
-      // boleh melihat SELURUH task user lain tapi murni view-only. Mutually exclusive dengan "Is
-      // Admin" di atas. Lihat aturan lengkap di src/lib/models/tasks.ts
-      // (canViewTask/canManageTask/canAssignToOthers/canAssignTaskTo) dan src/lib/models/roles.ts
-      // (isLeaderRole).
+      // Fitur Leader Role (permintaan user, DIPERBARUI — perbaikan Leader & Pemberi Tugas poin 1,
+      // 3 & 5): role yang ditandai Pemimpin tidak bisa ditugaskan task oleh siapa pun kecuali
+      // dirinya sendiri atau Admin, otomatis boleh menugaskan task ke semua user kecuali Admin
+      // (tidak perlu diatur lewat Employment Type seperti Manager), dan SEKARANG bisa MENGELOLA
+      // PENUH (bukan cuma melihat) seluruh task user lain — pembalikan kebijakan eksplisit dari
+      // sebelumnya. Mutually exclusive dengan "Is Admin" di atas. Lihat aturan lengkap di
+      // src/lib/models/tasks.ts (canViewTask/canManageTaskInfo/canAssignToOthers/canAssignTaskTo)
+      // dan src/lib/models/roles.ts (isLeaderRole).
       {
         key: 'is_leader',
         label: 'Pemimpin (Leader)',
@@ -186,7 +187,7 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
         type: 'boolean',
         displayAs: 'checkbox',
         helperText:
-          'Role dengan tanda ini tidak bisa ditugaskan task oleh siapa pun kecuali dirinya sendiri atau Admin, otomatis boleh menugaskan task ke semua user kecuali Admin, dan bisa melihat seluruh task user lain (view-only, tidak bisa mengubah apa pun). Tidak bisa dicentang bersamaan dengan "Admin".',
+          'Role dengan tanda ini tidak bisa ditugaskan task oleh siapa pun kecuali dirinya sendiri atau Admin, otomatis boleh menugaskan task ke semua user kecuali Admin, dan bisa MENGAKSES SERTA MENGELOLA seluruh task milik user lain (bukan hanya melihat) — termasuk mengubah informasi, menjalankan Time Tracking, dan menghapus task siapa pun. Tidak bisa dicentang bersamaan dengan "Admin".',
         helperTextKey: 'md_help_is_leader',
         inlineGroup: 'role_flags',
         exclusiveWith: 'is_admin',

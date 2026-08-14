@@ -32,6 +32,12 @@ type TaskRow = {
   completed_at: string;
   actual_duration_seconds?: string;
   timeTracking?: TimeTrackingState;
+  /** Flag izin server-embedded (GET /api/tasks, lihat src/lib/models/tasks.ts) — permintaan user,
+   *  perbaikan Leader & Pemberi Tugas: sudah dihitung di server, tidak lagi dihitung ulang di sini. */
+  can_manage_info?: boolean;
+  can_edit_fields_now?: boolean;
+  can_delete?: boolean;
+  can_operate_time_tracking?: boolean;
 };
 
 type Option = { value: string; label: string };
@@ -257,19 +263,19 @@ export default function TasksTable({
   // berarti apa-apa bagi user).
   const table = useTableControls(filteredRows, { searchFields: ['title', 'description'], pageSize: 20 });
 
-  // Bugfix (permintaan user, fitur Leader Role): disamakan dengan aturan kelola server yang
-  // DIPERSEMPIT (src/lib/models/tasks.ts canManageTask) — HANYA Admin atau task yang assignee-nya
-  // (assigned_to) dirinya sendiri yang boleh dikelola. Pemimpin & Manager (canAssignOthers) tetap
-  // BISA MELIHAT task user lain (baris ini tetap muncul di tabel, sudah difilter server lewat
-  // canViewTask), tapi tidak lagi otomatis bisa mengelola/menghapusnya — murni view-only, lihat
-  // tombol "Lihat" vs "Detail" di render tabel di bawah.
-  function canManage(row: TaskRow) {
+  // Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas poin 1-3): flag izin dibaca
+  // LANGSUNG dari yang sudah dihitung server (GET /api/tasks, lihat src/lib/models/tasks.ts),
+  // tidak lagi dihitung ulang di sini — supaya selalu konsisten dengan task-detail-modal.tsx &
+  // kanban-board.tsx. `canOpenAsManaged` dipakai untuk label tombol "Detail" (bisa berbuat
+  // sesuatu — kelola info ATAU minimal operasikan status/Time Tracking) vs "Lihat" (murni
+  // view-only, mis. Manager yang cuma boleh melihat task yang dia tugaskan).
+  function canOpenAsManaged(row: TaskRow) {
     if (!permissions.canEdit) return false;
-    return isAdmin || row.assigned_to === currentUserId;
+    return !!row.can_manage_info || !!row.can_operate_time_tracking;
   }
   function canDelete(row: TaskRow) {
     if (!permissions.canDelete) return false;
-    return isAdmin || row.assigned_to === currentUserId;
+    return !!row.can_delete;
   }
 
   // Format tanggal "Jul 14, 2026" seperti video (List/Kanban) — bukan ISO mentah.
@@ -369,7 +375,7 @@ export default function TasksTable({
                           tidak punya cara membuka task orang lain yang cuma boleh dia lihat.
                           Labelnya berubah "Detail" (bisa diedit) vs "Lihat" (view-only). */}
                       <button onClick={() => openEditModal(row)} className="mr-3 text-indigo-600 hover:text-indigo-800">
-                        {canManage(row) ? t('action_detail') : t('action_view')}
+                        {canOpenAsManaged(row) ? t('action_detail') : t('action_view')}
                       </button>
                       {canDelete(row) && (
                         <button onClick={() => handleDelete(row)} className="text-red-600 hover:text-red-800">

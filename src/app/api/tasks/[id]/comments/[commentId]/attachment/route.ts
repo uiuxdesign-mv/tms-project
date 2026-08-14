@@ -6,10 +6,9 @@ import { canReadComments, getAttachmentContent, type CommentRow } from '@/lib/mo
 /**
  * Proxy download lampiran — file di Drive TIDAK PERNAH dibagikan lewat link publik/Drive
  * langsung. Semua akses harus lewat sini supaya aturan visibilitas task (canReadComments/
- * canViewTask) tetap berlaku untuk lampiran juga, konsisten dengan seluruh app. Bugfix
- * (permintaan user, fitur Leader Role): sebelumnya pakai canAddComment (=canManageTask) — task
- * yang cuma boleh DILIHAT (view-only) jadi tidak bisa membuka lampiran komentarnya sama sekali,
- * padahal cuma membaca (bukan aksi tulis).
+ * canViewTask) tetap berlaku untuk lampiran juga, konsisten dengan seluruh app — siapa pun yang
+ * bisa melihat task-nya boleh membuka lampiran komentarnya, terlepas dari boleh tidaknya dia
+ * mengelola informasi task tersebut.
  */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string; commentId: string }> }) {
   const guard = await requirePermission('tasking', 'view');

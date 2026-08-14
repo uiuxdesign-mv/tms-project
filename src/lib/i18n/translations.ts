@@ -238,6 +238,29 @@ export const translations = {
   comment_sending: { id: 'Mengirim...', en: 'Sending...' },
   comment_send: { id: 'Kirim', en: 'Send' },
 
+  // Riwayat Perubahan Task / History Log (permintaan user poin 4).
+  history_heading: { id: 'Riwayat Perubahan', en: 'Change History' },
+  history_loading: { id: 'Memuat riwayat...', en: 'Loading history...' },
+  history_empty: { id: 'Belum ada riwayat perubahan.', en: 'No change history yet.' },
+  history_changed_from: { id: 'diubah dari', en: 'changed from' },
+  history_changed_to: { id: 'menjadi', en: 'to' },
+  hist_empty_value: { id: '(kosong)', en: '(empty)' },
+  toast_history_load_failed: { id: 'Gagal memuat riwayat perubahan.', en: 'Failed to load change history.' },
+  // Label field khusus riwayat — sengaja TERPISAH dari td_field_* (yang punya sufiks "*"/
+  // "(opsional)" untuk kebutuhan form) supaya kalimat riwayat ("Klien diubah dari ... menjadi
+  // ...") tetap bersih tanpa tanda bintang/keterangan form ikut terbawa.
+  hist_field_title: { id: 'Judul', en: 'Title' },
+  hist_field_description: { id: 'Deskripsi', en: 'Description' },
+  hist_field_client: { id: 'Klien', en: 'Client' },
+  hist_field_project: { id: 'Proyek', en: 'Project' },
+  hist_field_task_type: { id: 'Tipe Tugas', en: 'Task Type' },
+  hist_field_priority: { id: 'Prioritas', en: 'Priority' },
+  hist_field_assignee: { id: 'Assignee', en: 'Assignee' },
+  hist_field_due_date: { id: 'Tanggal Jatuh Tempo', en: 'Due Date' },
+  hist_field_start_date: { id: 'Tanggal Mulai', en: 'Start Date' },
+  hist_field_est_hours: { id: 'Estimasi Jam', en: 'Est. Hours' },
+  hist_field_related_task: { id: 'Task Terkait', en: 'Related Task' },
+
   // Halaman Audit Log.
   audit_page_title: { id: 'Audit Log', en: 'Audit Log' },
   audit_subtitle: {
@@ -715,9 +738,12 @@ export const translations = {
   // Tugas/Ditugaskan Kepada di Task Detail (hanya muncul kalau task-nya benar-benar penunjukan
   // tugas dari satu user ke user lain).
   md_field_is_leader: { id: 'Pemimpin (Leader)', en: 'Leader' },
+  // Perbaikan (permintaan user poin 1, 3 & 5): teks ini DIPERBARUI membalik kebijakan sebelumnya
+  // — Pemimpin sekarang bisa MENGELOLA PENUH (bukan cuma melihat) seluruh task siapa pun,
+  // termasuk mengubah task yang ditugaskan ke user lain.
   md_help_is_leader: {
-    id: 'Role dengan tanda ini tidak bisa ditugaskan task oleh siapa pun kecuali dirinya sendiri atau Admin, otomatis boleh menugaskan task ke semua user kecuali Admin, dan bisa melihat seluruh task user lain (view-only, tidak bisa mengubah apa pun). Tidak bisa dicentang bersamaan dengan "Admin".',
-    en: 'Roles marked this way can only be assigned a task by themselves or by an Admin, can automatically assign tasks to every user except Admin, and can see every other user’s tasks (view-only, no changes allowed). Cannot be checked together with "Admin".',
+    id: 'Role dengan tanda ini tidak bisa ditugaskan task oleh siapa pun kecuali dirinya sendiri atau Admin, otomatis boleh menugaskan task ke semua user kecuali Admin, dan bisa MENGAKSES SERTA MENGELOLA seluruh task milik user lain (bukan hanya melihat) — termasuk mengubah informasi, menjalankan Time Tracking, dan menghapus task siapa pun. Tidak bisa dicentang bersamaan dengan "Admin".',
+    en: 'Roles marked this way can only be assigned a task by themselves or by an Admin, can automatically assign tasks to every user except Admin, and can ACCESS AND FULLY MANAGE every other user’s tasks (not just view them) — including editing task info, running Time Tracking, and deleting anyone’s tasks. Cannot be checked together with "Admin".',
   },
   // Perbaikan Admin/Leader (permintaan user): field baru "Is Admin" di Master Role — role lain
   // selain role_key bawaan sistem 'admin' juga bisa diberi hak Admin PENUH, 100% identik, di
@@ -732,8 +758,14 @@ export const translations = {
   td_assigned_by_label: { id: 'Pemberi Tugas', en: 'Assigned By' },
   td_assigned_to_label: { id: 'Ditugaskan Kepada', en: 'Assigned To' },
   td_view_only_notice: {
-    id: 'Anda hanya bisa melihat task ini (view-only) — tidak bisa mengubah, menjalankan Time Tracking, atau menambah komentar.',
-    en: 'You can only view this task (view-only) — you cannot edit it, run Time Tracking, or add comments.',
+    id: 'Anda hanya bisa melihat task ini (view-only) — tidak bisa mengubah informasi atau menjalankan Time Tracking. Anda tetap bisa menambahkan komentar.',
+    en: 'You can only view this task (view-only) — you cannot edit its info or run Time Tracking. You can still add comments.',
+  },
+  // Perbaikan (permintaan user poin 2 & 3): notice baru untuk penerima delegasi — boleh
+  // mengerjakan (ubah status/Time Tracking) tapi tidak boleh mengedit informasi task.
+  td_operate_only_notice: {
+    id: 'Task ini ditugaskan kepada Anda oleh orang lain — Anda bisa mengerjakannya (ubah status & Time Tracking) dan menambahkan komentar, tapi tidak bisa mengubah informasi task (judul, deskripsi, dan field lainnya).',
+    en: 'This task was assigned to you by someone else — you can work on it (change status & Time Tracking) and add comments, but you cannot edit the task info (title, description, and other fields).',
   },
 } as const;
 

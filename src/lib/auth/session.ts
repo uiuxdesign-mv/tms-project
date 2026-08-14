@@ -28,8 +28,8 @@ export type SessionPayload = {
   /** true kalau role user ini ditandai "Pemimpin" di Master Role (permintaan user, fitur Leader
    *  Role), DAN bukan Admin (mutually exclusive, dipaksa di server — lihat isLeaderRole()) —
    *  Leader tidak bisa ditugaskan task oleh siapa pun kecuali dirinya sendiri atau oleh Admin,
-   *  boleh menugaskan ke semua user kecuali Admin, dan boleh melihat SELURUH task user lain tapi
-   *  murni view-only (lihat src/lib/models/tasks.ts canViewTask/canManageTask/canAssignToOthers). */
+   *  boleh menugaskan ke semua user kecuali Admin, dan boleh MENGELOLA PENUH seluruh task user
+   *  lain (lihat src/lib/models/tasks.ts canViewTask/canManageTaskInfo/canAssignToOthers). */
   isLeader: boolean;
   /** true kalau user ini wajib ganti password sebelum bisa memakai aplikasi (mis. baru dibuat lewat Import CSV
    * dengan password acak). Dicek proxy.ts untuk memaksa redirect ke /change-password. */
