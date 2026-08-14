@@ -7,6 +7,7 @@ import type { TimeTrackingState } from '@/components/time-tracking-controls';
 import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { useTableControls } from '@/lib/hooks/use-table-controls';
+import { usePolling } from '@/lib/hooks/use-polling';
 import { SortableHeader, PaginationBar } from '@/components/table-controls';
 import { Badge } from '@/components/badge';
 import { TasksPageHeader } from '@/components/tasks-view-header';
@@ -147,6 +148,14 @@ export default function TasksTable({
 
   const silentReload = useCallback(() => load({ silent: true }), [load]);
 
+  // Perbaikan (permintaan user Round 5, poin 2 — "aksi di user A harus langsung terlihat di user
+  // B tanpa refresh manual"): polling diam-diam setiap 20 detik (lihat use-polling.ts untuk
+  // penjelasan lengkap kenapa polling, bukan WebSocket — tidak ada infrastruktur real-time di
+  // aplikasi ini). Dimatikan otomatis (enabled=false) selagi modal Detail/Tambah Task terbuka,
+  // supaya reload di belakang layar tidak mengganggu form yang sedang diisi user (mis. field
+  // ke-reset diam-diam gara-gara `opts` berubah referensi).
+  usePolling(silentReload, 20_000, !modalOpen);
+
   // Kanban & Calendar (Fase 10) tidak punya form Tambah Task sendiri — tombol "+ Add Task" di
   // sana mengarah ke /tasks?new=1 supaya modal yang sama (satu-satunya implementasi) langsung
   // terbuka di sini, lalu query string dibersihkan supaya tidak terbuka lagi kalau halaman di-refresh.
@@ -157,6 +166,20 @@ export default function TasksTable({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams, opts]);
+
+  // Perbaikan (permintaan user Round 5, poin 3): klik notifikasi "penunjukan tugas" di bell header
+  // (notification-bell.tsx) mengarah ke sini dengan ?task=<id> — langsung buka Task Detail
+  // Modal-nya, tidak perlu user mencari sendiri di daftar. Modal fetch datanya sendiri lewat GET
+  // /api/tasks/[id] (sama seperti openEditModal), jadi cukup set id-nya saja di sini.
+  useEffect(() => {
+    const taskId = searchParams.get('task');
+    if (taskId) {
+      setEditingId(taskId);
+      setModalOpen(true);
+      router.replace('/tasks');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 
   const selectedTaskType = opts?.taskTypes.find((tt) => tt.value === form.task_type_id);
   const showRelatedTask = !!selectedTaskType?.requiresRelatedTask;

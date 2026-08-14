@@ -9,6 +9,7 @@ import { computeClosedIntervals, type TimeLogEventLike } from '@/lib/reports/tim
 import { elapsedWeekdaysThisWeek, rangeBounds } from '@/lib/reports/date-range';
 import type { ClosedTimeInterval } from '@/lib/reports/types';
 import DashboardView from '@/components/dashboard-view';
+import AutoRefresh from '@/components/auto-refresh';
 
 export default async function DashboardPage() {
   const session = await getSession();
@@ -149,7 +150,9 @@ export default async function DashboardPage() {
   }
 
   return (
-    <DashboardView
+    <>
+      <AutoRefresh />
+      <DashboardView
       session={
         session
           ? {
@@ -175,6 +178,7 @@ export default async function DashboardPage() {
       taskTitleById={Object.fromEntries(taskTitleById)}
       recentActivity={recentActivity}
       recentTimeTracking={recentTimeTracking}
-    />
+      />
+    </>
   );
 }

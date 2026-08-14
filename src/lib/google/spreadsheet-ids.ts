@@ -30,6 +30,10 @@ export const SPREADSHEET_IDS = {
   // Log history perubahan task (field & status) — permintaan user poin 4. Spreadsheet terpisah
   // (baru) yang disiapkan & di-share manual oleh user, lihat SKILL/pesan setup di percakapan.
   task_history: () => requireEnv('SHEET_ID_TASK_HISTORY'),
+  // Notifikasi in-app (permintaan user Round 5, poin 3 & 4: penunjukan tugas langsung muncul di
+  // bell notifikasi header). Spreadsheet terpisah (baru), disiapkan & di-share manual oleh user
+  // sama seperti task_history — lihat lib/models/notifications.ts untuk skema kolomnya.
+  notifications: () => requireEnv('SHEET_ID_NOTIFICATIONS'),
 } as const;
 
 export type SheetKey = keyof typeof SPREADSHEET_IDS;

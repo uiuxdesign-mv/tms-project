@@ -15,6 +15,7 @@ import { logAction } from '@/lib/models/audit-log';
 import { getTimeStatesForTasks } from '@/lib/models/time-tracking';
 import { getDefaultStatusId } from '@/lib/models/statuses';
 import { logTaskFieldDiffs, resolveEntityLabel } from '@/lib/models/task-history';
+import { createNotification } from '@/lib/models/notifications';
 
 /** Ambil 1 task by id (Fase 10 — dipakai Task Detail Modal saat dibuka dari klik kartu Kanban,
  *  yang cuma punya rows list ringkas hasil GET /api/tasks tanpa perlu prop-drilling penuh). */
@@ -176,6 +177,10 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // di form), assigned_by yang sudah tersimpan TIDAK boleh tertimpa oleh siapa pun yang kebetulan
   // sedang mengedit (permintaan user, item detail tasking).
   let assignedBy = String(existing.assigned_by ?? '');
+  // Notifikasi (permintaan user Round 5, poin 3): dicatat TRUE hanya kalau assignee benar-benar
+  // BERGANTI ke user lain (bukan re-save assignee yang sama) — dipakai setelah update berhasil
+  // untuk mengirim notifikasi penunjukan tugas baru ke assignee yang baru.
+  let reassignedToNewUser = false;
   if (wantsReassign) {
     if (!assignee) {
       errors.assigned_to = 'User yang ditugaskan tidak ditemukan.';
@@ -190,6 +195,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
         } else {
           assignedTo = newAssigneeId;
           assignedBy = assignedTo !== session.userId ? session.userId : '';
+          reassignedToNewUser = !!assignedBy;
         }
       }
     }
@@ -289,6 +295,21 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
       entityLabel: updated?.title || id,
     })
   );
+
+  // Notifikasi (permintaan user Round 5, poin 3): assignee BARU langsung dapat notifikasi in-app
+  // begitu task dialihkan ke dia — sama seperti POST /api/tasks, dikirim lewat after() supaya
+  // tidak memperlambat response, dan tidak pernah membatalkan update yang sudah berhasil tersimpan.
+  if (reassignedToNewUser) {
+    after(() =>
+      createNotification({
+        userId: assignedTo,
+        type: 'task_assigned',
+        taskId: id,
+        taskTitle: title,
+        actorName: session.name,
+      })
+    );
+  }
 
   // Log history (permintaan user poin 4): catat siapa & kapan tiap field berubah, termasuk
   // perubahan status lewat drag Kanban (change_type 'status'). Dijalankan di after() (tidak

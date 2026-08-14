@@ -42,6 +42,26 @@ export const translations = {
   theme_to_dark: { id: 'Mode gelap', en: 'Dark mode' },
   theme_to_light: { id: 'Mode terang', en: 'Light mode' },
   lang_switch: { id: 'Ganti ke Bahasa Inggris', en: 'Switch to Indonesian' },
+  // Perbaikan (permintaan user Round 5, poin 4): opsi bahasa di dropdown topbar disingkat
+  // ("Bahasa Indonesia"/"English" penuh -> "ID"/"EN" saja).
+  lang_abbr_id: { id: 'ID', en: 'ID' },
+  lang_abbr_en: { id: 'EN', en: 'EN' },
+
+  // Notifikasi (permintaan user Round 5, poin 3 & 4) — bell di header, kiri avatar.
+  notif_bell_label: { id: 'Notifikasi', en: 'Notifications' },
+  notif_dropdown_title: { id: 'Notifikasi', en: 'Notifications' },
+  notif_mark_all_read: { id: 'Tandai semua dibaca', en: 'Mark all as read' },
+  notif_empty: { id: 'Belum ada notifikasi.', en: 'No notifications yet.' },
+  notif_loading: { id: 'Memuat notifikasi...', en: 'Loading notifications...' },
+  // {actor} & {title} diganti lewat .replace() di client (pola sama seperti key template lain,
+  // mis. u_subtitle) — actor_name & task_title disimpan sebagai snapshot teks di sheet
+  // notifications, bukan key i18n, jadi tidak diterjemahkan ulang (memang seharusnya begitu, nama
+  // orang & judul task bukan sesuatu yang punya versi ID/EN).
+  notif_task_assigned: {
+    id: '{actor} menugaskan Anda ke task "{title}"',
+    en: '{actor} assigned you to task "{title}"',
+  },
+  notif_view_task: { id: 'Lihat task', en: 'View task' },
 
   // Dashboard
   dashboard_title: { id: 'Dashboard', en: 'Dashboard' },

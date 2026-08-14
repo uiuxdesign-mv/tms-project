@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 import { apiFetch } from '@/lib/csrf-client';
 import { useLanguage } from '@/components/language-provider';
 import { useTheme } from '@/components/theme-provider';
+import NotificationBell from '@/components/notification-bell';
 import type { TranslationKey } from '@/lib/i18n/translations';
 
 export type ShellNavLink = {
@@ -254,7 +255,8 @@ export default function AppShell({ session, navGroups, children }: AppShellProps
                     d="M12 21a9 9 0 100-18 9 9 0 000 18zM3.6 9h16.8M3.6 15h16.8M11.5 3a17 17 0 000 18M12.5 3a17 17 0 010 18"
                   />
                 </svg>
-                <span className="hidden sm:inline">{lang === 'id' ? 'Bahasa Indonesia' : 'English'}</span>
+                {/* Perbaikan (permintaan user Round 5, poin 4): label penuh -> singkatan saja. */}
+                <span className="hidden sm:inline">{lang === 'id' ? t('lang_abbr_id') : t('lang_abbr_en')}</span>
                 <svg
                   className={`h-3.5 w-3.5 transition-transform ${langOpen ? 'rotate-180' : ''}`}
                   fill="none"
@@ -279,7 +281,7 @@ export default function AppShell({ session, navGroups, children }: AppShellProps
                         lang === code ? 'font-medium text-indigo-600' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-900'
                       }`}
                     >
-                      {code === 'id' ? 'Bahasa Indonesia' : 'English'}
+                      {code === 'id' ? t('lang_abbr_id') : t('lang_abbr_en')}
                       {lang === code && (
                         <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
@@ -318,13 +320,17 @@ export default function AppShell({ session, navGroups, children }: AppShellProps
               )}
             </button>
 
+            {/* Bell notifikasi (permintaan user Round 5, poin 3 & 4): diletakkan sebelah kiri
+                avatar, sebelum Profile dropdown di bawah ini. */}
+            <NotificationBell />
+
             {/* Profile dropdown */}
             <div ref={profileRef} className="relative">
               <button
                 type="button"
                 onClick={() => setProfileOpen((v) => !v)}
-                className="flex items-center gap-3 hover:opacity-80"
-                title={t('nav_profile')}
+                className="flex items-center gap-2 hover:opacity-80"
+                title={session.name}
               >
                 {session.photoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -334,7 +340,9 @@ export default function AppShell({ session, navGroups, children }: AppShellProps
                     {session.name.slice(0, 1).toUpperCase()}
                   </span>
                 )}
-                <span className="hidden text-sm text-gray-900 sm:inline">{session.name}</span>
+                {/* Perbaikan (permintaan user Round 5, poin 4): nama di sebelah avatar dihilangkan
+                    — avatar (+ title tooltip nama saat hover) sudah cukup, dropdown-nya sendiri
+                    tetap menampilkan akses ke Profil. */}
                 <svg
                   className={`hidden h-4 w-4 text-gray-400 transition-transform sm:inline ${profileOpen ? 'rotate-180' : ''}`}
                   fill="none"

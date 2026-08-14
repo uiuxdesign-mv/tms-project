@@ -9,6 +9,7 @@ import { TasksPageHeader } from '@/components/tasks-view-header';
 import TaskDetailModal from '@/components/task-detail-modal';
 import TaskFilterBar from '@/components/task-filter-bar';
 import { useLanguage } from '@/components/language-provider';
+import { usePolling } from '@/lib/hooks/use-polling';
 
 type TaskRow = {
   id: string;
@@ -149,6 +150,11 @@ export default function KanbanBoard({
   }, [load]);
 
   const silentReload = useCallback(() => load({ silent: true }), [load]);
+
+  // Perbaikan (permintaan user Round 5, poin 2): polling diam-diam, sama pola & alasannya dengan
+  // tasks-table.tsx (lihat use-polling.ts) — dimatikan selagi kartu sedang di-drag atau modal
+  // Detail terbuka, supaya papan tidak "melompat" di tengah interaksi user.
+  usePolling(silentReload, 20_000, !detailTaskId && !dragTaskId);
 
   function label(list: Option[] | undefined, value: string) {
     return list?.find((o) => o.value === value)?.label || '-';

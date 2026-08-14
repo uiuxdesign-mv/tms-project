@@ -6,6 +6,7 @@ import { TasksPageHeader } from '@/components/tasks-view-header';
 import TaskDetailModal from '@/components/task-detail-modal';
 import TaskFilterBar from '@/components/task-filter-bar';
 import { useLanguage } from '@/components/language-provider';
+import { usePolling } from '@/lib/hooks/use-polling';
 
 type TaskRow = {
   id: string;
@@ -125,6 +126,10 @@ export default function CalendarView({
   }, [load]);
 
   const silentReload = useCallback(() => load({ silent: true }), [load]);
+
+  // Perbaikan (permintaan user Round 5, poin 2): polling diam-diam, sama pola dengan List/Kanban
+  // (lihat use-polling.ts) — dimatikan selagi modal Detail terbuka.
+  usePolling(silentReload, 20_000, !detailTaskId);
 
   function goToMonth(deltaMonths: number) {
     const d = new Date(year, month - 1 + deltaMonths, 1);

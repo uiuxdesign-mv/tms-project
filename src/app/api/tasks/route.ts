@@ -14,6 +14,7 @@ import { findRoleById } from '@/lib/models/roles';
 import { logAction } from '@/lib/models/audit-log';
 import { getTimeStatesForTasks } from '@/lib/models/time-tracking';
 import { getDefaultStatusId } from '@/lib/models/statuses';
+import { createNotification } from '@/lib/models/notifications';
 
 export async function GET(req: NextRequest) {
   const guard = await requirePermission('tasking', 'view');
@@ -42,6 +43,26 @@ export async function GET(req: NextRequest) {
     const assignee = url.searchParams.get('assigned_to');
     if (statusId) rows = rows.filter((t) => t.status_id === statusId);
     if (assignee) rows = rows.filter((t) => t.assigned_to === assignee);
+
+    // Perbaikan (permintaan user, urutan Task): default-nya task terbaru (created_at) selalu di
+    // paling atas, KECUALI task ber-priority "Urgent" yang selalu didahulukan di atas semuanya
+    // (tetap diurutkan terbaru-dulu di antara sesama Urgent). Priority adalah Master Data yang
+    // bisa diubah namanya oleh user, jadi "Urgent" dicocokkan lewat priority_name (bukan ID
+    // yang di-hardcode) — cocok case-insensitive & di-trim supaya toleran spasi/kapitalisasi.
+    // Dipakai bersama di List (tasks-table.tsx) & Kanban (kanban-board.tsx): keduanya cuma
+    // memfilter array ini tanpa sort ulang, jadi urutan dari sini otomatis berlaku di kedua view.
+    const priorities = await SheetTable.getAll('priorities');
+    const urgentPriorityIds = new Set(
+      priorities.filter((p) => String(p.priority_name || '').trim().toLowerCase() === 'urgent').map((p) => p.id)
+    );
+    rows = [...rows].sort((a, b) => {
+      const aUrgent = urgentPriorityIds.has(a.priority_id) ? 1 : 0;
+      const bUrgent = urgentPriorityIds.has(b.priority_id) ? 1 : 0;
+      if (aUrgent !== bUrgent) return bUrgent - aUrgent;
+      const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+      const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+      return bTime - aTime;
+    });
 
     // Fase 8 (Time Tracking): sisipkan state Start/Pause/Stop/Review yang sudah di-derive dari
     // event log, supaya UI (tabel Task, nanti Kanban) tidak perlu 1 request terpisah per task.
@@ -206,6 +227,21 @@ export async function POST(req: NextRequest) {
       entityLabel: row.title,
     })
   );
+
+  // Notifikasi (permintaan user Round 5, poin 3): kalau task ini benar-benar PENUNJUKAN TUGAS ke
+  // user lain (assignedBy terisi), penerimanya langsung dapat notifikasi in-app — di-poll oleh
+  // bell notifikasi di header, jadi muncul tanpa perlu refresh (lihat notification-bell.tsx).
+  if (assignedBy) {
+    after(() =>
+      createNotification({
+        userId: assignedTo,
+        type: 'task_assigned',
+        taskId: row.id,
+        taskTitle: row.title,
+        actorName: session.name,
+      })
+    );
+  }
 
   return NextResponse.json({ data: row }, { status: 201 });
 }
