@@ -177,11 +177,57 @@ export type TimeActionResult =
   | { ok: false; error: string };
 
 /**
+ * Perbaikan (permintaan user, item concurrency — "beberapa user secara bersamaan tidak sengaja
+ * melakukan action yang sama secara bersamaan"): runTimeAction membaca state (replay event log),
+ * memvalidasinya, LALU baru menulis — ada jendela waktu ("read-check-write") di mana 2 request
+ * bersamaan untuk task yang SAMA bisa sama-sama membaca state lama sebelum salah satu sempat
+ * menulis, sehingga validasi "sudah berjalan/tidak" di keduanya lolos dan keduanya menulis event
+ * duplikat (mis. dua kali "start", atau status ter-advance dua kali). Sekarang aksi untuk task_id
+ * yang sama diserialisasi (antrean FIFO in-process) — request kedua menunggu request pertama
+ * benar-benar selesai (termasuk semua tulisannya) sebelum mulai membaca state, sehingga validasi
+ * state-nya selalu terhadap data TERBARU, bukan data basi.
+ *
+ * CATATAN keterbatasan: lock ini in-memory per instance server, jadi HANYA menutup race kalau
+ * kedua request kebetulan dilayani instance serverless yang sama (skenario paling umum untuk
+ * traffic rendah-menengah). Untuk jaminan lintas-instance yang benar-benar mutlak dibutuhkan lock
+ * terdistribusi (mis. Redis/Upstash/Vercel KV) — di luar cakupan perbaikan ini, silakan diskusikan
+ * kalau traffic aplikasi sudah cukup besar untuk butuh itu.
+ */
+const taskLocks = new Map<string, Promise<void>>();
+
+async function withTaskLock<T>(taskId: string, fn: () => Promise<T>): Promise<T> {
+  const tail = taskLocks.get(taskId) ?? Promise.resolve();
+  let release: () => void = () => {};
+  const gate = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const newTail = tail.then(() => gate);
+  taskLocks.set(taskId, newTail);
+
+  await tail; // tunggu giliran (pemegang lock sebelumnya, kalau ada, selesai dulu)
+  try {
+    return await fn();
+  } finally {
+    release();
+    // Bersihkan entri map kalau tidak ada antrean lain menumpuk di belakang kita (cegah memory leak).
+    if (taskLocks.get(taskId) === newTail) taskLocks.delete(taskId);
+  }
+}
+
+/**
  * Jalankan satu aksi Time Tracking (`start`/`pause`/`resume`/`stop`/`back`/`done`) untuk sebuah
  * task, dengan validasi no-op server-side (aksi yang tidak sesuai state saat ini ditolak, bukan
  * di-silent-ignore) dan efek samping auto status-change sesuai dokumentasi di atas modul ini.
  */
 export async function runTimeAction(
+  taskId: string,
+  userId: string,
+  action: 'start' | 'pause' | 'resume' | 'stop' | 'back' | 'done' | 'cancel'
+): Promise<TimeActionResult> {
+  return withTaskLock(taskId, () => runTimeActionLocked(taskId, userId, action));
+}
+
+async function runTimeActionLocked(
   taskId: string,
   userId: string,
   action: 'start' | 'pause' | 'resume' | 'stop' | 'back' | 'done' | 'cancel'

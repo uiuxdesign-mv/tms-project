@@ -382,12 +382,24 @@ export default function TaskDetailModal({
       const res = await apiFetch(`/api/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        // Perbaikan (permintaan user, item concurrency — cegah 2 user menimpa perubahan satu sama
+        // lain tanpa sadar): sertakan updated_at yang dimuat modal ini terakhir kali — server
+        // menolak dengan pesan jelas (409) kalau task ternyata sudah diubah user lain sejak saat
+        // itu, alih-alih diam-diam menimpa perubahannya. Lihat OptimisticLockError di
+        // src/lib/google/sheet-table.ts.
+        body: JSON.stringify({ ...form, expected_updated_at: task?.updated_at || '' }),
       });
       const json = await parseJsonSafe(res);
       if (!res.ok) {
-        if (json.fieldErrors) setFieldErrors(json.fieldErrors);
-        else toast.error(json.error || t('toast_save_task_failed'));
+        if (json.conflict) {
+          // Konflik: JANGAN timpa form yang sedang diisi user (biar tidak kehilangan draft-nya) —
+          // cukup beri tahu jelas, dia bisa tutup & buka lagi modal ini untuk lihat versi terbaru.
+          toast.error(json.error || t('toast_save_conflict'));
+        } else if (json.fieldErrors) {
+          setFieldErrors(json.fieldErrors);
+        } else {
+          toast.error(json.error || t('toast_save_task_failed'));
+        }
         return;
       }
       onChanged();

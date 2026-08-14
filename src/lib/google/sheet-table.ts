@@ -23,15 +23,23 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
- * Bugfix (Fase 19): sejak beberapa endpoint Task/Time Tracking melewati cache in-memory demi
- * konsistensi (lihat komentar di route GET /api/tasks dkk), pembacaan sheet lewat di sini jadi
- * jauh lebih sering langsung memanggil Google Sheets API — sesekali kena error transient (rate
- * limit 429, atau 5xx sesaat dari Google) yang SEBELUMNYA jarang terlihat karena "diredam" oleh
- * cache. Tanpa retry, error transient begini bikin request gagal total (500 kosong ke client,
- * padahal cuma butuh dicoba ulang sebentar) — jadi di-retry beberapa kali dengan jeda singkat
- * sebelum benar-benar dianggap gagal.
+ * Bugfix (Fase 19, DIPERKUAT — permintaan user, item reliability): sejak beberapa endpoint
+ * Task/Time Tracking melewati cache in-memory demi konsistensi (lihat komentar di route GET
+ * /api/tasks dkk), pembacaan sheet lewat di sini jadi jauh lebih sering langsung memanggil
+ * Google Sheets API — sesekali kena error transient (rate limit 429, atau 5xx sesaat dari
+ * Google) yang SEBELUMNYA jarang terlihat karena "diredam" oleh cache. Tanpa retry, error
+ * transient begini bikin request gagal total (500 kosong ke client, padahal cuma butuh dicoba
+ * ulang sebentar) — jadi di-retry beberapa kali sebelum benar-benar dianggap gagal.
+ *
+ * Diperkuat lagi (permintaan user: error "Gagal memuat data/opsi Task" masih sering muncul di
+ * produksi dengan beberapa user bersamaan) — kuota Google Sheets API adalah PER MENIT (300
+ * read/menit per project, 60/menit per akun service, lihat cache.ts), jadi begitu kena 429
+ * jeda beberapa ratus milidetik saja sering TIDAK CUKUP untuk quota window-nya reset. Sekarang:
+ * lebih banyak percobaan (5x), jeda dasar lebih panjang untuk 429 spesifik, plus jitter acak
+ * supaya banyak request yang kena limit bersamaan tidak semuanya retry di detik yang sama persis
+ * (thundering herd).
  */
-async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
+async function withRetry<T>(fn: () => Promise<T>, attempts = 5): Promise<T> {
   let lastErr: unknown;
   for (let i = 0; i < attempts; i++) {
     try {
@@ -42,16 +50,32 @@ async function withRetry<T>(fn: () => Promise<T>, attempts = 3): Promise<T> {
       // Transient: rate limit (429), error server Google (5xx), atau error tanpa kode HTTP sama
       // sekali (biasanya masalah jaringan sesaat) — selain itu (mis. 400/403 karena sheet memang
       // salah setting) tidak ada gunanya diulang, langsung lempar supaya pesan error tetap jelas.
-      const transient = code === 429 || (code >= 500 && code < 600) || Number.isNaN(code);
+      const isRateLimit = code === 429;
+      const transient = isRateLimit || (code >= 500 && code < 600) || Number.isNaN(code);
       if (!transient || i === attempts - 1) throw err;
-      await sleep(300 * 2 ** i); // 300ms, 600ms
+      const base = isRateLimit ? 800 : 300; // 429 butuh jeda lebih panjang daripada 5xx/network hiccup biasa
+      const jitter = Math.random() * base * 0.5;
+      await sleep(base * 2 ** i + jitter);
     }
   }
   throw lastErr;
 }
 
+// Perbaikan (permintaan user, item optimasi loading & rate limit): request de-duplication
+// ("single-flight") — kalau beberapa request BERSAMAAN (dalam instance server yang sama) minta
+// sheet yang sama persis sebelum panggilan pertama selesai, mereka semua "menumpang" 1 panggilan
+// API yang sama, bukan masing-masing memicu panggilan Google Sheets API sendiri-sendiri. Ini
+// aman dipakai walau untuk pembacaan yang sengaja bypass cache (useCache:false) — permintaan yang
+// datang dalam rentang milidetik yang sama toh akan mendapat data yang praktis sama "segar"-nya,
+// tapi bisa memangkas drastis jumlah panggilan API saat banyak user membuka halaman yang sama
+// dalam waktu berdekatan (skenario paling umum penyebab rate limit 429 di produksi).
+const inFlightReads = new Map<SheetKey, Promise<{ header: string[]; rows: string[][] }>>();
+
 async function readHeaderAndRows(sheetKey: SheetKey): Promise<{ header: string[]; rows: string[][] }> {
-  return withRetry(async () => {
+  const existing = inFlightReads.get(sheetKey);
+  if (existing) return existing;
+
+  const promise = withRetry(async () => {
     const sheets = await getSheetsClient();
     const spreadsheetId = SPREADSHEET_IDS[sheetKey]();
     const res = await sheets.spreadsheets.values.get({
@@ -61,7 +85,12 @@ async function readHeaderAndRows(sheetKey: SheetKey): Promise<{ header: string[]
     const values = (res.data.values as string[][] | undefined) || [];
     const [header, ...rows] = values;
     return { header: header || [], rows };
+  }).finally(() => {
+    inFlightReads.delete(sheetKey);
   });
+
+  inFlightReads.set(sheetKey, promise);
+  return promise;
 }
 
 function rowsToObjects(header: string[], rows: string[][]): SheetRow[] {
@@ -146,10 +175,29 @@ export async function insertRow(sheetKey: SheetKey, data: Record<string, string>
   return obj;
 }
 
+/**
+ * Perbaikan (permintaan user, item concurrency): dilempar oleh updateRow() kalau dipanggil
+ * dengan `expectedUpdatedAt` dan baris di sheet ternyata sudah berubah (updated_at beda) sejak
+ * client terakhir memuat datanya — tandanya ada user LAIN yang sudah menyimpan perubahan duluan.
+ * Route handler menangkap error ini secara spesifik dan membalas 409 dengan pesan jelas, bukan
+ * menimpa diam-diam (lost update) atau menjatuhkan request dengan 500 mentah.
+ */
+export class OptimisticLockError extends Error {
+  sheetKey: string;
+  id: string;
+  constructor(sheetKey: string, id: string) {
+    super(`Data pada ${sheetKey}/${id} sudah diubah oleh pihak lain sejak terakhir dimuat.`);
+    this.name = 'OptimisticLockError';
+    this.sheetKey = sheetKey;
+    this.id = id;
+  }
+}
+
 export async function updateRow(
   sheetKey: SheetKey,
   id: string,
-  patch: Record<string, string>
+  patch: Record<string, string>,
+  opts: { expectedUpdatedAt?: string } = {}
 ): Promise<SheetRow | undefined> {
   const sheets = await getSheetsClient();
   const spreadsheetId = SPREADSHEET_IDS[sheetKey]();
@@ -164,6 +212,25 @@ export async function updateRow(
   header.forEach((col, i) => {
     existing[col] = rows[rowIndex][i] ?? '';
   });
+
+  // Perbaikan (permintaan user, item concurrency — "beberapa user tidak sengaja melakukan update
+  // data secara bersamaan"): sebelumnya updateRow SELALU baca-ubah-tulis tanpa pengecekan apa pun
+  // — kalau 2 user menyimpan perubahan pada baris yang sama nyaris bersamaan, siapa pun yang
+  // menulis PALING AKHIR menimpa TOTAL perubahan user sebelumnya tanpa jejak/peringatan (lost
+  // update, silent data loss). Sekarang: kalau caller mengirim `expectedUpdatedAt` (nilai
+  // updated_at yang dia lihat saat memuat data), dicek dulu terhadap nilai TERKINI di sheet
+  // sebelum menulis — kalau beda (berarti sudah ada yang menyimpan duluan), tolak dengan
+  // OptimisticLockError alih-alih menimpa. opts.expectedUpdatedAt OPSIONAL & dibiarkan tidak
+  // memeriksa apa pun kalau tidak dikirim (backward-compatible untuk pemanggil yang belum
+  // diperbarui, mis. update status via drag Kanban).
+  if (
+    opts.expectedUpdatedAt !== undefined &&
+    header.includes('updated_at') &&
+    existing.updated_at &&
+    existing.updated_at !== opts.expectedUpdatedAt
+  ) {
+    throw new OptimisticLockError(sheetKey, id);
+  }
 
   const now = new Date().toISOString();
   const merged: Record<string, string> = { ...existing, ...patch };

@@ -353,6 +353,12 @@ export const translations = {
   toast_cancel_task_success: { id: 'Task berhasil dibatalkan.', en: 'Task cancelled successfully.' },
   toast_save_task_failed: { id: 'Gagal menyimpan data.', en: 'Failed to save data.' },
   toast_save_task_success: { id: 'Perubahan task berhasil disimpan.', en: 'Task changes saved successfully.' },
+  // Perbaikan (permintaan user, item concurrency): pesan fallback kalau server menolak simpan
+  // karena task sudah diubah user lain sejak dimuat (409, lihat OptimisticLockError).
+  toast_save_conflict: {
+    id: 'Task ini sudah diubah oleh user lain sejak Anda membuka halaman ini. Muat ulang untuk melihat perubahan terbaru.',
+    en: 'This task was already changed by someone else since you opened it. Reload to see the latest changes.',
+  },
 
   // Tasks List (tabel) — kolom, empty state, form Tambah Task, toast.
   col_title: { id: 'Judul', en: 'Title' },

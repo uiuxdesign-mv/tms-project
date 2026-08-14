@@ -51,7 +51,10 @@ export async function GET(req: NextRequest) {
     // SEKALI di server dan disisipkan langsung ke tiap baris, supaya tasks-table.tsx & kanban-
     // board.tsx tidak perlu lagi menghitung ulang aturan izin sendiri-sendiri secara terpisah di
     // client (pola yang sebelumnya sudah pernah menyebabkan bug ketidaksesuaian antar komponen).
-    const defaultStatusId = await getDefaultStatusId({ useCache: false });
+    // Perbaikan (permintaan user, item optimasi loading): status default (is_default="Ya") sangat
+    // jarang berubah — cukup pakai cache 30 detik yang sudah ada, tidak perlu useCache:false di
+    // sini (mengurangi 1 panggilan Google Sheets API tambahan per request GET /api/tasks).
+    const defaultStatusId = await getDefaultStatusId();
     const rowsWithTimeTracking = rows.map((t) => {
       const isDefaultStatus = !!defaultStatusId && t.status_id === defaultStatusId;
       return {

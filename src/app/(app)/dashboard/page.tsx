@@ -14,14 +14,37 @@ export default async function DashboardPage() {
   const session = await getSession();
   const isAdmin = !!session?.isAdmin;
 
-  const visibleKeys = session ? await getVisibleMenuKeys(session) : new Set<string>();
+  // Bugfix (permintaan user, item reliability): kedua pemanggilan ini SEBELUMNYA tidak dibungkus
+  // try/catch, padahal jalan di SETIAP pembukaan Dashboard (Server Component, SSR) — begitu
+  // Google Sheets API gagal sesaat (rate limit 429, hiccup jaringan) setelah retry di
+  // sheet-table.ts tetap habis, exception yang tidak tertangani membuat Next.js menampilkan
+  // halaman error generik ("This page couldn't load — A server error occurred"), BUKAN pesan
+  // yang jelas seperti bagian lain di Dashboard ini (komentar/time tracking/audit log semuanya
+  // sudah graceful-degradation lewat try/catch). Sekarang disamakan: kalau gagal, anggap saja
+  // "tidak ada akses/tidak ada data" untuk render kali ini — user tinggal refresh, bukan disambut
+  // layar error mentah.
+  let visibleKeys = new Set<string>();
+  if (session) {
+    try {
+      visibleKeys = await getVisibleMenuKeys(session);
+    } catch (e) {
+      console.error('[dashboard] gagal memuat menu access:', e);
+    }
+  }
   const canViewTasking = visibleKeys.has('tasking');
   const canViewReport = visibleKeys.has('report');
 
   // Ringkasan & chart tugas di Dashboard hanya relevan kalau user memang punya akses Tasking
   // (Fase 7) — sebelumnya selalu dihitung untuk siapa saja yang login, meski Tasking sekarang
   // digerbang.
-  const visibleTasks = session && canViewTasking ? await getVisibleEnrichedTasks(session) : [];
+  let visibleTasks: Awaited<ReturnType<typeof getVisibleEnrichedTasks>> = [];
+  if (session && canViewTasking) {
+    try {
+      visibleTasks = await getVisibleEnrichedTasks(session);
+    } catch (e) {
+      console.error('[dashboard] gagal memuat tasks:', e);
+    }
+  }
   const summary = session && canViewTasking ? summarizeTasks(visibleTasks) : null;
 
   // Feed "Tugas Jatuh Tempo Segera" — 14 hari ke depan, belum final, urut tanggal jatuh tempo

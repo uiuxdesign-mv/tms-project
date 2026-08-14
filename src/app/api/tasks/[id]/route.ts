@@ -50,7 +50,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
     // Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas): sama seperti GET /api/tasks
     // (list) — flag izin dihitung di server & disisipkan langsung, supaya task-detail-modal.tsx
     // tidak perlu lagi menghitung ulang aturan izin sendiri secara terpisah dari list/Kanban.
-    const defaultStatusId = await getDefaultStatusId({ useCache: false });
+    // Perbaikan (permintaan user, item optimasi loading): sama seperti GET /api/tasks — status
+    // default jarang berubah, cukup pakai cache 30 detik.
+    const defaultStatusId = await getDefaultStatusId();
     const isDefaultStatus = !!defaultStatusId && existing.status_id === defaultStatusId;
 
     return NextResponse.json({
@@ -233,22 +235,48 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const wasFinal = status?.is_final === 'Ya';
   const completedAt = wasFinal ? existing.completed_at || new Date().toISOString() : '';
 
-  const updated = await SheetTable.updateRow('tasks', id, {
-    title,
-    description,
-    client_id: clientId,
-    project_id: projectId,
-    task_type_id: taskTypeId,
-    related_task_id: relatedTaskId,
-    priority_id: priorityId,
-    status_id: statusId,
-    assigned_to: assignedTo,
-    assigned_by: assignedBy,
-    due_date: dueDate,
-    start_date: startDate,
-    estimated_hours: estimatedHours,
-    completed_at: completedAt,
-  });
+  // Perbaikan (permintaan user, item concurrency — "beberapa user tidak sengaja melakukan update
+  // data secara bersamaan"): client mengirim `expected_updated_at` (nilai updated_at task yang dia
+  // lihat saat modal dibuka, lihat task-detail-modal.tsx) — kalau ternyata sudah beda dari yang
+  // tersimpan sekarang (ada yang menyimpan duluan), updateRow menolak dengan OptimisticLockError
+  // alih-alih menimpa diam-diam. Opsional & backward-compatible: kalau client tidak mengirimnya
+  // (mis. request lama sebelum deploy ini), sama sekali tidak diperiksa seperti sebelumnya.
+  let updated: SheetTable.SheetRow | undefined;
+  try {
+    updated = await SheetTable.updateRow(
+      'tasks',
+      id,
+      {
+        title,
+        description,
+        client_id: clientId,
+        project_id: projectId,
+        task_type_id: taskTypeId,
+        related_task_id: relatedTaskId,
+        priority_id: priorityId,
+        status_id: statusId,
+        assigned_to: assignedTo,
+        assigned_by: assignedBy,
+        due_date: dueDate,
+        start_date: startDate,
+        estimated_hours: estimatedHours,
+        completed_at: completedAt,
+      },
+      typeof body.expected_updated_at === 'string' ? { expectedUpdatedAt: body.expected_updated_at } : undefined
+    );
+  } catch (e) {
+    if (e instanceof SheetTable.OptimisticLockError) {
+      return NextResponse.json(
+        {
+          error:
+            'Task ini sudah diubah oleh user lain sejak Anda membuka halaman ini. Muat ulang untuk melihat perubahan terbaru, lalu simpan ulang perubahan Anda.',
+          conflict: true,
+        },
+        { status: 409 }
+      );
+    }
+    throw e;
+  }
 
   after(() =>
     logAction({

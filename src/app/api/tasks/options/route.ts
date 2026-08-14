@@ -20,16 +20,26 @@ export async function GET() {
   // respons tanpa body JSON yang valid. Di client, `res.json()` gagal dengan pesan mentah
   // browser ("Unexpected end of JSON input") yang membingungkan alih-alih pesan error yang
   // jelas. Sekarang ditangkap & dikembalikan sebagai JSON 503, sama seperti pola di GET /api/tasks.
+  // Perbaikan (permintaan user, item reliability & optimasi loading): endpoint ini dipanggil di
+  // HAMPIR SETIAP pembukaan halaman/modal Task (List/Kanban/Calendar/Add/Edit) — sebelumnya
+  // SEMUA 8 sheet di sini di-fetch dengan useCache:false (selalu langsung ke Google Sheets API),
+  // padahal kuota Google Sheets API cukup ketat (300 read/menit per project, 60/menit per akun
+  // service). Dengan beberapa user memakai aplikasi bersamaan, ini jadi salah satu penyebab utama
+  // error "Gagal memuat data/opsi Task dari Google Sheets" yang sering muncul. Sekarang HANYA
+  // `users` & `tasks` (data yang paling sering berubah & datanya paling terasa kalau basi) yang
+  // tetap selalu-fresh — 6 sheet Master Data lain (client/project/task type/priority/status/role)
+  // jarang berubah, jadi cukup pakai cache in-memory 30 detik yang sudah ada (lihat
+  // src/lib/google/cache.ts) untuk memangkas beban baca ke Google Sheets API secara signifikan.
   try {
     const [clients, projects, taskTypes, priorities, statuses, users, tasks, roles] = await Promise.all([
-      SheetTable.getAll('clients', { useCache: false }),
-      SheetTable.getAll('projects', { useCache: false }),
-      SheetTable.getAll('task_types', { useCache: false }),
-      SheetTable.getAll('priorities', { useCache: false }),
-      SheetTable.getAll('statuses', { useCache: false }),
+      SheetTable.getAll('clients'),
+      SheetTable.getAll('projects'),
+      SheetTable.getAll('task_types'),
+      SheetTable.getAll('priorities'),
+      SheetTable.getAll('statuses'),
       SheetTable.getAll('users', { useCache: false }),
       SheetTable.getAll('tasks', { useCache: false }),
-      getAllRoles({ useCache: false }),
+      getAllRoles(),
     ]);
 
     // Perbaikan (permintaan user): daftar opsi Assignee sekarang disaring per-session lewat

@@ -26,14 +26,27 @@ export async function hasMenuPermission(
   if (session.isAdmin) return true;
   if (!session.roleId) return false;
 
-  const row = await SheetTable.findOne(
-    'menu_access',
-    (r) => r.role_id === session.roleId && r.menu_key === menuKey
-  );
-  if (!row) return false;
+  // Bugfix (permintaan user, item reliability): fungsi ini dipanggil di HAMPIR SETIAP page.tsx
+  // (Server Component) untuk memutuskan boleh-tidaknya halaman dirender — sebelumnya TIDAK
+  // dibungkus try/catch, jadi begitu Google Sheets API gagal sesaat (rate limit 429/hiccup)
+  // sesudah retry di sheet-table.ts tetap habis, exception-nya tidak tertangani dan membuat
+  // Next.js menampilkan halaman error generik ("This page couldn't load"). Sekarang di-fail-closed
+  // (dianggap TIDAK punya izin, konsisten dengan filosofi default-deny yang sudah didokumentasikan
+  // di atas) — user melihat pesan "tidak punya akses" yang sudah ada di tiap halaman, lalu bisa
+  // coba lagi, bukan disambut layar error mentah.
+  try {
+    const row = await SheetTable.findOne(
+      'menu_access',
+      (r) => r.role_id === session.roleId && r.menu_key === menuKey
+    );
+    if (!row) return false;
 
-  const column = `can_${action}` as const;
-  return row[column] === 'Ya';
+    const column = `can_${action}` as const;
+    return row[column] === 'Ya';
+  } catch (e) {
+    console.error(`[menu-access] hasMenuPermission(${menuKey}, ${action}) gagal, fail-closed:`, e);
+    return false;
+  }
 }
 
 /** Daftar menu_key yang boleh dilihat (can_view) oleh session ini. Admin = semua menu. */
@@ -41,11 +54,19 @@ export async function getVisibleMenuKeys(session: SessionPayload): Promise<Set<s
   if (session.isAdmin) return new Set(MENU_KEYS.map((m) => m.key));
   if (!session.roleId) return new Set();
 
-  const rows = await SheetTable.getAll('menu_access');
-  const allowed = rows
-    .filter((r) => r.role_id === session.roleId && r.can_view === 'Ya')
-    .map((r) => r.menu_key);
-  return new Set(allowed);
+  // Bugfix (permintaan user, item reliability): sama seperti hasMenuPermission di atas — dipanggil
+  // di navigasi/layout & Dashboard, fail-closed (Set kosong) kalau Google Sheets API bermasalah
+  // supaya tidak menjatuhkan seluruh halaman dengan error mentah.
+  try {
+    const rows = await SheetTable.getAll('menu_access');
+    const allowed = rows
+      .filter((r) => r.role_id === session.roleId && r.can_view === 'Ya')
+      .map((r) => r.menu_key);
+    return new Set(allowed);
+  } catch (e) {
+    console.error('[menu-access] getVisibleMenuKeys gagal, fail-closed:', e);
+    return new Set();
+  }
 }
 
 /** Ambil matriks permission lengkap (semua MENU_KEYS) untuk satu role_id — dipakai halaman admin Menu Access. */
