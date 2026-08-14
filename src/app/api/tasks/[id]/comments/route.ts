@@ -3,6 +3,7 @@ import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { canAddComment, canReadComments, createComment, getCommentsForTask } from '@/lib/models/comments';
 import { logAction } from '@/lib/models/audit-log';
+import { notifyTaskStakeholders } from '@/lib/models/notifications';
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const guard = await requirePermission('tasking', 'view');
@@ -116,6 +117,18 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       entityType: 'task_comments',
       entityId: result.comment.id,
       entityLabel: `Komentar pada task "${task.title}"`,
+    })
+  );
+
+  // Notifikasi (permintaan user Round 5 susulan): assignee & Pemberi Tugas task ini (siapa pun
+  // selain yang barusan berkomentar) langsung dapat notifikasi komentar baru — sama pola dengan
+  // notifikasi penunjukan tugas, di-poll oleh bell notifikasi di header.
+  after(() =>
+    notifyTaskStakeholders({
+      task: { id, title: task.title, assigned_to: task.assigned_to, assigned_by: task.assigned_by },
+      excludeUserId: session.userId,
+      type: 'task_comment',
+      actorName: session.name,
     })
   );
 

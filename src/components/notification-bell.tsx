@@ -179,9 +179,15 @@ export default function NotificationBell() {
   );
 }
 
+const NOTIF_MESSAGE_KEYS: Record<string, import('@/lib/i18n/translations').TranslationKey> = {
+  task_assigned: 'notif_task_assigned',
+  task_comment: 'notif_task_comment',
+};
+
 function renderMessage(n: NotificationItem, t: (key: import('@/lib/i18n/translations').TranslationKey) => string): string {
-  if (n.type === 'task_assigned') {
-    return t('notif_task_assigned').replace('{actor}', n.actor_name || '-').replace('{title}', n.task_title || '-');
+  const key = NOTIF_MESSAGE_KEYS[n.type];
+  if (key) {
+    return t(key).replace('{actor}', n.actor_name || '-').replace('{title}', n.task_title || '-');
   }
   return n.task_title || '';
 }

@@ -13,8 +13,9 @@ import type { SheetRow } from '@/lib/google/sheet-table';
  * - user_id: PENERIMA notifikasi (siapa yang harus melihatnya).
  * - type: jenis notifikasi, key stabil (BUKAN teks siap-tayang) supaya bisa diresolve ke ID/EN
  *   lewat translation key saat ditampilkan (pola sama seperti field_key di task_history).
- *   Untuk sekarang cuma 'task_assigned', disiapkan sebagai union type supaya gampang ditambah
- *   jenis lain nanti (mis. 'task_status_changed', 'comment_added') tanpa migrasi skema.
+ *   'task_assigned' (penunjukan tugas) & 'task_comment' (komentar baru di task, permintaan user
+ *   Round 5 susulan) — disiapkan sebagai union type supaya gampang ditambah jenis lain nanti
+ *   tanpa migrasi skema.
  * - task_title/actor_name: snapshot label pada SAAT notifikasi dibuat (bukan lookup ulang) —
  *   supaya tetap akurat & cepat dibaca walau task/user terkait belakangan berubah/dihapus, sama
  *   seperti pola old_value_label/new_value_label di task_history.
@@ -22,7 +23,7 @@ import type { SheetRow } from '@/lib/google/sheet-table';
  * - Append-only, tidak ada soft-delete — notifikasi lama otomatis tidak lagi muncul di badge
  *   unread begitu read_at terisi, tapi tetap ada di daftar (riwayat) selama belum dihapus manual.
  */
-export type NotificationType = 'task_assigned';
+export type NotificationType = 'task_assigned' | 'task_comment';
 
 export type NotificationRow = SheetRow & {
   id: string;
@@ -86,6 +87,38 @@ export async function markNotificationRead(userId: string, id: string): Promise<
     await SheetTable.updateRow('notifications', id, { read_at: new Date().toISOString() });
   }
   return true;
+}
+
+/**
+ * Kirim notifikasi ke "pemangku kepentingan" 1 task (assignee & Pemberi Tugas-nya), KECUALI
+ * pelaku aksi itu sendiri — dipakai untuk notifikasi komentar baru (permintaan user Round 5
+ * susulan: "notifikasi juga langsung muncul ketika ada komentar baru di tasking user tersebut").
+ * Dipisah jadi helper generik (bukan cuma dipanggil sekali dari comments/route.ts) supaya gampang
+ * dipakai lagi untuk jenis notifikasi task lain nanti (mis. perubahan status) tanpa menduplikasi
+ * logika dedup penerima.
+ */
+export async function notifyTaskStakeholders(input: {
+  task: { id: string; title: string; assigned_to?: string; assigned_by?: string };
+  excludeUserId: string;
+  type: NotificationType;
+  actorName: string;
+}): Promise<void> {
+  const recipients = new Set<string>();
+  if (input.task.assigned_to) recipients.add(input.task.assigned_to);
+  if (input.task.assigned_by) recipients.add(input.task.assigned_by);
+  recipients.delete(input.excludeUserId);
+
+  await Promise.all(
+    Array.from(recipients).map((userId) =>
+      createNotification({
+        userId,
+        type: input.type,
+        taskId: input.task.id,
+        taskTitle: input.task.title,
+        actorName: input.actorName,
+      })
+    )
+  );
 }
 
 /** Tandai SEMUA notifikasi milik user sebagai sudah dibaca (tombol "Tandai semua dibaca"). */

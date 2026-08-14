@@ -61,6 +61,11 @@ export const translations = {
     id: '{actor} menugaskan Anda ke task "{title}"',
     en: '{actor} assigned you to task "{title}"',
   },
+  // Permintaan user Round 5 susulan: notifikasi komentar baru di task yang bersangkutan.
+  notif_task_comment: {
+    id: '{actor} berkomentar di task "{title}"',
+    en: '{actor} commented on task "{title}"',
+  },
   notif_view_task: { id: 'Lihat task', en: 'View task' },
 
   // Dashboard
