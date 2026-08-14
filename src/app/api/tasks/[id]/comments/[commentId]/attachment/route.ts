@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
-import { canAddComment, getAttachmentContent, type CommentRow } from '@/lib/models/comments';
+import { canReadComments, getAttachmentContent, type CommentRow } from '@/lib/models/comments';
 
 /**
  * Proxy download lampiran — file di Drive TIDAK PERNAH dibagikan lewat link publik/Drive
- * langsung. Semua akses harus lewat sini supaya aturan visibilitas task (canAddComment/
- * canManageTask) tetap berlaku untuk lampiran juga, konsisten dengan seluruh app.
+ * langsung. Semua akses harus lewat sini supaya aturan visibilitas task (canReadComments/
+ * canViewTask) tetap berlaku untuk lampiran juga, konsisten dengan seluruh app. Bugfix
+ * (permintaan user, fitur Leader Role): sebelumnya pakai canAddComment (=canManageTask) — task
+ * yang cuma boleh DILIHAT (view-only) jadi tidak bisa membuka lampiran komentarnya sama sekali,
+ * padahal cuma membaca (bukan aksi tulis).
  */
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string; commentId: string }> }) {
   const guard = await requirePermission('tasking', 'view');
@@ -16,7 +19,7 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
   const task = await SheetTable.findById('tasks', id);
   if (!task) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
-  if (!canAddComment(session, task)) {
+  if (!canReadComments(session, task)) {
     return NextResponse.json({ error: 'Anda tidak punya akses ke task ini.' }, { status: 403 });
   }
 

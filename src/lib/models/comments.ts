@@ -1,7 +1,7 @@
 import * as SheetTable from '@/lib/google/sheet-table';
 import type { SheetRow } from '@/lib/google/sheet-table';
 import type { SessionPayload } from '@/lib/auth/session';
-import { canManageTask } from '@/lib/models/tasks';
+import { canManageTask, canViewTask } from '@/lib/models/tasks';
 import { uploadAttachment, downloadAttachment, deleteAttachment } from '@/lib/google/drive-oauth';
 import { sniffMimeType, ALLOWED_MIME_TYPES, SIZE_LIMITS_BYTES, type AttachmentCategory } from '@/lib/mime-sniff';
 
@@ -21,14 +21,26 @@ export type CommentRow = SheetRow & {
 };
 
 /**
- * Aturan otorisasi (Fase 9, sesuai audit spesifikasi aplikasi lama):
+ * Aturan otorisasi (Fase 9, DIPERBARUI — permintaan user, fitur Leader Role & pembatasan
+ * view-only Manager):
+ * - Baca komentar: cukup aturan visibilitas task (canViewTask) — task yang cuma boleh DILIHAT
+ *   (mis. Pemimpin melihat task user lain, atau Manager melihat task yang dia tugaskan) tetap
+ *   boleh membaca riwayat komentarnya, tapi tidak boleh menambah/mengubah/menghapus apa pun
+ *   (murni view-only, konsisten dengan tidak bisa mengedit field lain di task tersebut).
  * - Tambah komentar: butuh izin 'edit' pada menu 'tasking' (dicek di layer API via
- *   requirePermission) DITAMBAH aturan visibilitas task yang sama seperti edit task
- *   (canManageTask — Member hanya boleh komentar di task miliknya sendiri).
+ *   requirePermission) DITAMBAH aturan kelola task (canManageTask — HANYA task miliknya sendiri
+ *   atau Admin, TIDAK LAGI task yang cuma "boleh dilihat").
  * - Edit: HANYA penulis komentar itu sendiri, tanpa pengecualian role apa pun (Admin sekalipun
  *   tidak boleh edit komentar orang lain — meniru persis aplikasi lama).
- * - Hapus: penulis sendiri, ATAU user dengan izin 'delete' pada 'tasking' (dicek di layer API).
+ * - Hapus: penulis sendiri, ATAU (user dengan izin 'delete' pada 'tasking' DAN task-nya juga
+ *   boleh dia kelola/canManageTask) — sebelumnya cukup izin 'delete' saja tanpa peduli apakah
+ *   task-nya boleh dia kelola, jadi Pemimpin/Manager yang cuma "boleh lihat" task orang lain bisa
+ *   menghapus komentar orang lain di task itu; sekarang dikunci juga oleh canManageTask.
  */
+export function canReadComments(session: SessionPayload, task: SheetRow): boolean {
+  return canViewTask(session, task);
+}
+
 export function canAddComment(session: SessionPayload, task: SheetRow): boolean {
   return canManageTask(session, task);
 }
@@ -37,9 +49,14 @@ export function canEditComment(session: SessionPayload, comment: CommentRow): bo
   return comment.user_id === session.userId;
 }
 
-export function canDeleteComment(session: SessionPayload, comment: CommentRow, hasDeletePermission: boolean): boolean {
+export function canDeleteComment(
+  session: SessionPayload,
+  comment: CommentRow,
+  hasDeletePermission: boolean,
+  canManageParentTask: boolean
+): boolean {
   if (comment.user_id === session.userId) return true;
-  return hasDeletePermission;
+  return hasDeletePermission && canManageParentTask;
 }
 
 export async function getCommentsForTask(taskId: string): Promise<CommentRow[]> {

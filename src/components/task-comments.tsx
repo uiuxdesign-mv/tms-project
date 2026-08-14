@@ -38,10 +38,15 @@ export default function TaskComments({
   taskId,
   currentUserId,
   canDeleteAny,
+  readOnly = false,
 }: {
   taskId: string;
   currentUserId: string;
   canDeleteAny: boolean;
+  /** Bugfix (permintaan user, fitur Leader Role): task yang cuma boleh DILIHAT (view-only, mis.
+   *  Pemimpin/Manager membuka task user lain) tidak boleh berkomentar sama sekali — form tambah
+   *  komentar disembunyikan total, bukan cuma dikira gagal lewat toast error setelah dicoba. */
+  readOnly?: boolean;
 }) {
   const [comments, setComments] = useState<Comment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -267,6 +272,7 @@ export default function TaskComments({
         )}
       </div>
 
+      {!readOnly && (
       <form onSubmit={handleSubmit} className="mt-3 border-t border-gray-100 pt-3">
         <textarea
           value={text}
@@ -320,6 +326,7 @@ export default function TaskComments({
         </div>
         <p className="mt-1.5 text-xs text-gray-400">{t('comment_hint')}</p>
       </form>
+      )}
     </div>
   );
 }

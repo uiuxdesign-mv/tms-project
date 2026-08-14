@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { canViewTask, canManageTask, canAssignToOthers } from '@/lib/models/tasks';
+import { findRoleById, isNonAssignableRole } from '@/lib/models/roles';
 import { logAction } from '@/lib/models/audit-log';
 import { getTimeStatesForTasks } from '@/lib/models/time-tracking';
 
@@ -25,8 +26,19 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ error: 'Anda tidak punya akses ke task ini.' }, { status: 403 });
     }
 
+    // Bugfix (permintaan user, item detail tasking): resolusi nama "Pemberi Tugas" (assigned_by)
+    // dilakukan di server, bukan lewat daftar opsi Assignee di client — pemberi tugas bisa saja
+    // Admin/Pemimpin, yang SENGAJA dikecualikan dari daftar opsi Assignee (mereka tidak boleh
+    // ditugaskan task), jadi namanya tidak akan ketemu kalau di-resolve dari opts.assignees di
+    // client. Field ini kosong ('') kalau task bukan hasil penunjukan tugas (self-assigned).
+    const assignedByName = existing.assigned_by
+      ? (await SheetTable.findById('users', existing.assigned_by))?.name || ''
+      : '';
+
     const timeStates = await getTimeStatesForTasks([id], { useCache: false });
-    return NextResponse.json({ data: { ...existing, timeTracking: timeStates[id] } });
+    return NextResponse.json({
+      data: { ...existing, assigned_by_name: assignedByName, timeTracking: timeStates[id] },
+    });
   } catch (err) {
     console.error(`GET /api/tasks/${id} gagal:`, err);
     return NextResponse.json(
@@ -105,11 +117,27 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   // Kalau tidak, assigned_to dipertahankan seperti semula (bukan dipaksa balik ke diri sendiri,
   // supaya user tanpa hak ini tetap bisa mengubah field lain dari task yang sudah ditugaskan ke dia).
   let assignedTo = String(existing.assigned_to);
+  // assigned_by HANYA disentuh kalau assignee-nya benar-benar BERUBAH (penunjukan tugas baru) —
+  // kalau client resend assigned_to yang sama seperti sebelumnya (mis. cuma mengubah field lain
+  // di form), assigned_by yang sudah tersimpan TIDAK boleh tertimpa oleh siapa pun yang kebetulan
+  // sedang mengedit (permintaan user, item detail tasking).
+  let assignedBy = String(existing.assigned_by ?? '');
   if (wantsReassign) {
     if (!assignee) {
       errors.assigned_to = 'User yang ditugaskan tidak ditemukan.';
     } else {
-      assignedTo = String(body.assigned_to);
+      const newAssigneeId = String(body.assigned_to);
+      if (newAssigneeId !== assignedTo) {
+        // Bugfix (permintaan user): Admin (dan role Pemimpin) tidak boleh ditugaskan task oleh
+        // siapa pun — dicek ulang di server, sama seperti POST /api/tasks.
+        const assigneeRole = assignee.role_id ? await findRoleById(String(assignee.role_id)) : undefined;
+        if (isNonAssignableRole(assigneeRole)) {
+          errors.assigned_to = 'User ini (Admin/Pemimpin) tidak bisa ditugaskan task.';
+        } else {
+          assignedTo = newAssigneeId;
+          assignedBy = assignedTo !== session.userId ? session.userId : '';
+        }
+      }
     }
   }
 
@@ -164,6 +192,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     priority_id: priorityId,
     status_id: statusId,
     assigned_to: assignedTo,
+    assigned_by: assignedBy,
     due_date: dueDate,
     start_date: startDate,
     estimated_hours: estimatedHours,
@@ -193,9 +222,10 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   const existing = await SheetTable.findById('tasks', id);
   if (!existing) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
 
-  // Sama seperti aturan visibilitas/manage (Fase 7): Admin & canAssignToOthers (setara Manager)
-  // boleh hapus task siapa pun; role lain (setara Member) hanya boleh hapus task yang
-  // assignee-nya dirinya sendiri — plus tetap wajib punya izin 'delete' di Menu Access (di atas).
+  // Sama seperti aturan kelola (lihat canManageTask di src/lib/models/tasks.ts, permintaan user):
+  // HANYA Admin, atau task yang assignee-nya dirinya sendiri, yang boleh dihapus — Pemimpin &
+  // Manager tidak bisa hapus task user lain lagi (murni view-only sekarang) — plus tetap wajib
+  // punya izin 'delete' di Menu Access (di atas).
   if (!canManageTask(session, existing)) {
     return NextResponse.json({ error: 'Anda tidak punya akses untuk menghapus task ini.' }, { status: 403 });
   }

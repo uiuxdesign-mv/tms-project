@@ -161,9 +161,13 @@ export default function KanbanBoard({
     });
   }, [rows, search, filterStatus, filterPriority, filterAssignee]);
 
+  // Bugfix (permintaan user, fitur Leader Role): disamakan dengan canManageTask server yang
+  // DIPERSEMPIT — lihat catatan lengkap di tasks-table.tsx. Klik kartu untuk buka detail TETAP
+  // selalu boleh (lihat onClick di bawah, tidak digerbang canManage) — cuma drag & Time Tracking
+  // yang sekarang dikunci untuk task yang bukan miliknya sendiri.
   function canManage(row: TaskRow) {
     if (!permissions.canEdit) return false;
-    return isAdmin || !!opts?.canAssignOthers || row.assigned_to === currentUserId;
+    return isAdmin || row.assigned_to === currentUserId;
   }
 
   /**

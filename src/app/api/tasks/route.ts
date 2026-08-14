@@ -2,6 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { canViewTask, canAssignToOthers } from '@/lib/models/tasks';
+import { findRoleById, isNonAssignableRole } from '@/lib/models/roles';
 import { logAction } from '@/lib/models/audit-log';
 import { getTimeStatesForTasks } from '@/lib/models/time-tracking';
 
@@ -120,7 +121,16 @@ export async function POST(req: NextRequest) {
     if (!assignee) {
       errors.assigned_to = 'User yang ditugaskan tidak ditemukan.';
     } else {
-      assignedTo = requestedAssignee;
+      // Bugfix (permintaan user): Admin (dan role Pemimpin) tidak boleh ditugaskan task oleh
+      // siapa pun — dicek ulang di server dari role assignee yang sebenarnya, bukan dipercaya
+      // dari daftar opsi client (yang seharusnya sudah menyaring ini di GET /api/tasks/options,
+      // tapi tetap divalidasi ulang di sini supaya tidak bisa dilewati lewat request langsung).
+      const assigneeRole = assignee.role_id ? await findRoleById(String(assignee.role_id)) : undefined;
+      if (isNonAssignableRole(assigneeRole)) {
+        errors.assigned_to = 'User ini (Admin/Pemimpin) tidak bisa ditugaskan task.';
+      } else {
+        assignedTo = requestedAssignee;
+      }
     }
   }
 
@@ -129,6 +139,11 @@ export async function POST(req: NextRequest) {
   }
 
   const completedAt = status?.is_final === 'Ya' ? new Date().toISOString() : '';
+
+  // assigned_by cuma diisi kalau ini benar-benar PENUNJUKAN TUGAS (ditugaskan ke user lain) —
+  // dikosongkan kalau task dibuat untuk diri sendiri, supaya Task Detail bisa membedakan task
+  // "penunjukan" dari task biasa (permintaan user, item i18n & detail tasking).
+  const assignedBy = assignedTo !== session.userId ? session.userId : '';
 
   const row = await SheetTable.insertRow('tasks', {
     title,
@@ -140,7 +155,7 @@ export async function POST(req: NextRequest) {
     priority_id: priorityId,
     status_id: statusId,
     assigned_to: assignedTo,
-    assigned_by: session.userId,
+    assigned_by: assignedBy,
     due_date: dueDate,
     start_date: startDate,
     estimated_hours: estimatedHours,

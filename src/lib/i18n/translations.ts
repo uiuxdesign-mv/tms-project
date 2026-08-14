@@ -709,6 +709,24 @@ export const translations = {
   change_password_ph_current: { id: 'Masukkan password sementara Anda', en: 'Enter your temporary password' },
   change_password_ph_new: { id: 'Minimal 8 karakter', en: 'Minimum 8 characters' },
   change_password_submit_btn: { id: 'Simpan & Lanjutkan', en: 'Save & Continue' },
+
+  // Fitur Leader Role + pembatasan visibilitas Task (permintaan user): field baru Master Role,
+  // tombol "Lihat" (view-only, beda dari "Detail" yang bisa diedit), dan blok info Pemberi
+  // Tugas/Ditugaskan Kepada di Task Detail (hanya muncul kalau task-nya benar-benar penunjukan
+  // tugas dari satu user ke user lain).
+  md_field_is_leader: { id: 'Pemimpin (Leader)', en: 'Leader' },
+  md_help_is_leader: {
+    id: 'Role dengan tanda ini tidak bisa ditugaskan task oleh siapa pun, otomatis boleh menugaskan task ke semua user kecuali Admin, dan bisa melihat seluruh task user lain (view-only, tidak bisa mengubah apa pun).',
+    en: 'Roles marked this way can never be assigned a task by anyone, can automatically assign tasks to every user except Admin, and can see every other user’s tasks (view-only, no changes allowed).',
+  },
+  action_view: { id: 'Lihat', en: 'View' },
+  td_assignment_info_title: { id: 'Informasi Penugasan', en: 'Assignment Info' },
+  td_assigned_by_label: { id: 'Pemberi Tugas', en: 'Assigned By' },
+  td_assigned_to_label: { id: 'Ditugaskan Kepada', en: 'Assigned To' },
+  td_view_only_notice: {
+    id: 'Anda hanya bisa melihat task ini (view-only) — tidak bisa mengubah, menjalankan Time Tracking, atau menambah komentar.',
+    en: 'You can only view this task (view-only) — you cannot edit it, run Time Tracking, or add comments.',
+  },
 } as const;
 
 export type TranslationKey = keyof typeof translations;

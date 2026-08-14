@@ -20,6 +20,10 @@ type TaskRow = {
   priority_id: string;
   status_id: string;
   assigned_to: string;
+  /** Terisi HANYA kalau task ini hasil penunjukan tugas (ditugaskan ke user lain, bukan
+   *  self-assigned) — dipakai untuk menampilkan blok "Informasi Penugasan" di bawah. */
+  assigned_by?: string;
+  assigned_by_name?: string;
   due_date: string;
   start_date?: string;
   estimated_hours?: string;
@@ -252,8 +256,12 @@ export default function TaskDetailModal({
   }
 
   const status = opts?.statuses.find((s) => s.value === task?.status_id);
-  const canManage =
-    permissions.canEdit && !!task && (isAdmin || !!opts?.canAssignOthers || task.assigned_to === currentUserId);
+  // Bugfix (permintaan user, fitur Leader Role): disamakan dengan canManageTask server yang
+  // DIPERSEMPIT — HANYA Admin atau task yang assignee-nya dirinya sendiri. Pemimpin & Manager
+  // (canAssignOthers) tetap bisa MEMBUKA modal ini untuk task user lain (lihat kanban-board.tsx/
+  // tasks-table.tsx, tombol buka detail sudah tidak lagi digerbang canManage), tapi begitu masuk
+  // sini semua field/aksi otomatis terkunci view-only karena canManage=false.
+  const canManage = permissions.canEdit && !!task && (isAdmin || task.assigned_to === currentUserId);
 
   // Bugfix (permintaan user): detail Task (Title/Description/Project/Client/Priority/Task Type/
   // Assignee/tanggal) cuma boleh diedit bebas selama status masih To Do (default) — begitu task
@@ -601,6 +609,33 @@ export default function TaskDetailModal({
 
               {/* Kolom kanan: form + komentar */}
               <div>
+                {/* Bugfix (permintaan user, fitur Leader Role): notice terpisah untuk task yang
+                    MEMANG cuma boleh dilihat (Pemimpin/Manager membuka task user lain) — beda
+                    dari notice "terkunci sementara karena status berjalan" di bawah, yang cuma
+                    berlaku untuk task milik sendiri. */}
+                {!canManage && (
+                  <div className="mb-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600">
+                    {t('td_view_only_notice')}
+                  </div>
+                )}
+                {/* Bugfix (permintaan user, item detail tasking): blok info Pemberi Tugas/
+                    Ditugaskan Kepada — hanya tampil kalau task ini benar-benar hasil PENUNJUKAN
+                    TUGAS (assigned_by terisi DAN beda dari assigned_to). Cek "beda dari
+                    assigned_to" ini SENGAJA ditambahkan karena data lama (sebelum perbaikan ini)
+                    selalu mengisi assigned_by = pembuat task, walau task itu self-assigned — tanpa
+                    cek ini, task lama yang dibuat untuk diri sendiri akan salah menampilkan blok
+                    ini juga. jangan lupa i18n: label lewat t('td_assigned_by_label') dst. */}
+                {task.assigned_by && task.assigned_by !== task.assigned_to && (
+                  <div className="mb-3 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
+                    <p className="mb-1 font-semibold">{t('td_assignment_info_title')}</p>
+                    <p>
+                      {t('td_assigned_by_label')}: <span className="font-medium">{task.assigned_by_name || '-'}</span>
+                    </p>
+                    <p>
+                      {t('td_assigned_to_label')}: <span className="font-medium">{label(opts.assignees, task.assigned_to)}</span>
+                    </p>
+                  </div>
+                )}
                 {/* Bugfix (Fase 14): id di sini dipakai tombol "Save changes" di footer bawah
                     (di luar area scroll) lewat atribut `form=` — supaya tombolnya tidak ikut
                     hilang ke-scroll padahal secara DOM sudah dipindah keluar dari <form> ini. */}
@@ -802,7 +837,12 @@ export default function TaskDetailModal({
                   </div>
                 </form>
 
-                <TaskComments taskId={taskId} currentUserId={currentUserId} canDeleteAny={permissions.canDelete} />
+                <TaskComments
+                  taskId={taskId}
+                  currentUserId={currentUserId}
+                  canDeleteAny={permissions.canDelete && canManage}
+                  readOnly={!canManage}
+                />
               </div>
             </div>
           </div>

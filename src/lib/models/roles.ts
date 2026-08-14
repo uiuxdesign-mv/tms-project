@@ -5,7 +5,19 @@ export type Role = {
   role_key: string;
   role_name: string;
   status: string;
+  /** "Ya"/"Tidak" — ditandai admin lewat Master Role (permintaan user, fitur Leader Role). Lihat
+   *  catatan lengkap aturan Leader di src/lib/models/tasks.ts. */
+  is_leader?: string;
 };
+
+/** Role dengan role_key 'admin', ATAU role yang ditandai Pemimpin (is_leader = "Ya") — dua-duanya
+ *  TIDAK BOLEH ditugaskan task oleh siapa pun (permintaan user: "Admin tidak dapat diberikan
+ *  tugas oleh user lain" + fitur Leader Role). Dipakai untuk menyaring opsi dropdown Assignee
+ *  (GET /api/tasks/options) dan validasi assignee di server (POST/PATCH /api/tasks). */
+export function isNonAssignableRole(role: Pick<Role, 'role_key' | 'is_leader'> | undefined): boolean {
+  if (!role) return false;
+  return role.role_key === 'admin' || role.is_leader === 'Ya';
+}
 
 export async function findRoleById(id: string): Promise<Role | undefined> {
   const row = await SheetTable.findById('roles', id);

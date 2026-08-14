@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { canViewTask, canAssignToOthers } from '@/lib/models/tasks';
+import { getAllRoles, isNonAssignableRole } from '@/lib/models/roles';
 
 export async function GET() {
   const guard = await requirePermission('tasking', 'view');
@@ -20,7 +21,7 @@ export async function GET() {
   // browser ("Unexpected end of JSON input") yang membingungkan alih-alih pesan error yang
   // jelas. Sekarang ditangkap & dikembalikan sebagai JSON 503, sama seperti pola di GET /api/tasks.
   try {
-    const [clients, projects, taskTypes, priorities, statuses, users, tasks] = await Promise.all([
+    const [clients, projects, taskTypes, priorities, statuses, users, tasks, roles] = await Promise.all([
       SheetTable.getAll('clients', { useCache: false }),
       SheetTable.getAll('projects', { useCache: false }),
       SheetTable.getAll('task_types', { useCache: false }),
@@ -28,12 +29,19 @@ export async function GET() {
       SheetTable.getAll('statuses', { useCache: false }),
       SheetTable.getAll('users', { useCache: false }),
       SheetTable.getAll('tasks', { useCache: false }),
+      getAllRoles({ useCache: false }),
     ]);
 
+    // Bugfix (permintaan user): Admin & role Pemimpin TIDAK BOLEH ditugaskan task oleh siapa pun
+    // — disaring dari daftar opsi Assignee di sini, di depan (sebelumnya cuma pakai `status ===
+    // 'Active'`, jadi Admin/Pemimpin masih bisa dipilih). Validasi ulang tetap ada di server saat
+    // create/update task (POST/PATCH /api/tasks) supaya tidak bisa dilewati lewat request langsung.
+    const roleById = new Map(roles.map((r) => [r.id, r]));
+    const assignableUsers = users.filter((u) => u.status === 'Active' && !isNonAssignableRole(roleById.get(u.role_id)));
     const allowAssignOthers = canAssignToOthers(session);
     const assigneeOptions = allowAssignOthers
-      ? users.filter((u) => u.status === 'Active').map((u) => ({ value: u.id, label: u.name }))
-      : users.filter((u) => u.id === session.userId).map((u) => ({ value: u.id, label: u.name }));
+      ? assignableUsers.map((u) => ({ value: u.id, label: u.name }))
+      : assignableUsers.filter((u) => u.id === session.userId).map((u) => ({ value: u.id, label: u.name }));
 
     const visibleTasks = tasks.filter((t) => canViewTask(session, t));
 

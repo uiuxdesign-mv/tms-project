@@ -257,17 +257,19 @@ export default function TasksTable({
   // berarti apa-apa bagi user).
   const table = useTableControls(filteredRows, { searchFields: ['title', 'description'], pageSize: 20 });
 
-  // Fase 7: disamakan dengan aturan visibilitas server (src/lib/models/tasks.ts) — Admin dan
-  // user yang canAssignOthers (setara "Manager" di aplikasi lama) bebas kelola semua task;
-  // selain itu (setara "Member") hanya task yang assignee-nya (assigned_to) dirinya sendiri.
-  // Digabung dengan izin Menu Access ('tasking' edit/delete) yang dikirim server lewat props.
+  // Bugfix (permintaan user, fitur Leader Role): disamakan dengan aturan kelola server yang
+  // DIPERSEMPIT (src/lib/models/tasks.ts canManageTask) — HANYA Admin atau task yang assignee-nya
+  // (assigned_to) dirinya sendiri yang boleh dikelola. Pemimpin & Manager (canAssignOthers) tetap
+  // BISA MELIHAT task user lain (baris ini tetap muncul di tabel, sudah difilter server lewat
+  // canViewTask), tapi tidak lagi otomatis bisa mengelola/menghapusnya — murni view-only, lihat
+  // tombol "Lihat" vs "Detail" di render tabel di bawah.
   function canManage(row: TaskRow) {
     if (!permissions.canEdit) return false;
-    return isAdmin || !!opts?.canAssignOthers || row.assigned_to === currentUserId;
+    return isAdmin || row.assigned_to === currentUserId;
   }
   function canDelete(row: TaskRow) {
     if (!permissions.canDelete) return false;
-    return isAdmin || !!opts?.canAssignOthers || row.assigned_to === currentUserId;
+    return isAdmin || row.assigned_to === currentUserId;
   }
 
   // Format tanggal "Jul 14, 2026" seperti video (List/Kanban) — bukan ISO mentah.
@@ -360,11 +362,15 @@ export default function TasksTable({
                     <td className="px-4 py-2 text-gray-500">{label(opts?.assignees, row.assigned_to)}</td>
                     <td className="px-4 py-2 text-gray-500">{formatDate(row.due_date)}</td>
                     <td className="px-4 py-2">
-                      {canManage(row) && (
-                        <button onClick={() => openEditModal(row)} className="mr-3 text-indigo-600 hover:text-indigo-800">
-                          {t('action_detail')}
-                        </button>
-                      )}
+                      {/* Bugfix (permintaan user, fitur Leader Role): tombol buka detail SEKARANG
+                          selalu tampil untuk baris manapun yang muncul di tabel ini (baris yang
+                          tampil sudah pasti boleh dilihat, sudah difilter server via canViewTask)
+                          — sebelumnya cuma tampil kalau canManage(row), jadi Pemimpin/Manager
+                          tidak punya cara membuka task orang lain yang cuma boleh dia lihat.
+                          Labelnya berubah "Detail" (bisa diedit) vs "Lihat" (view-only). */}
+                      <button onClick={() => openEditModal(row)} className="mr-3 text-indigo-600 hover:text-indigo-800">
+                        {canManage(row) ? t('action_detail') : t('action_view')}
+                      </button>
                       {canDelete(row) && (
                         <button onClick={() => handleDelete(row)} className="text-red-600 hover:text-red-800">
                           {t('action_delete')}

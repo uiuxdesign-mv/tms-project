@@ -43,6 +43,9 @@ export async function POST(req: NextRequest) {
     roleKey,
     roleName: role?.role_name || '',
     canAssignOthers: isAdmin ? true : user.can_assign_others === 'Ya',
+    // Fitur Leader Role (permintaan user): dihitung ulang di server dari data role saat login,
+    // bukan dipercaya dari client — sama seperti canAssignOthers di atas.
+    isLeader: !isAdmin && role?.is_leader === 'Ya',
     mustChangePassword: user.must_change_password === 'Ya',
   });
 

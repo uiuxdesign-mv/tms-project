@@ -137,6 +137,22 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
         placeholder: 'Contoh: Mengelola proyek, menugaskan task, dan memantau progres tim.',
         placeholderKey: 'md_ph_role_description',
       },
+      // Fitur Leader Role (permintaan user): role yang ditandai Pemimpin tidak bisa ditugaskan
+      // task oleh siapa pun (setara Admin), otomatis boleh menugaskan task ke semua user kecuali
+      // Admin (tidak perlu diatur lewat Employment Type seperti Manager), dan boleh melihat
+      // SELURUH task user lain tapi murni view-only. Lihat aturan lengkap di
+      // src/lib/models/tasks.ts (canViewTask/canManageTask/canAssignToOthers) dan
+      // src/lib/models/roles.ts (isNonAssignableRole).
+      {
+        key: 'is_leader',
+        label: 'Pemimpin (Leader)',
+        labelKey: 'md_field_is_leader',
+        type: 'boolean',
+        displayAs: 'checkbox',
+        helperText:
+          'Role dengan tanda ini tidak bisa ditugaskan task oleh siapa pun, otomatis boleh menugaskan task ke semua user kecuali Admin, dan bisa melihat seluruh task user lain (view-only, tidak bisa mengubah apa pun).',
+        helperTextKey: 'md_help_is_leader',
+      },
       STATUS_FIELD,
       // role_key tetap ada di sheet & dipakai luas sebagai bypass permission admin (role_key ===
       // 'admin'), tapi TIDAK lagi ditampilkan sebagai input di form (Fase 12, sesuai video) — nilai

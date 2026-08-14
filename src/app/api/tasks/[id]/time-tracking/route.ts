@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
-import { canManageTask } from '@/lib/models/tasks';
+import { canManageTask, canViewTask } from '@/lib/models/tasks';
 import { runTimeAction, getTimeStateForTask } from '@/lib/models/time-tracking';
 import { logAction } from '@/lib/models/audit-log';
 
@@ -23,7 +23,11 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   try {
     const existing = await SheetTable.findById('tasks', id, { useCache: false });
     if (!existing) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
-    if (!canManageTask(session, existing)) {
+    // Bugfix (permintaan user, fitur Leader Role): MEMBACA state Time Tracking (badge, History
+    // Log) cukup aturan visibilitas (canViewTask) — task view-only tetap boleh dilihat riwayat
+    // Time Tracking-nya, cuma tidak boleh menjalankan aksi apa pun (POST di bawah tetap pakai
+    // canManageTask, tidak berubah).
+    if (!canViewTask(session, existing)) {
       return NextResponse.json({ error: 'Anda tidak punya akses ke Time Tracking task ini.' }, { status: 403 });
     }
 

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
-import { canAddComment, createComment, getCommentsForTask } from '@/lib/models/comments';
+import { canAddComment, canReadComments, createComment, getCommentsForTask } from '@/lib/models/comments';
 import { logAction } from '@/lib/models/audit-log';
 
 export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
@@ -12,9 +12,10 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
 
   const task = await SheetTable.findById('tasks', id);
   if (!task) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
-  if (!canAddComment(session, task)) {
-    // canAddComment sama persis dengan aturan visibilitas task (canManageTask) — kalau task ini
-    // bahkan tidak boleh dilihat/dikelola oleh session ini, komentarnya juga tidak boleh dibaca.
+  if (!canReadComments(session, task)) {
+    // Bugfix (permintaan user, fitur Leader Role): sebelumnya dicek pakai canAddComment
+    // (=canManageTask) — task yang cuma boleh DILIHAT (view-only) jadi tidak bisa dibaca
+    // komentarnya sama sekali. Sekarang cukup aturan visibilitas (canReadComments=canViewTask).
     return NextResponse.json({ error: 'Anda tidak punya akses ke task ini.' }, { status: 403 });
   }
 
