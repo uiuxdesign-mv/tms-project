@@ -87,14 +87,15 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   const body = await req.json().catch(() => null);
   if (!body) return NextResponse.json({ error: 'Request tidak valid.' }, { status: 400 });
 
-  // Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas poin 1-3): dua jalur otorisasi
-  // berbeda tergantung jenis perubahan yang diminta —
+  // Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas + perbaikan susulan): dua jalur
+  // otorisasi berbeda tergantung jenis perubahan yang diminta —
   // (a) drag Kanban (viaKanbanDrag, cuma mengubah status_id) cukup canOperateTimeTracking, supaya
-  //     penerima delegasi tetap bisa menggeser kartu tugasnya sendiri (poin 3: tetap boleh ubah
-  //     status), dan
-  // (b) edit informasi task lewat form (field apa pun selain status) butuh canManageTaskInfo, lalu
-  //     DITEGAKKAN lebih lanjut lewat canEditTaskFieldsNow untuk kasus "Pemberi Tugas" yang cuma
-  //     boleh selagi task masih status awal (poin 2). Sebelumnya pembatasan status-awal ini HANYA
+  //     penerima delegasi tetap bisa menggeser kartu tugasnya sendiri (tetap boleh ubah status),
+  //     dan
+  // (b) edit informasi task lewat form (field apa pun selain status) butuh canManageTaskInfo, LALU
+  //     ditegakkan lebih lanjut lewat canEditTaskFieldsNow — begitu task melewati status awal,
+  //     TERKUNCI untuk SIAPA PUN tanpa kecuali (termasuk Admin/Pemimpin/pemilik task, bukan cuma
+  //     Pemberi Tugas — permintaan user eksplisit). Sebelumnya pembatasan status-awal ini HANYA
   //     ada di client (disabled input), sekarang divalidasi ulang di server juga.
   const isKanbanStatusOnly = body.viaKanbanDrag === true;
   let isDefaultStatusForGate = false;

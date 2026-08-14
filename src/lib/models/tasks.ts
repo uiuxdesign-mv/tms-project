@@ -69,20 +69,16 @@ export function canManageTaskInfo(session: SessionPayload, task: SheetRow): bool
 
 /**
  * Aturan BOLEH MENGUBAH FIELD SEKARANG (dipakai untuk validasi server di PATCH & untuk
- * disabled/enabled form field di client) — meniru formula `canManage && isDefaultStatus` yang
- * SUDAH ADA sebelumnya di task-detail-modal.tsx, sekarang dijadikan aturan resmi & DITEGAKKAN DI
- * SERVER juga (sebelumnya cuma pembatasan tampilan di client, tidak divalidasi ulang di API).
- * - Admin, Pemimpin, & pemilik task sendiri: TIDAK dibatasi status (perilaku lama yang sudah
- *   berjalan tetap dipertahankan, tidak diperketat tanpa diminta).
- * - Pemberi Tugas: HANYA selagi task masih di status awal (is_default) — sesuai permintaan user
- *   poin 2 ("...selagi tasking masih pada status awal").
- * - Penerima delegasi: selalu false (poin 3), terlepas dari status.
+ * disabled/enabled form field + tombol "Simpan Perubahan" di client) — permintaan user eksplisit
+ * (perbaikan susulan): begitu task melewati status awal, informasinya TERKUNCI untuk SIAPA PUN
+ * tanpa kecuali — termasuk Admin, Pemimpin, dan pemilik task sendiri, bukan cuma Pemberi Tugas.
+ * Perubahan informasi lewat form ini HANYA boleh terjadi selagi task masih di status awal
+ * (is_default) — di luar itu, satu-satunya cara resmi mengubah task adalah lewat tombol aksi Time
+ * Tracking (Start/Pause/Stop/Back/Done), Cancel Task, atau drag & drop Kanban, supaya business
+ * rule & History Log tetap konsisten.
  */
 export function canEditTaskFieldsNow(session: SessionPayload, task: SheetRow, isDefaultStatus: boolean): boolean {
-  if (!canManageTaskInfo(session, task)) return false;
-  if (session.isAdmin || session.isLeader || isSelfOwnedTask(session, task)) return true;
-  // Sisanya (lolos canManageTaskInfo tapi bukan admin/leader/pemilik) pasti Pemberi Tugas.
-  return isDefaultStatus;
+  return canManageTaskInfo(session, task) && isDefaultStatus;
 }
 
 /**
