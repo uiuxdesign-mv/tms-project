@@ -46,20 +46,27 @@ export function TasksViewSwitcher() {
 
 /**
  * Header halaman Tasks yang seragam di ketiga tampilan: judul "Tasks" + subtitle dinamis (jumlah
- * task / instruksi drag / jumlah task bulan ini — beda-beda per tampilan seperti video), tombol
- * "+ Add Task", dan switcher di atas. onAddTask dipakai halaman List (buka modal langsung di
- * tempat); addTaskHref dipakai Kanban/Calendar (arahkan ke List dengan modal auto-terbuka, supaya
- * form Tambah Task cuma py satu implementasi, tidak diduplikasi di 3 komponen).
+ * task / instruksi drag / jumlah task bulan ini — beda-beda per tampilan seperti video) + tombol
+ * "+ Add Task".
+ *
+ * Perbaikan (permintaan user Round 6, poin 1 & 2):
+ * - `onAddTask` sekarang WAJIB berupa callback yang membuka `TaskCreateModal` LANGSUNG di
+ *   view yang sedang aktif (List/Kanban/Calendar masing-masing me-mount modalnya sendiri) — prop
+ *   `addTaskHref` (arahkan ke /tasks?new=1 lalu buka modal DI SANA) sudah dihapus sepenuhnya,
+ *   karena itulah penyebab bug "klik + Add Task di Kanban/Calendar malah pindah ke view List
+ *   dulu" yang dilaporkan user. Satu implementasi form Tambah Task tetap terjaga lewat komponen
+ *   bersama `TaskCreateModal` (src/components/task-create-modal.tsx), bukan lagi lewat redirect.
+ * - Switcher tab List/Kanban/Calendar (`TasksViewSwitcher`) DIPINDAH keluar dari header ini —
+ *   sekarang ditempatkan oleh masing-masing view sebagai `rightSlot` di baris search & filter
+ *   (`TaskFilterBar`), sejajar & mentok kanan, bukan lagi di sini.
  */
 export function TasksPageHeader({
   subtitle,
   onAddTask,
-  addTaskHref,
   canCreate = true,
 }: {
   subtitle: string;
   onAddTask?: () => void;
-  addTaskHref?: string;
   canCreate?: boolean;
 }) {
   const { t } = useLanguage();
@@ -69,26 +76,15 @@ export function TasksPageHeader({
         <h1 className="text-xl font-semibold text-gray-900">{t('nav_tasking')}</h1>
         <p className="mt-0.5 text-sm text-gray-500">{subtitle}</p>
       </div>
-      <div className="flex flex-wrap items-center gap-3">
-        <TasksViewSwitcher />
-        {canCreate &&
-          (onAddTask ? (
-            <button
-              type="button"
-              onClick={onAddTask}
-              className="shrink-0 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
-            >
-              {t('tasks_add_button')}
-            </button>
-          ) : addTaskHref ? (
-            <Link
-              href={addTaskHref}
-              className="shrink-0 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
-            >
-              {t('tasks_add_button')}
-            </Link>
-          ) : null)}
-      </div>
+      {canCreate && onAddTask && (
+        <button
+          type="button"
+          onClick={onAddTask}
+          className="shrink-0 rounded-lg bg-indigo-600 px-3.5 py-2 text-sm font-medium text-white shadow-sm hover:bg-indigo-700"
+        >
+          {t('tasks_add_button')}
+        </button>
+      )}
     </div>
   );
 }

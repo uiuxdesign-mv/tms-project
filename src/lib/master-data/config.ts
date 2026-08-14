@@ -262,7 +262,15 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
         type: 'multiselect',
         optionsFrom: 'projects',
         optionsLabelKey: 'project_name',
-        showInTable: false,
+        // Perbaikan (permintaan user Round 6, poin 5): field ini sudah lama ada (dipakai untuk
+        // filter cascading Client->Project di form Task) tapi sebelumnya disembunyikan dari tabel
+        // (showInTable: false) — sekarang ditampilkan sebagai kolom "Project Terkait" di tabel
+        // Client. Tidak perlu logika baru sama sekali: `resolveFieldOptions` (lib/master-data/
+        // options.ts) sudah meresolusi opsi field ini (nama project) terlepas dari showInTable, dan
+        // `renderCellValue`/`multiselectLabels` (master-data-table.tsx) sudah generik menangani
+        // render multiselect di kolom tabel (gabung nama project dengan ", ") — label kolom otomatis
+        // ikut i18n lewat labelKey di atas (sudah ada: md_field_project_ids, ID "Project Terkait" /
+        // EN "Related Projects").
         helperText:
           'Pilih project yang terkait dengan client ini. Saat menambah Task, pilihan Project akan otomatis terfilter berdasarkan Client yang dipilih.',
         helperTextKey: 'md_help_project_ids',

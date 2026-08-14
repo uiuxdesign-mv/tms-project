@@ -5,8 +5,9 @@ import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { TimeTrackingControls, type TimeTrackingState } from '@/components/time-tracking-controls';
 import { useToast } from '@/components/toast-provider';
 import { Badge } from '@/components/badge';
-import { TasksPageHeader } from '@/components/tasks-view-header';
+import { TasksPageHeader, TasksViewSwitcher } from '@/components/tasks-view-header';
 import TaskDetailModal from '@/components/task-detail-modal';
+import TaskCreateModal, { type TaskCreateOptionsData } from '@/components/task-create-modal';
 import TaskFilterBar from '@/components/task-filter-bar';
 import { useLanguage } from '@/components/language-provider';
 import { usePolling } from '@/lib/hooks/use-polling';
@@ -40,15 +41,13 @@ type StatusOption = Option & {
   colorCode?: string | null;
 };
 
-type OptionsData = {
-  canAssignOthers: boolean;
-  clients: Option[];
-  projects: Option[];
-  taskTypes: Option[];
-  priorities: Option[];
-  statuses: StatusOption[];
-  assignees: Option[];
-};
+// Perbaikan (permintaan user Round 6, poin 1): sekarang berbasis `TaskCreateOptionsData` (bukan
+// lagi tipe lokal yang lebih sempit) supaya `opts` di sini bisa langsung dioper ke
+// `TaskCreateModal` tanpa fetch/tipe terpisah — datanya memang sudah selalu dikirim lengkap oleh
+// GET /api/tasks/options, cuma sebelumnya tidak semuanya ditipekan di sini karena belum dipakai.
+// `statuses` di-override ke varian lokal yang punya `workflowLevel` (angka, hasil parse dari
+// `workflow_level` string) khusus dipakai logika urutan kolom & aturan drag Kanban.
+type OptionsData = Omit<TaskCreateOptionsData, 'statuses'> & { statuses: StatusOption[] };
 
 // Format tanggal "Jul 14" seperti video (kartu Kanban lebih sempit dari List, jadi tidak pakai
 // tahun supaya tetap muat satu baris).
@@ -95,6 +94,10 @@ export default function KanbanBoard({
   const [dragOverStatusId, setDragOverStatusId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
+  // Perbaikan (permintaan user Round 6, poin 1): "+ Add Task" sekarang membuka TaskCreateModal
+  // LANGSUNG di sini (in-place) — sebelumnya arahkan ke /tasks?new=1 yang malah memindahkan view
+  // ke List dulu (bug yang dilaporkan user).
+  const [createOpen, setCreateOpen] = useState(false);
 
   // Filter Status/Priority/Assignee (permintaan user) — sama seperti List, sekarang pakai
   // komponen bersama `TaskFilterBar` supaya Kanban juga punya kemampuan filter yang sama.
@@ -154,7 +157,7 @@ export default function KanbanBoard({
   // Perbaikan (permintaan user Round 5, poin 2): polling diam-diam, sama pola & alasannya dengan
   // tasks-table.tsx (lihat use-polling.ts) — dimatikan selagi kartu sedang di-drag atau modal
   // Detail terbuka, supaya papan tidak "melompat" di tengah interaksi user.
-  usePolling(silentReload, 20_000, !detailTaskId && !dragTaskId);
+  usePolling(silentReload, 20_000, !detailTaskId && !dragTaskId && !createOpen);
 
   function label(list: Option[] | undefined, value: string) {
     return list?.find((o) => o.value === value)?.label || '-';
@@ -274,16 +277,17 @@ export default function KanbanBoard({
     <div>
       <TasksPageHeader
         subtitle={t('tasks_kanban_subtitle')}
-        addTaskHref="/tasks?new=1"
+        onAddTask={permissions.canEdit ? () => setCreateOpen(true) : undefined}
         canCreate={permissions.canEdit}
       />
 
-      {/* Bugfix (permintaan user): search box & filter sekarang digabung dalam satu container
-          bordered yang sama seperti di view List — sebelumnya search box di sini berdiri sendiri
-          tanpa card pembungkus, dan belum ada filter Status/Priority/Assignee sama sekali. */}
-      <div className="mb-3 rounded-2xl border border-gray-200 bg-white shadow-card">
+      {/* Perbaikan (permintaan user Round 6, poin 2 & 3): search box, filter, DAN switcher tab
+          List/Kanban/Calendar (rightSlot, mentok kanan) sekarang satu baris, digabung dalam SATU
+          container bordered yang sama dengan papan Kanban di bawahnya (border-b sebagai pemisah)
+          — sama persis pola yang sudah ada di view List, bukan 2 card terpisah seperti sebelumnya. */}
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
         <TaskFilterBar
-          className="p-4"
+          className="border-b border-gray-200 p-4"
           search={search}
           onSearchChange={setSearch}
           statuses={opts.statuses}
@@ -294,10 +298,10 @@ export default function KanbanBoard({
           filterAssignee={filterAssignee}
           onApply={applyFilters}
           onReset={resetFilters}
+          rightSlot={<TasksViewSwitcher />}
         />
-      </div>
 
-      <div className="overflow-x-auto pb-4">
+        <div className="overflow-x-auto p-4">
         <div className="flex gap-4" style={{ minWidth: `${sortedStatuses.length * 280}px` }}>
           {sortedStatuses.map((status) => {
             const columnTasks = visibleRows.filter((r) => r.status_id === status.value);
@@ -412,6 +416,7 @@ export default function KanbanBoard({
             );
           })}
         </div>
+        </div>
       </div>
 
       {detailTaskId && (
@@ -422,6 +427,18 @@ export default function KanbanBoard({
           permissions={{ canEdit: permissions.canEdit, canDelete: permissions.canEdit }}
           onClose={() => setDetailTaskId(null)}
           onChanged={silentReload}
+        />
+      )}
+
+      {createOpen && (
+        <TaskCreateModal
+          opts={opts}
+          currentUserId={currentUserId}
+          onClose={() => setCreateOpen(false)}
+          onCreated={() => {
+            setCreateOpen(false);
+            load({ silent: true });
+          }}
         />
       )}
     </div>

@@ -35,6 +35,7 @@ export default function TaskFilterBar({
   onApply,
   onReset,
   className,
+  rightSlot,
 }: {
   search: string;
   onSearchChange: (v: string) => void;
@@ -49,6 +50,11 @@ export default function TaskFilterBar({
   /** Class tambahan untuk baris pembungkus (mis. `border-b border-gray-200 p-4` di List, cukup
    *  `p-4` di Kanban/Calendar). */
   className?: string;
+  /** Perbaikan (permintaan user Round 6, poin 2): slot untuk konten tambahan yang didorong ke
+   *  paling kanan baris ini (lewat `ml-auto`) — dipakai untuk menempatkan switcher tab
+   *  List/Kanban/Calendar (`TasksViewSwitcher`) sejajar dengan search & filter, bukan lagi di
+   *  header terpisah di atasnya. */
+  rightSlot?: React.ReactNode;
 }) {
   const { t } = useLanguage();
   const [filterOpen, setFilterOpen] = useState(false);
@@ -167,6 +173,7 @@ export default function TaskFilterBar({
           </div>
         )}
       </div>
+      {rightSlot && <div className="ml-auto shrink-0">{rightSlot}</div>}
     </div>
   );
 }

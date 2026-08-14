@@ -10,8 +10,9 @@ import { useTableControls } from '@/lib/hooks/use-table-controls';
 import { usePolling } from '@/lib/hooks/use-polling';
 import { SortableHeader, PaginationBar } from '@/components/table-controls';
 import { Badge } from '@/components/badge';
-import { TasksPageHeader } from '@/components/tasks-view-header';
+import { TasksPageHeader, TasksViewSwitcher } from '@/components/tasks-view-header';
 import TaskDetailModal from '@/components/task-detail-modal';
+import TaskCreateModal from '@/components/task-create-modal';
 import TaskFilterBar from '@/components/task-filter-bar';
 import { useLanguage } from '@/components/language-provider';
 
@@ -58,21 +59,6 @@ type OptionsData = {
   relatedTasks: Option[];
 };
 
-const emptyForm = {
-  title: '',
-  description: '',
-  client_id: '',
-  project_id: '',
-  task_type_id: '',
-  related_task_id: '',
-  priority_id: '',
-  status_id: '',
-  assigned_to: '',
-  due_date: '',
-  start_date: '',
-  estimated_hours: '',
-};
-
 type Permissions = { canCreate: boolean; canEdit: boolean; canDelete: boolean };
 
 export default function TasksTable({
@@ -94,11 +80,13 @@ export default function TasksTable({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [modalOpen, setModalOpen] = useState(false);
+  // Perbaikan (permintaan user Round 6, poin 1): "Tambah Task" (createOpen) & "Detail/Edit Task"
+  // (editingId) sekarang 2 flag independen, masing-masing me-mount modalnya sendiri
+  // (TaskCreateModal / TaskDetailModal) — sebelumnya keduanya digabung lewat 1 flag `modalOpen` +
+  // `editingId===null` untuk membedakan create vs edit, tidak lagi diperlukan sejak form Tambah
+  // Task diekstrak jadi komponen terpisah.
+  const [createOpen, setCreateOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ ...emptyForm });
-  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  const [saving, setSaving] = useState(false);
 
   // Filter Status/Priority/Assignee (Fase 10 — video-fidelity pass, UI-nya sekarang di komponen
   // bersama `TaskFilterBar`, dipakai juga oleh Kanban & Calendar — permintaan user). Nilai yang
@@ -154,18 +142,23 @@ export default function TasksTable({
   // aplikasi ini). Dimatikan otomatis (enabled=false) selagi modal Detail/Tambah Task terbuka,
   // supaya reload di belakang layar tidak mengganggu form yang sedang diisi user (mis. field
   // ke-reset diam-diam gara-gara `opts` berubah referensi).
-  usePolling(silentReload, 20_000, !modalOpen);
+  usePolling(silentReload, 20_000, !createOpen && !editingId);
 
-  // Kanban & Calendar (Fase 10) tidak punya form Tambah Task sendiri — tombol "+ Add Task" di
-  // sana mengarah ke /tasks?new=1 supaya modal yang sama (satu-satunya implementasi) langsung
-  // terbuka di sini, lalu query string dibersihkan supaya tidak terbuka lagi kalau halaman di-refresh.
+  // Perbaikan (permintaan user Round 6, poin 1): dulu Kanban & Calendar tidak punya form Tambah
+  // Task sendiri, tombol "+ Add Task" di sana mengarah ke /tasks?new=1 supaya modal-nya kebuka DI
+  // SINI (List) — akibatnya klik "+ Add Task" dari Kanban/Calendar selalu melempar user pindah
+  // view ke List dulu, baru modal kebuka (bug yang dilaporkan user). Sekarang Kanban & Calendar
+  // masing-masing sudah punya TaskCreateModal sendiri (in-place, tidak pindah view), jadi query
+  // param `?new=1` ini praktis sudah tidak pernah dikirim lagi oleh keduanya — tapi tetap
+  // dipertahankan sebagai deep-link fallback (mis. bookmark/link lama) yang masih membuka modal
+  // Tambah Task di List seperti semula.
   useEffect(() => {
-    if (searchParams.get('new') === '1' && opts) {
-      openCreateModal();
+    if (searchParams.get('new') === '1') {
+      setCreateOpen(true);
       router.replace('/tasks');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, opts]);
+  }, [searchParams]);
 
   // Perbaikan (permintaan user Round 5, poin 3): klik notifikasi "penunjukan tugas" di bell header
   // (notification-bell.tsx) mengarah ke sini dengan ?task=<id> — langsung buka Task Detail
@@ -175,77 +168,15 @@ export default function TasksTable({
     const taskId = searchParams.get('task');
     if (taskId) {
       setEditingId(taskId);
-      setModalOpen(true);
       router.replace('/tasks');
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  const selectedTaskType = opts?.taskTypes.find((tt) => tt.value === form.task_type_id);
-  const showRelatedTask = !!selectedTaskType?.requiresRelatedTask;
-
-  // Bugfix (permintaan user): Client sekarang wajib dipilih LEBIH DULU di form Add Task, dan
-  // daftar Project otomatis terfilter mengikuti Project yang ditautkan ke Client tersebut (diatur
-  // lewat field multi-select "Project Terkait" di Master Client). Kalau Client yang dipilih belum
-  // ditautkan ke Project manapun (mis. data lama sebelum fitur ini ada), daftar Project TIDAK
-  // dikosongkan total — semua Project tetap ditampilkan (fail-open) supaya user tidak terkunci
-  // total dari membuat Task sebelum admin sempat mengisi tautan Client-Project di Master Data.
-  const selectedClientForTask = opts?.clients.find((c) => c.value === form.client_id);
-  const projectOptionsForTask = !form.client_id
-    ? []
-    : !selectedClientForTask || selectedClientForTask.projectIds.length === 0
-      ? opts?.projects || []
-      : (opts?.projects || []).filter((p) => selectedClientForTask.projectIds.includes(p.value));
-
-  function openCreateModal() {
-    setEditingId(null);
-    // Status tidak ditampilkan di form Tambah Task (task baru selalu mulai dari status default
-    // workflow, sama seperti video) — dipilih otomatis di sini, field-nya baru muncul lagi kalau
-    // user membuka form Edit.
-    const defaultStatus = opts?.statuses.find((s) => s.isDefault);
-    setForm({
-      ...emptyForm,
-      assigned_to: opts?.canAssignOthers ? '' : currentUserId,
-      status_id: defaultStatus?.value || '',
-    });
-    setFieldErrors({});
-    setModalOpen(true);
-  }
-
   // Detail (List) & klik kartu (Kanban) sama-sama membuka TaskDetailModal (Fase 10) — modal itu
-  // fetch datanya sendiri lewat GET /api/tasks/[id], jadi di sini cukup set id-nya saja, tidak
-  // perlu lagi prefill `form` seperti form Tambah Task yang sederhana.
+  // fetch datanya sendiri lewat GET /api/tasks/[id], jadi di sini cukup set id-nya saja.
   function openEditModal(row: TaskRow) {
     setEditingId(row.id);
-    setModalOpen(true);
-  }
-
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setFieldErrors({});
-    try {
-      const url = editingId ? `/api/tasks/${editingId}` : '/api/tasks';
-      const method = editingId ? 'PATCH' : 'POST';
-      const res = await apiFetch(url, {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
-      });
-      const json = await parseJsonSafe(res);
-      if (!res.ok) {
-        if (json.fieldErrors) setFieldErrors(json.fieldErrors);
-        else toast.error(json.error || t('toast_save_task_failed'));
-        return;
-      }
-      setModalOpen(false);
-      await load({ silent: true });
-      toast.success(editingId ? t('toast_save_task_success') : t('toast_task_created'));
-    } catch {
-      toast.error(t('toast_network_error'));
-    } finally {
-      setSaving(false);
-    }
   }
 
   async function handleDelete(row: TaskRow) {
@@ -313,7 +244,7 @@ export default function TasksTable({
     <div>
       <TasksPageHeader
         subtitle={`${t('tasks_subtitle_total')} ${table.totalCount} ${table.totalCount === 1 ? t('tasks_word_singular') : t('tasks_word_plural')}`}
-        onAddTask={permissions.canCreate ? openCreateModal : undefined}
+        onAddTask={permissions.canCreate ? () => setCreateOpen(true) : undefined}
         canCreate={permissions.canCreate}
       />
 
@@ -330,6 +261,7 @@ export default function TasksTable({
           filterAssignee={filterAssignee}
           onApply={applyFilters}
           onReset={resetFilters}
+          rightSlot={<TasksViewSwitcher />}
         />
 
         {error && <div className="border-b border-red-100 bg-red-50 p-3 text-sm text-red-700">{error}</div>}
@@ -421,238 +353,27 @@ export default function TasksTable({
         />
       </div>
 
-      {modalOpen && editingId && (
+      {editingId && (
         <TaskDetailModal
           taskId={editingId}
           currentUserId={currentUserId}
           isAdmin={isAdmin}
           permissions={{ canEdit: permissions.canEdit, canDelete: permissions.canDelete }}
-          onClose={() => setModalOpen(false)}
+          onClose={() => setEditingId(null)}
           onChanged={silentReload}
         />
       )}
 
-      {modalOpen && !editingId && opts && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
-          <div className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
-            <div className="shrink-0 border-b border-gray-200 px-5 py-4">
-              <h2 className="text-lg font-semibold text-gray-900">{t('tasks_add_modal_title')}</h2>
-            </div>
-            {/* Bugfix (Fase 14): tombol aksi (Batal/Simpan) dipindah ke footer `shrink-0` di luar
-                area scroll — sebelumnya ikut di dalam `overflow-y-auto`, jadi tombolnya ikut
-                ter-scroll ke bawah dan hilang dari layar kalau field form-nya banyak/panjang. */}
-            <form onSubmit={handleSave} className="flex min-h-0 flex-1 flex-col">
-            <div className="flex-1 overflow-y-auto p-5">
-            <div className="space-y-3">
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('tf_title')}</label>
-                <input
-                  value={form.title}
-                  onChange={(e) => setForm((f) => ({ ...f, title: e.target.value }))}
-                  placeholder={t('td_field_title_placeholder')}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
-                />
-                {fieldErrors.title && <p className="mt-1 text-xs text-red-600">{fieldErrors.title}</p>}
-              </div>
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_description')}</label>
-                <textarea
-                  value={form.description}
-                  onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                  placeholder={t('td_field_description_placeholder')}
-                  rows={3}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('tf_client')}</label>
-                  <select
-                    required
-                    value={form.client_id}
-                    onChange={(e) =>
-                      setForm((f) => ({ ...f, client_id: e.target.value, project_id: '' }))
-                    }
-                    className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
-                  >
-                    <option value="">{t('tf_option_choose_client')}</option>
-                    {opts.clients.map((c) => (
-                      <option key={c.value} value={c.value}>
-                        {c.label}
-                      </option>
-                    ))}
-                  </select>
-                  {fieldErrors.client_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.client_id}</p>}
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('tf_project')}</label>
-                  <select
-                    required
-                    disabled={!form.client_id}
-                    value={form.project_id}
-                    onChange={(e) => setForm((f) => ({ ...f, project_id: e.target.value }))}
-                    className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring disabled:bg-gray-100 disabled:text-gray-500"
-                  >
-                    <option value="">{form.client_id ? t('tf_option_choose_project') : t('tf_option_choose_client_first')}</option>
-                    {/* Bugfix (permintaan user): Project sekarang terfilter berdasarkan Client yang
-                        dipilih di atas (lewat tautan Project Terkait di Master Client), bukan
-                        menampilkan semua Project independen seperti sebelumnya. */}
-                    {projectOptionsForTask.map((p) => (
-                      <option key={p.value} value={p.value}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                  {fieldErrors.project_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.project_id}</p>}
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_priority')}</label>
-                  <select
-                    value={form.priority_id}
-                    onChange={(e) => setForm((f) => ({ ...f, priority_id: e.target.value }))}
-                    className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
-                  >
-                    <option value="">{t('td_option_choose')}</option>
-                    {opts.priorities.map((p) => (
-                      <option key={p.value} value={p.value}>
-                        {p.label}
-                      </option>
-                    ))}
-                  </select>
-                  {fieldErrors.priority_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.priority_id}</p>}
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_task_type')}</label>
-                  <select
-                    value={form.task_type_id}
-                    onChange={(e) => setForm((f) => ({ ...f, task_type_id: e.target.value, related_task_id: '' }))}
-                    className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
-                  >
-                    <option value="">{t('td_option_choose_task_type')}</option>
-                    {opts.taskTypes.map((tt) => (
-                      <option key={tt.value} value={tt.value}>
-                        {tt.label}
-                      </option>
-                    ))}
-                  </select>
-                  {fieldErrors.task_type_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.task_type_id}</p>}
-                </div>
-              </div>
-
-              {showRelatedTask && (
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_related_task')}</label>
-                  <select
-                    value={form.related_task_id}
-                    onChange={(e) => setForm((f) => ({ ...f, related_task_id: e.target.value }))}
-                    className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
-                  >
-                    <option value="">{t('td_option_choose_task')}</option>
-                    {opts.relatedTasks
-                      .filter((rt) => rt.value !== editingId)
-                      .map((rt) => (
-                        <option key={rt.value} value={rt.value}>
-                          {rt.label}
-                        </option>
-                      ))}
-                  </select>
-                  {fieldErrors.related_task_id && (
-                    <p className="mt-1 text-xs text-red-600">{fieldErrors.related_task_id}</p>
-                  )}
-                </div>
-              )}
-
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_assignee')}</label>
-                {opts.canAssignOthers ? (
-                  <select
-                    value={form.assigned_to}
-                    onChange={(e) => setForm((f) => ({ ...f, assigned_to: e.target.value }))}
-                    className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
-                  >
-                    <option value="">{t('td_option_self')}</option>
-                    {opts.assignees.map((a) => (
-                      <option key={a.value} value={a.value}>
-                        {a.label}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
-                    {t('tf_self_no_permission')}
-                  </p>
-                )}
-                {opts.canAssignOthers && form.assigned_to !== currentUserId && (
-                  <button
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, assigned_to: currentUserId }))}
-                    className="mt-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700"
-                  >
-                    {t('td_assign_to_me')}
-                  </button>
-                )}
-                {fieldErrors.assigned_to && <p className="mt-1 text-xs text-red-600">{fieldErrors.assigned_to}</p>}
-              </div>
-
-              <div className="grid grid-cols-3 gap-3">
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_start_date')}</label>
-                  <input
-                    type="datetime-local"
-                    value={form.start_date}
-                    onChange={(e) => setForm((f) => ({ ...f, start_date: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_due_date')}</label>
-                  <input
-                    type="datetime-local"
-                    value={form.due_date}
-                    onChange={(e) => setForm((f) => ({ ...f, due_date: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_est_hours')}</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.25"
-                    placeholder={t('td_est_hours_placeholder')}
-                    value={form.estimated_hours}
-                    onChange={(e) => setForm((f) => ({ ...f, estimated_hours: e.target.value }))}
-                    className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
-                  />
-                  {fieldErrors.estimated_hours && <p className="mt-1 text-xs text-red-600">{fieldErrors.estimated_hours}</p>}
-                </div>
-              </div>
-            </div>
-            </div>
-            <div className="flex shrink-0 justify-end gap-2 border-t border-gray-200 px-5 py-4">
-              <button
-                type="button"
-                onClick={() => setModalOpen(false)}
-                className="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50"
-              >
-                {t('action_cancel')}
-              </button>
-              <button
-                type="submit"
-                disabled={saving}
-                className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
-              >
-                {saving ? t('common_saving') : t('action_save')}
-              </button>
-            </div>
-            </form>
-          </div>
-        </div>
+      {createOpen && opts && (
+        <TaskCreateModal
+          opts={opts}
+          currentUserId={currentUserId}
+          onClose={() => setCreateOpen(false)}
+          onCreated={() => {
+            setCreateOpen(false);
+            load({ silent: true });
+          }}
+        />
       )}
     </div>
   );

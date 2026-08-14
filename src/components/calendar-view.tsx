@@ -2,8 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
-import { TasksPageHeader } from '@/components/tasks-view-header';
+import { TasksPageHeader, TasksViewSwitcher } from '@/components/tasks-view-header';
 import TaskDetailModal from '@/components/task-detail-modal';
+import TaskCreateModal, { type TaskCreateOptionsData } from '@/components/task-create-modal';
 import TaskFilterBar from '@/components/task-filter-bar';
 import { useLanguage } from '@/components/language-provider';
 import { usePolling } from '@/lib/hooks/use-polling';
@@ -17,17 +18,12 @@ type TaskRow = {
   due_date: string;
 };
 
-type Option = { value: string; label: string };
-type StatusOption = Option & { isFinal: boolean; colorCode?: string | null };
-
-type OptionsData = {
-  statuses: StatusOption[];
-  // Bugfix (permintaan user): Calendar sekarang juga punya filter Priority & Assignee seperti
-  // List/Kanban — sebelumnya cuma `statuses` yang diambil dari /api/tasks/options (dipakai untuk
-  // warna badge status di sel kalender), padahal endpoint-nya sudah selalu mengirim semuanya.
-  priorities: Option[];
-  assignees: Option[];
-};
+// Perbaikan (permintaan user Round 6, poin 1): sekarang berbasis `TaskCreateOptionsData` (bukan
+// tipe lokal yang cuma berisi statuses/priorities/assignees) supaya `opts` di sini bisa langsung
+// dioper ke `TaskCreateModal` — datanya memang sudah selalu dikirim lengkap oleh
+// GET /api/tasks/options, field lain (clients/projects/dst) sekadar belum pernah ditipekan di
+// sini karena sebelumnya Calendar belum punya form Tambah Task sendiri.
+type OptionsData = TaskCreateOptionsData;
 
 const MONTH_NAMES_ID = [
   'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
@@ -80,6 +76,10 @@ export default function CalendarView({
   const [error, setError] = useState<string | null>(null);
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  // Perbaikan (permintaan user Round 6, poin 1): "+ Add Task" sekarang membuka TaskCreateModal
+  // LANGSUNG di sini (in-place) — sebelumnya arahkan ke /tasks?new=1 yang malah memindahkan view
+  // ke List dulu (bug yang dilaporkan user).
+  const [createOpen, setCreateOpen] = useState(false);
 
   // Filter Status/Priority/Assignee (permintaan user) — sama seperti List & Kanban, pakai
   // komponen bersama `TaskFilterBar`.
@@ -129,7 +129,7 @@ export default function CalendarView({
 
   // Perbaikan (permintaan user Round 5, poin 2): polling diam-diam, sama pola dengan List/Kanban
   // (lihat use-polling.ts) — dimatikan selagi modal Detail terbuka.
-  usePolling(silentReload, 20_000, !detailTaskId);
+  usePolling(silentReload, 20_000, !detailTaskId && !createOpen);
 
   function goToMonth(deltaMonths: number) {
     const d = new Date(year, month - 1 + deltaMonths, 1);
@@ -184,15 +184,17 @@ export default function CalendarView({
     <div>
       <TasksPageHeader
         subtitle={`${t('tasks_subtitle_total')} ${dueThisMonthCount} ${dueThisMonthCount === 1 ? t('tasks_word_singular') : t('tasks_word_plural')} ${t('calendar_due_this_month_suffix')}`}
-        addTaskHref="/tasks?new=1"
+        onAddTask={canCreate ? () => setCreateOpen(true) : undefined}
         canCreate={canCreate}
       />
-      {/* Bugfix (permintaan user): search box & filter digabung dalam satu container bordered yang
-          sama seperti di view List — sebelumnya search box di sini berdiri sendiri tanpa card
-          pembungkus, dan belum ada filter Status/Priority/Assignee sama sekali. */}
-      <div className="mb-3 rounded-2xl border border-gray-200 bg-white shadow-card">
+      {/* Perbaikan (permintaan user Round 6, poin 2 & 3): search box, filter, DAN switcher tab
+          List/Kanban/Calendar (rightSlot, mentok kanan) sekarang satu baris, digabung dalam SATU
+          container bordered yang sama dengan grid kalender + panel Unscheduled di bawahnya
+          (border-b sebagai pemisah) — sama persis pola yang sudah ada di view List, bukan 2 card
+          terpisah seperti sebelumnya. */}
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
         <TaskFilterBar
-          className="p-4"
+          className="border-b border-gray-200 p-4"
           search={search}
           onSearchChange={setSearch}
           statuses={opts?.statuses || []}
@@ -203,10 +205,10 @@ export default function CalendarView({
           filterAssignee={filterAssignee}
           onApply={applyFilters}
           onReset={resetFilters}
+          rightSlot={<TasksViewSwitcher />}
         />
-      </div>
-      <div className="flex flex-col gap-4 lg:flex-row">
-      <div className="flex-1 rounded-2xl border border-gray-200 bg-white shadow-card">
+      <div className="flex flex-col gap-4 p-4 lg:flex-row">
+      <div className="flex-1 rounded-xl border border-gray-200">
         <div className="flex items-center justify-between border-b border-gray-200 p-4">
           <div className="flex items-center gap-2">
             <button
@@ -293,7 +295,7 @@ export default function CalendarView({
         </div>
       </div>
 
-      <div className="w-full rounded-2xl border border-gray-200 bg-white shadow-card lg:w-64">
+      <div className="w-full rounded-xl border border-gray-200 lg:w-64">
         <div className="border-b border-gray-200 p-4">
           <h3 className="text-sm font-semibold text-gray-900">
             {t('calendar_unscheduled_title')} <span className="font-normal text-gray-400">({unscheduled.length})</span>
@@ -316,6 +318,7 @@ export default function CalendarView({
       </div>
 
       </div>
+      </div>
 
       {detailTaskId && (
         <TaskDetailModal
@@ -325,6 +328,18 @@ export default function CalendarView({
           permissions={{ canEdit: permissions.canEdit, canDelete: permissions.canEdit }}
           onClose={() => setDetailTaskId(null)}
           onChanged={silentReload}
+        />
+      )}
+
+      {createOpen && opts && (
+        <TaskCreateModal
+          opts={opts}
+          currentUserId={currentUserId}
+          onClose={() => setCreateOpen(false)}
+          onCreated={() => {
+            setCreateOpen(false);
+            load({ silent: true });
+          }}
         />
       )}
     </div>
