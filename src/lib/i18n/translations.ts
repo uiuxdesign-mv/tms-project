@@ -716,8 +716,16 @@ export const translations = {
   // tugas dari satu user ke user lain).
   md_field_is_leader: { id: 'Pemimpin (Leader)', en: 'Leader' },
   md_help_is_leader: {
-    id: 'Role dengan tanda ini tidak bisa ditugaskan task oleh siapa pun, otomatis boleh menugaskan task ke semua user kecuali Admin, dan bisa melihat seluruh task user lain (view-only, tidak bisa mengubah apa pun).',
-    en: 'Roles marked this way can never be assigned a task by anyone, can automatically assign tasks to every user except Admin, and can see every other user’s tasks (view-only, no changes allowed).',
+    id: 'Role dengan tanda ini tidak bisa ditugaskan task oleh siapa pun kecuali dirinya sendiri atau Admin, otomatis boleh menugaskan task ke semua user kecuali Admin, dan bisa melihat seluruh task user lain (view-only, tidak bisa mengubah apa pun). Tidak bisa dicentang bersamaan dengan "Admin".',
+    en: 'Roles marked this way can only be assigned a task by themselves or by an Admin, can automatically assign tasks to every user except Admin, and can see every other user’s tasks (view-only, no changes allowed). Cannot be checked together with "Admin".',
+  },
+  // Perbaikan Admin/Leader (permintaan user): field baru "Is Admin" di Master Role — role lain
+  // selain role_key bawaan sistem 'admin' juga bisa diberi hak Admin PENUH, 100% identik, di
+  // seluruh aplikasi. Mutually exclusive dengan "Is Leader" di atas (hanya bisa pilih salah satu).
+  md_field_is_admin: { id: 'Admin', en: 'Admin' },
+  md_help_is_admin: {
+    id: 'Role dengan tanda ini mendapat hak akses PENUH setara Admin di seluruh aplikasi — bisa mengelola Master Data & Users, melihat serta mengelola semua Task, dan menugaskan task ke siapa saja kecuali Admin lain (hanya bisa menugaskan dirinya sendiri). Tidak bisa dicentang bersamaan dengan "Pemimpin (Leader)".',
+    en: 'Roles marked this way get FULL access equal to Admin across the whole app — can manage Master Data & Users, view and manage every Task, and assign tasks to anyone except other Admins (can only assign to themselves). Cannot be checked together with "Leader".',
   },
   action_view: { id: 'Lihat', en: 'View' },
   td_assignment_info_title: { id: 'Informasi Penugasan', en: 'Assignment Info' },

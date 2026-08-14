@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { findUserByEmail, verifyPassword } from '@/lib/models/users';
-import { findRoleById } from '@/lib/models/roles';
+import { findRoleById, isAdminRole, isLeaderRole } from '@/lib/models/roles';
 import { createSessionToken, SESSION_COOKIE_NAME } from '@/lib/auth/session';
 
 export async function POST(req: NextRequest) {
@@ -33,7 +33,11 @@ export async function POST(req: NextRequest) {
   }
 
   const roleKey = role?.role_key || '';
-  const isAdmin = roleKey === 'admin';
+  // Perbaikan (permintaan user): "admin" sekarang data-driven — role LAIN selain role_key bawaan
+  // sistem 'admin' juga bisa ditandai is_admin="Ya" di Master Role dan dapat hak Admin PENUH, 100%
+  // identik di seluruh aplikasi. isAdminRole()/isLeaderRole() dihitung ulang di server dari data
+  // role saat ini, TIDAK PERNAH dipercaya dari client.
+  const isAdmin = isAdminRole(role);
 
   const token = await createSessionToken({
     userId: user.id,
@@ -43,9 +47,11 @@ export async function POST(req: NextRequest) {
     roleKey,
     roleName: role?.role_name || '',
     canAssignOthers: isAdmin ? true : user.can_assign_others === 'Ya',
+    isAdmin,
     // Fitur Leader Role (permintaan user): dihitung ulang di server dari data role saat login,
-    // bukan dipercaya dari client — sama seperti canAssignOthers di atas.
-    isLeader: !isAdmin && role?.is_leader === 'Ya',
+    // bukan dipercaya dari client — sama seperti canAssignOthers di atas. isLeaderRole() sudah
+    // memaksa false kalau role ini juga is_admin="Ya" (mutually exclusive).
+    isLeader: isLeaderRole(role),
     mustChangePassword: user.must_change_password === 'Ya',
   });
 

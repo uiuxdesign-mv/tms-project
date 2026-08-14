@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
-import { canViewTask, canManageTask, canAssignToOthers } from '@/lib/models/tasks';
-import { findRoleById, isNonAssignableRole } from '@/lib/models/roles';
+import { canViewTask, canManageTask, canAssignToOthers, canAssignTaskTo } from '@/lib/models/tasks';
+import { findRoleById } from '@/lib/models/roles';
 import { logAction } from '@/lib/models/audit-log';
 import { getTimeStatesForTasks } from '@/lib/models/time-tracking';
 
@@ -128,11 +128,11 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     } else {
       const newAssigneeId = String(body.assigned_to);
       if (newAssigneeId !== assignedTo) {
-        // Bugfix (permintaan user): Admin (dan role Pemimpin) tidak boleh ditugaskan task oleh
-        // siapa pun — dicek ulang di server, sama seperti POST /api/tasks.
+        // Perbaikan (permintaan user): dicek ulang di server lewat canAssignTaskTo, sama seperti
+        // POST /api/tasks — lihat catatan lengkap di src/lib/models/tasks.ts.
         const assigneeRole = assignee.role_id ? await findRoleById(String(assignee.role_id)) : undefined;
-        if (isNonAssignableRole(assigneeRole)) {
-          errors.assigned_to = 'User ini (Admin/Pemimpin) tidak bisa ditugaskan task.';
+        if (!canAssignTaskTo(session, newAssigneeId, assigneeRole)) {
+          errors.assigned_to = 'Anda tidak punya izin menugaskan task ke user ini.';
         } else {
           assignedTo = newAssigneeId;
           assignedBy = assignedTo !== session.userId ? session.userId : '';

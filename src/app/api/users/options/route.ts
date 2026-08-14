@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
-import { getAllRoles } from '@/lib/models/roles';
+import { getAllRoles, isAdminRole } from '@/lib/models/roles';
 import * as SheetTable from '@/lib/google/sheet-table';
 
 export async function GET() {
@@ -21,7 +21,17 @@ export async function GET() {
     // sedang diedit, supaya nilai lama tetap terlihat (client yang memutuskan, lihat users-table.tsx).
     return NextResponse.json({
       data: {
-        roles: roles.map((r) => ({ value: r.id, label: r.role_name, roleKey: r.role_key, active: r.status === 'Active' })),
+        // isAdminEquivalent (permintaan user): true untuk role_key bawaan sistem 'admin' MAUPUN
+        // role lain yang ditandai is_admin="Ya" di Master Role — dipakai client (users-table.tsx)
+        // menggantikan cek lama `roleKey === 'admin'` supaya form Tambah/Edit User menyembunyikan
+        // Employment Type untuk role Admin mana pun, bukan cuma role bawaan sistem.
+        roles: roles.map((r) => ({
+          value: r.id,
+          label: r.role_name,
+          roleKey: r.role_key,
+          isAdminEquivalent: isAdminRole(r),
+          active: r.status === 'Active',
+        })),
         employmentTypes: employmentTypes.map((e) => ({
           value: e.id,
           label: e.type_name,

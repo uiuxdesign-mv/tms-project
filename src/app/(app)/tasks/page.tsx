@@ -27,7 +27,7 @@ export default async function TasksPage() {
     <div className="mx-auto max-w-6xl">
       <TasksTable
         currentUserId={session.userId}
-        isAdmin={session.roleKey === 'admin'}
+        isAdmin={session.isAdmin}
         permissions={{ canCreate, canEdit, canDelete }}
       />
     </div>

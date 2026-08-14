@@ -8,7 +8,8 @@ export default async function UsersPage() {
 
   // Fase 7: Master Users dikunci permanen admin-only (bukan lagi lewat Menu Access) — meniru
   // aplikasi lama yang mengecualikan Master User dari matrix permission selamanya by design.
-  if (session.roleKey !== 'admin') {
+  // session.isAdmin sudah mencakup role lain yang ditandai is_admin="Ya" di Master Role juga.
+  if (!session.isAdmin) {
     return (
       <div className="mx-auto max-w-2xl rounded-lg border border-red-200 bg-red-50 p-6 text-sm text-red-700">
         Anda tidak punya akses ke halaman Master User. Fitur ini hanya untuk Administrator.

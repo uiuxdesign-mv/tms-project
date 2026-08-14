@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
-import { findRoleById } from '@/lib/models/roles';
+import { findRoleById, isAdminRole } from '@/lib/models/roles';
 import { MENU_KEYS } from '@/lib/menu-access/config';
 import { getPermissionMatrixForRole, savePermissionMatrixForRole, type PermissionMatrixRow } from '@/lib/menu-access/permissions';
 import { logAction } from '@/lib/models/audit-log';
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest) {
   try {
     const role = await findRoleById(roleId);
     if (!role) return NextResponse.json({ error: 'Role tidak ditemukan.' }, { status: 404 });
-    if (role.role_key === 'admin') {
+    if (isAdminRole(role)) {
       return NextResponse.json({ error: 'Hak akses role Admin tidak diatur di sini (selalu penuh).' }, { status: 400 });
     }
 
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
 
   const role = await findRoleById(roleId);
   if (!role) return NextResponse.json({ error: 'Role tidak ditemukan.' }, { status: 404 });
-  if (role.role_key === 'admin') {
+  if (isAdminRole(role)) {
     return NextResponse.json({ error: 'Hak akses role Admin tidak bisa diubah lewat sini.' }, { status: 400 });
   }
 

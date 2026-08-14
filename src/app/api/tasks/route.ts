@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse, after } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
-import { canViewTask, canAssignToOthers } from '@/lib/models/tasks';
-import { findRoleById, isNonAssignableRole } from '@/lib/models/roles';
+import { canViewTask, canAssignToOthers, canAssignTaskTo } from '@/lib/models/tasks';
+import { findRoleById } from '@/lib/models/roles';
 import { logAction } from '@/lib/models/audit-log';
 import { getTimeStatesForTasks } from '@/lib/models/time-tracking';
 
@@ -121,13 +121,14 @@ export async function POST(req: NextRequest) {
     if (!assignee) {
       errors.assigned_to = 'User yang ditugaskan tidak ditemukan.';
     } else {
-      // Bugfix (permintaan user): Admin (dan role Pemimpin) tidak boleh ditugaskan task oleh
-      // siapa pun — dicek ulang di server dari role assignee yang sebenarnya, bukan dipercaya
-      // dari daftar opsi client (yang seharusnya sudah menyaring ini di GET /api/tasks/options,
-      // tapi tetap divalidasi ulang di sini supaya tidak bisa dilewati lewat request langsung).
+      // Perbaikan (permintaan user): aturan siapa boleh menugaskan siapa (Admin cuma boleh
+      // menugaskan dirinya sendiri; Pemimpin cuma boleh ditugaskan oleh dirinya sendiri atau
+      // Admin; dst) dicek ulang di server lewat canAssignTaskTo — satu fungsi yang sama dipakai
+      // GET /api/tasks/options untuk menyaring dropdown, supaya opsi yang tampil di UI selalu
+      // konsisten dengan yang benar-benar diterima di sini.
       const assigneeRole = assignee.role_id ? await findRoleById(String(assignee.role_id)) : undefined;
-      if (isNonAssignableRole(assigneeRole)) {
-        errors.assigned_to = 'User ini (Admin/Pemimpin) tidak bisa ditugaskan task.';
+      if (!canAssignTaskTo(session, requestedAssignee, assigneeRole)) {
+        errors.assigned_to = 'Anda tidak punya izin menugaskan task ke user ini.';
       } else {
         assignedTo = requestedAssignee;
       }

@@ -59,6 +59,22 @@ export type FieldConfig = {
   /** Label custom untuk displayAs:'select' pada type 'boolean' — [label utk "Ya", label utk "Tidak"]. */
   selectLabels?: [string, string];
   /**
+   * Permintaan user (fitur Is Admin/Is Leader di Master Role): field boolean checkbox ini
+   * ditampilkan SEJAJAR (side-by-side) dengan field checkbox lain yang punya nilai `inlineGroup`
+   * SAMA dan berurutan langsung di array `fields` — dipakai untuk pasangan "Is Admin"/"Is Leader"
+   * ("di samping kiri Is Leader"). Ditangani generik di master-data-table.tsx, bisa dipakai entity
+   * mana pun untuk pasangan checkbox lain di masa depan.
+   */
+  inlineGroup?: string;
+  /**
+   * Permintaan user: kalau field boolean checkbox ini di-set "Ya", field lain dengan key ini
+   * OTOMATIS di-set "Tidak" (mutually exclusive) — dipakai untuk "Is Admin" & "Is Leader" (hanya
+   * bisa pilih salah satu). Ditangani generik di master-data-table.tsx onChange handler. Validasi
+   * SEBENARNYA (yang tidak bisa dilewati lewat request langsung) tetap ada terpisah di server —
+   * lihat POST/PATCH /api/master/[entity].
+   */
+  exclusiveWith?: string;
+  /**
    * Teks contoh yang tampil samar di dalam field kosong (Fase 17, permintaan user: "Untuk Semua
    * field input, saya ingin terdapat placeholder contoh data yang harus diinputkan"). Dipakai untuk
    * type 'text' | 'email' | 'textarea' | 'number' | 'date' — bukan instruksi/label pengganti,
@@ -137,12 +153,32 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
         placeholder: 'Contoh: Mengelola proyek, menugaskan task, dan memantau progres tim.',
         placeholderKey: 'md_ph_role_description',
       },
+      // Fitur Is Admin (permintaan user, perbaikan fitur Leader Role): role yang ditandai ini
+      // dapat hak Admin PENUH, 100% identik dengan role_key bawaan sistem 'admin', di SELURUH
+      // aplikasi (bukan cuma modul Tasking) — bypass Menu Access, akses penuh Master Data/Users,
+      // lihat & kelola semua Task, boleh menugaskan task ke siapa saja kecuali Admin lain (hanya
+      // boleh menugaskan dirinya sendiri). Mutually exclusive dengan "Is Leader" di bawah — hanya
+      // bisa pilih salah satu (exclusiveWith, ditegakkan juga di server). Lihat aturan lengkap di
+      // src/lib/models/roles.ts (isAdminRole) dan src/lib/models/tasks.ts (canAssignTaskTo).
+      {
+        key: 'is_admin',
+        label: 'Admin',
+        labelKey: 'md_field_is_admin',
+        type: 'boolean',
+        displayAs: 'checkbox',
+        helperText:
+          'Role dengan tanda ini mendapat hak akses PENUH setara Admin di seluruh aplikasi — bisa mengelola Master Data & Users, melihat serta mengelola semua Task, dan menugaskan task ke siapa saja kecuali Admin lain (hanya bisa menugaskan dirinya sendiri). Tidak bisa dicentang bersamaan dengan "Pemimpin (Leader)".',
+        helperTextKey: 'md_help_is_admin',
+        inlineGroup: 'role_flags',
+        exclusiveWith: 'is_leader',
+      },
       // Fitur Leader Role (permintaan user): role yang ditandai Pemimpin tidak bisa ditugaskan
-      // task oleh siapa pun (setara Admin), otomatis boleh menugaskan task ke semua user kecuali
-      // Admin (tidak perlu diatur lewat Employment Type seperti Manager), dan boleh melihat
-      // SELURUH task user lain tapi murni view-only. Lihat aturan lengkap di
-      // src/lib/models/tasks.ts (canViewTask/canManageTask/canAssignToOthers) dan
-      // src/lib/models/roles.ts (isNonAssignableRole).
+      // task oleh siapa pun kecuali dirinya sendiri atau Admin, otomatis boleh menugaskan task ke
+      // semua user kecuali Admin (tidak perlu diatur lewat Employment Type seperti Manager), dan
+      // boleh melihat SELURUH task user lain tapi murni view-only. Mutually exclusive dengan "Is
+      // Admin" di atas. Lihat aturan lengkap di src/lib/models/tasks.ts
+      // (canViewTask/canManageTask/canAssignToOthers/canAssignTaskTo) dan src/lib/models/roles.ts
+      // (isLeaderRole).
       {
         key: 'is_leader',
         label: 'Pemimpin (Leader)',
@@ -150,8 +186,10 @@ export const MASTER_DATA_ENTITIES: Record<string, EntityConfig> = {
         type: 'boolean',
         displayAs: 'checkbox',
         helperText:
-          'Role dengan tanda ini tidak bisa ditugaskan task oleh siapa pun, otomatis boleh menugaskan task ke semua user kecuali Admin, dan bisa melihat seluruh task user lain (view-only, tidak bisa mengubah apa pun).',
+          'Role dengan tanda ini tidak bisa ditugaskan task oleh siapa pun kecuali dirinya sendiri atau Admin, otomatis boleh menugaskan task ke semua user kecuali Admin, dan bisa melihat seluruh task user lain (view-only, tidak bisa mengubah apa pun). Tidak bisa dicentang bersamaan dengan "Admin".',
         helperTextKey: 'md_help_is_leader',
+        inlineGroup: 'role_flags',
+        exclusiveWith: 'is_admin',
       },
       STATUS_FIELD,
       // role_key tetap ada di sheet & dipakai luas sebagai bypass permission admin (role_key ===

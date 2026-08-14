@@ -12,7 +12,7 @@ export async function requireAdmin(): Promise<{ session: SessionPayload } | { er
   if (!session) {
     return { error: NextResponse.json({ error: 'Belum login.' }, { status: 401 }) };
   }
-  if (session.roleKey !== 'admin') {
+  if (!session.isAdmin) {
     return { error: NextResponse.json({ error: 'Anda tidak punya akses ke fitur ini.' }, { status: 403 }) };
   }
   return { session };

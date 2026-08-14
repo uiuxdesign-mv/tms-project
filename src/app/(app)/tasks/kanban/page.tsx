@@ -22,7 +22,7 @@ export default async function TasksKanbanPage() {
 
   return (
     <div className="mx-auto max-w-[1400px]">
-      <KanbanBoard currentUserId={session.userId} isAdmin={session.roleKey === 'admin'} permissions={{ canEdit }} />
+      <KanbanBoard currentUserId={session.userId} isAdmin={session.isAdmin} permissions={{ canEdit }} />
     </div>
   );
 }

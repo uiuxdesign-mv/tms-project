@@ -13,7 +13,8 @@ export type PermissionMatrixRow = {
 
 /**
  * Cek apakah session boleh melakukan `action` pada `menuKey`.
- * Admin selalu boleh (hardcode, tidak tergantung data sheet Menu Access).
+ * Admin (session.isAdmin — role_key bawaan 'admin' ATAU role lain yang ditandai is_admin="Ya" di
+ * Master Role) selalu boleh, tidak tergantung data sheet Menu Access.
  * Role lain: dicek dari sheet Menu Access, baris role_id + menu_key yang cocok.
  * Tidak ada baris cocok = tidak boleh (fail-closed / default deny).
  */
@@ -22,7 +23,7 @@ export async function hasMenuPermission(
   menuKey: string,
   action: MenuAction
 ): Promise<boolean> {
-  if (session.roleKey === 'admin') return true;
+  if (session.isAdmin) return true;
   if (!session.roleId) return false;
 
   const row = await SheetTable.findOne(
@@ -37,7 +38,7 @@ export async function hasMenuPermission(
 
 /** Daftar menu_key yang boleh dilihat (can_view) oleh session ini. Admin = semua menu. */
 export async function getVisibleMenuKeys(session: SessionPayload): Promise<Set<string>> {
-  if (session.roleKey === 'admin') return new Set(MENU_KEYS.map((m) => m.key));
+  if (session.isAdmin) return new Set(MENU_KEYS.map((m) => m.key));
   if (!session.roleId) return new Set();
 
   const rows = await SheetTable.getAll('menu_access');

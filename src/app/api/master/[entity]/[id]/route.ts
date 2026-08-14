@@ -30,6 +30,21 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ entity: s
     return NextResponse.json({ error: 'Validasi gagal.', fieldErrors: result.errors }, { status: 422 });
   }
 
+  // Perbaikan (permintaan user): sama seperti POST /api/master/[entity] — "Is Admin" & "Is
+  // Leader" mutually exclusive, divalidasi ulang di server.
+  if (config.key === 'roles' && result.data.is_admin === 'Ya' && result.data.is_leader === 'Ya') {
+    return NextResponse.json(
+      {
+        error: 'Validasi gagal.',
+        fieldErrors: {
+          is_admin: 'Role tidak boleh ditandai Admin dan Pemimpin (Leader) sekaligus. Pilih salah satu.',
+          is_leader: 'Role tidak boleh ditandai Admin dan Pemimpin (Leader) sekaligus. Pilih salah satu.',
+        },
+      },
+      { status: 422 }
+    );
+  }
+
   const updated = await SheetTable.updateRow(config.key, id, result.data);
   if (!updated) return NextResponse.json({ error: 'Data tidak ditemukan.' }, { status: 404 });
 

@@ -36,7 +36,7 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
   if (!session) redirect('/login');
   if (session.mustChangePassword) redirect('/change-password');
 
-  const isAdmin = session.roleKey === 'admin';
+  const isAdmin = session.isAdmin;
   const visibleKeys = await getVisibleMenuKeys(session);
   const visibleMasterMenus = MASTER_MENU_KEYS.filter((m) => visibleKeys.has(m.key));
 

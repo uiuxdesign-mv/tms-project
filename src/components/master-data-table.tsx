@@ -744,17 +744,13 @@ export default function MasterDataTable({
                       dirender di form Tambah MAUPUN Edit — nilainya tetap ada & tetap ikut
                       terkirim lewat formValues (lihat fullFieldPayload/openEditModal di atas),
                       cuma tidak bisa diketik manual di sini. */}
-                  {config.fields.filter((f) => !f.hiddenInForm).map((f) => (
-                    <FieldInput
-                      key={f.key}
-                      field={f}
-                      value={formValues[f.key] ?? ''}
-                      error={fieldErrors[f.key]}
-                      options={options[f.key]}
-                      disabled={!!(f.lockOnEdit && editingRow)}
-                      onChange={(v) => setFormValues((prev) => ({ ...prev, [f.key]: v }))}
-                    />
-                  ))}
+                  {renderFormFields(config.fields.filter((f) => !f.hiddenInForm), {
+                    formValues,
+                    fieldErrors,
+                    options,
+                    editingRow,
+                    setFormValues,
+                  })}
                 </div>
               </div>
               <div className="flex shrink-0 justify-end gap-2 border-t border-gray-200 px-5 py-4">
@@ -955,6 +951,68 @@ function csvCellValue(field: FieldConfig, value: string, fieldOptions?: SelectOp
     return multiselectLabels(value, fieldOptions).join(', ');
   }
   return value || '';
+}
+
+/**
+ * Permintaan user (fitur Is Admin/Is Leader di Master Role): render field form generik, TAPI
+ * field boolean checkbox yang punya `inlineGroup` sama dan berurutan langsung di `fields`
+ * dirender SEJAJAR (side-by-side) dalam satu baris flex, bukan satu per baris seperti biasa.
+ * Juga menangani `exclusiveWith` — men-set field lain ke "Tidak" otomatis saat field ini di-set
+ * "Ya" (mutually exclusive di UI; validasi sebenarnya tetap di server, lihat
+ * POST/PATCH /api/master/[entity]).
+ */
+function renderFormFields(
+  fields: FieldConfig[],
+  ctx: {
+    formValues: Record<string, string>;
+    fieldErrors: Record<string, string>;
+    options: Record<string, SelectOption[]>;
+    editingRow: Row | null;
+    setFormValues: (updater: (prev: Record<string, string>) => Record<string, string>) => void;
+  }
+): React.ReactNode[] {
+  const { formValues, fieldErrors, options, editingRow, setFormValues } = ctx;
+
+  function makeOnChange(f: FieldConfig) {
+    return (v: string) =>
+      setFormValues((prev) => {
+        const next = { ...prev, [f.key]: v };
+        if (f.exclusiveWith && v === 'Ya') next[f.exclusiveWith] = 'Tidak';
+        return next;
+      });
+  }
+
+  function renderOne(f: FieldConfig) {
+    return (
+      <FieldInput
+        key={f.key}
+        field={f}
+        value={formValues[f.key] ?? ''}
+        error={fieldErrors[f.key]}
+        options={options[f.key]}
+        disabled={!!(f.lockOnEdit && editingRow)}
+        onChange={makeOnChange(f)}
+      />
+    );
+  }
+
+  const nodes: React.ReactNode[] = [];
+  for (let i = 0; i < fields.length; i++) {
+    const f = fields[i];
+    const next = fields[i + 1];
+    if (f.inlineGroup && next && next.inlineGroup === f.inlineGroup) {
+      nodes.push(
+        <div key={f.key} className="flex flex-col gap-3 sm:flex-row sm:gap-4">
+          <div className="flex-1">{renderOne(f)}</div>
+          <div className="flex-1">{renderOne(next)}</div>
+        </div>
+      );
+      i++; // field kedua sudah dirender bersama, lewati di iterasi berikutnya
+      continue;
+    }
+    nodes.push(renderOne(f));
+  }
+  return nodes;
 }
 
 function FieldInput({

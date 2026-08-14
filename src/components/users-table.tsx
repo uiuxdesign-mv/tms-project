@@ -25,7 +25,7 @@ type UserRow = {
   photo_url?: string;
 };
 
-type RoleOption = { value: string; label: string; roleKey: string; active: boolean };
+type RoleOption = { value: string; label: string; roleKey: string; isAdminEquivalent: boolean; active: boolean };
 type EmploymentTypeOption = { value: string; label: string; canAssignToOthers: boolean; active: boolean };
 type ImportRowResult = { rowNumber: number; title: string; ok: boolean; message: string };
 
@@ -134,7 +134,9 @@ export default function UsersTable({
   }, [load]);
 
   const selectedRole = roles.find((r) => r.value === form.role_id);
-  const isAdminRole = selectedRole?.roleKey === 'admin';
+  // Perbaikan (permintaan user): mencakup role_key bawaan sistem 'admin' MAUPUN role lain yang
+  // ditandai "Is Admin" di Master Role — bukan cuma role bawaan sistem lagi.
+  const isAdminRole = !!selectedRole?.isAdminEquivalent;
   const selectedEmploymentType = employmentTypes.find((e) => e.value === form.employment_type_id);
   const showCanAssign = !isAdminRole && !!selectedEmploymentType?.canAssignToOthers;
 
@@ -249,7 +251,7 @@ export default function UsersTable({
     return roles.find((r) => r.value === roleId)?.label || '-';
   }
   function roleIsAdmin(roleId: string) {
-    return roles.find((r) => r.value === roleId)?.roleKey === 'admin';
+    return !!roles.find((r) => r.value === roleId)?.isAdminEquivalent;
   }
   function employmentTypeLabel(id: string) {
     return employmentTypes.find((e) => e.value === id)?.label || '-';

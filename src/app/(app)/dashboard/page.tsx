@@ -12,7 +12,7 @@ import DashboardView from '@/components/dashboard-view';
 
 export default async function DashboardPage() {
   const session = await getSession();
-  const isAdmin = session?.roleKey === 'admin';
+  const isAdmin = !!session?.isAdmin;
 
   const visibleKeys = session ? await getVisibleMenuKeys(session) : new Set<string>();
   const canViewTasking = visibleKeys.has('tasking');

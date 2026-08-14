@@ -2,7 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { hashPassword, findUserByEmail, omitPasswordHash } from '@/lib/models/users';
-import { findRoleById } from '@/lib/models/roles';
+import { findRoleById, isAdminRole } from '@/lib/models/roles';
 import { getCanAssignMap } from '@/lib/models/employment-types';
 import { logAction } from '@/lib/models/audit-log';
 import { uploadUserPhoto, deleteUserPhoto, extractPhotoFile } from '@/lib/models/user-photo';
@@ -59,7 +59,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
   let employmentTypeId = '';
   let canAssignOthers = 'Tidak';
-  if (role && role.role_key !== 'admin') {
+  // Perbaikan (permintaan user): sama seperti POST /api/users — role lain yang ditandai
+  // is_admin="Ya" juga dikecualikan dari Employment Type/can_assign_others.
+  if (role && !isAdminRole(role)) {
     employmentTypeId = String(body.employment_type_id ?? existing.employment_type_id ?? '');
     if (!employmentTypeId) {
       errors.employment_type_id = 'Tipe kepegawaian wajib dipilih.';

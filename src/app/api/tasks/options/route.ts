@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { requirePermission } from '@/lib/auth/require-permission';
 import * as SheetTable from '@/lib/google/sheet-table';
-import { canViewTask, canAssignToOthers } from '@/lib/models/tasks';
-import { getAllRoles, isNonAssignableRole } from '@/lib/models/roles';
+import { canViewTask, canAssignToOthers, canAssignTaskTo } from '@/lib/models/tasks';
+import { getAllRoles } from '@/lib/models/roles';
 
 export async function GET() {
   const guard = await requirePermission('tasking', 'view');
@@ -32,16 +32,17 @@ export async function GET() {
       getAllRoles({ useCache: false }),
     ]);
 
-    // Bugfix (permintaan user): Admin & role Pemimpin TIDAK BOLEH ditugaskan task oleh siapa pun
-    // — disaring dari daftar opsi Assignee di sini, di depan (sebelumnya cuma pakai `status ===
-    // 'Active'`, jadi Admin/Pemimpin masih bisa dipilih). Validasi ulang tetap ada di server saat
-    // create/update task (POST/PATCH /api/tasks) supaya tidak bisa dilewati lewat request langsung.
+    // Perbaikan (permintaan user): daftar opsi Assignee sekarang disaring per-session lewat
+    // canAssignTaskTo — Admin cuma boleh menugaskan dirinya sendiri; Pemimpin cuma boleh
+    // ditugaskan oleh dirinya sendiri atau Admin; user biasa mengikuti aturan
+    // canAssignToOthers() seperti sebelumnya. Fungsi yang sama dipakai untuk validasi ulang di
+    // server saat create/update task (POST/PATCH /api/tasks) supaya tidak bisa dilewati lewat
+    // request langsung — lihat catatan lengkap di src/lib/models/tasks.ts.
     const roleById = new Map(roles.map((r) => [r.id, r]));
-    const assignableUsers = users.filter((u) => u.status === 'Active' && !isNonAssignableRole(roleById.get(u.role_id)));
     const allowAssignOthers = canAssignToOthers(session);
-    const assigneeOptions = allowAssignOthers
-      ? assignableUsers.map((u) => ({ value: u.id, label: u.name }))
-      : assignableUsers.filter((u) => u.id === session.userId).map((u) => ({ value: u.id, label: u.name }));
+    const assigneeOptions = users
+      .filter((u) => u.status === 'Active' && canAssignTaskTo(session, u.id, roleById.get(u.role_id)))
+      .map((u) => ({ value: u.id, label: u.name }));
 
     const visibleTasks = tasks.filter((t) => canViewTask(session, t));
 

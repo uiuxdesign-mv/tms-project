@@ -56,6 +56,22 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ entity: st
     return NextResponse.json({ error: 'Validasi gagal.', fieldErrors: result.errors }, { status: 422 });
   }
 
+  // Perbaikan (permintaan user): "Is Admin" & "Is Leader" mutually exclusive — sudah dicegah di
+  // UI (exclusiveWith, lihat master-data-table.tsx), tapi divalidasi ULANG di sini supaya tidak
+  // bisa dilewati lewat request langsung ke API.
+  if (config.key === 'roles' && result.data.is_admin === 'Ya' && result.data.is_leader === 'Ya') {
+    return NextResponse.json(
+      {
+        error: 'Validasi gagal.',
+        fieldErrors: {
+          is_admin: 'Role tidak boleh ditandai Admin dan Pemimpin (Leader) sekaligus. Pilih salah satu.',
+          is_leader: 'Role tidak boleh ditandai Admin dan Pemimpin (Leader) sekaligus. Pilih salah satu.',
+        },
+      },
+      { status: 422 }
+    );
+  }
+
   // Role: role_key tidak lagi diinput manual di form (Fase 12, sesuai video) — generate otomatis
   // dari role_name di sini, sebelum insert.
   let insertData = result.data;

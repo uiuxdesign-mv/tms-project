@@ -2,7 +2,7 @@ import { NextRequest, NextResponse, after } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { hashPassword, findUserByEmail, omitPasswordHash, generateTemporaryPassword } from '@/lib/models/users';
-import { findRoleById } from '@/lib/models/roles';
+import { findRoleById, isAdminRole } from '@/lib/models/roles';
 import { getCanAssignMap } from '@/lib/models/employment-types';
 import { logAction } from '@/lib/models/audit-log';
 import { uploadUserPhoto, extractPhotoFile } from '@/lib/models/user-photo';
@@ -85,7 +85,10 @@ export async function POST(req: NextRequest) {
   // yang dimanipulasi.
   let employmentTypeId = '';
   let canAssignOthers = 'Tidak';
-  if (role && role.role_key !== 'admin') {
+  // Perbaikan (permintaan user): role lain yang ditandai is_admin="Ya" di Master Role juga tidak
+  // perlu Employment Type/can_assign_others — sama seperti role_key bawaan sistem 'admin', karena
+  // canAssignToOthers() sudah otomatis true untuk Admin lewat session.isAdmin.
+  if (role && !isAdminRole(role)) {
     employmentTypeId = String(body.employment_type_id || '');
     if (!employmentTypeId) {
       errors.employment_type_id = 'Tipe kepegawaian wajib dipilih.';

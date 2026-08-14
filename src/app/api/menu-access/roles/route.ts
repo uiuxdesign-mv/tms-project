@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { requireAdmin } from '@/lib/auth/require-admin';
-import { getAllRoles } from '@/lib/models/roles';
+import { getAllRoles, isAdminRole } from '@/lib/models/roles';
 
 /**
  * Daftar role yang bisa diatur hak menunya (semua role kecuali Admin —
  * Admin selalu punya akses penuh secara hardcode, tidak pernah diatur lewat sheet Menu Access).
+ * "Admin" di sini mencakup role_key bawaan sistem 'admin' MAUPUN role lain yang ditandai
+ * is_admin="Ya" di Master Role (permintaan user, hak Admin 100% identik — lihat isAdminRole()).
  * Sengaja tetap pakai requireAdmin() (bukan requirePermission), supaya halaman pengaturan
  * hak akses ini sendiri tidak bisa "mengunci diri" lewat matriks yang salah.
  */
@@ -18,7 +20,7 @@ export async function GET() {
   try {
     const roles = await getAllRoles({ useCache: false });
     const data = roles
-      .filter((r) => r.role_key !== 'admin')
+      .filter((r) => !isAdminRole(r))
       // Bugfix (Fase 13): role yang sudah di-nonaktifkan lewat Master Role sebelumnya masih muncul
       // & bisa dipilih di dropdown ini — halaman Menu Access dipakai untuk MENGATUR hak akses role
       // yang sedang dipakai, jadi role tidak aktif (tidak dipakai user manapun untuk login efektif)

@@ -29,7 +29,7 @@ export default async function TasksCalendarPage() {
         initialMonth={now.getMonth() + 1}
         canCreate={canCreate}
         currentUserId={session.userId}
-        isAdmin={session.roleKey === 'admin'}
+        isAdmin={session.isAdmin}
         permissions={{ canEdit }}
       />
     </div>
