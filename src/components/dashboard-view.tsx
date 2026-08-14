@@ -87,10 +87,22 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
   // di charts/vertical-bar-chart.tsx) — kalau konten itu lebih lebar dari kolom grid, kartu ini
   // ikut melebar melampaui kolomnya, sampai terpotong tepi layar (bukan cuma tulisan di dalamnya
   // yang keluar kotak, tapi SELURUH kartu).
+  // Bugfix (permintaan user Round 9): spacing atas/bawah di dalam kartu ini sebelumnya tidak
+  // konsisten — CSS Grid (grid-cols-3 di bawah) secara default menyamakan TINGGI semua kartu dalam
+  // satu baris mengikuti kartu TERTINGGI (align-items: stretch bawaan grid), tapi konten chart di
+  // dalamnya (donut/bar/line, tinggi asli beda-beda) tetap menempel rapat di bawah judul — jadi
+  // kartu yang chart-nya lebih pendek dari kartu tertinggi di barisnya berakhir dengan celah kosong
+  // BESAR hanya di bagian bawah, sementara celah atas/kiri/kanan tetap kecil (padding p-5 biasa) —
+  // persis seperti ditunjukkan panah merah user di kartu "Distribusi Prioritas". Sekarang kartu ini
+  // dijadikan flex-col: judul tetap di atas, lalu pembungkus `flex-1 justify-center` di bawahnya
+  // membuat konten chart apa pun di dalamnya SELALU dipusatkan vertikal mengisi sisa ruang kartu —
+  // hasilnya celah atas & bawah jadi seimbang/simetris seperti kiri-kanan, di kartu manapun,
+  // berapa pun tinggi kartu tetangganya. Diterapkan di sini (Dashboard) DAN di ChartCard yang sama
+  // persis di reports-view.tsx (permintaan user: "terapkan semua di menu dashboard dan report").
   return (
-    <div className="min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
+    <div className="flex min-w-0 flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
       <h3 className="mb-4 text-sm font-semibold text-gray-900">{title}</h3>
-      {children}
+      <div className="flex flex-1 flex-col justify-center">{children}</div>
     </div>
   );
 }

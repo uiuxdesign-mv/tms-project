@@ -492,10 +492,15 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
   // supaya kartu ini bisa menyusut mengikuti lebar kolom grid, tidak ikut melebar keluar kolom
   // gara-gara label panjang di dalam VerticalBarChart. Lihat catatan lengkap di
   // charts/vertical-bar-chart.tsx.
+  // Bugfix (permintaan user Round 9): flex-col + pembungkus `flex-1 justify-center` supaya celah
+  // atas/bawah di dalam kartu ini SEIMBANG (bukan cuma celah bawah yang besar gara-gara CSS Grid
+  // menyamakan tinggi kartu satu baris ke kartu tertinggi) — lihat catatan lengkap & alasan penuh
+  // di ChartCard versi dashboard-view.tsx (komponen ini persis sama, sengaja diduplikasi supaya
+  // reports-view.tsx tidak bergantung pada file lain).
   return (
-    <div className="min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
+    <div className="flex min-w-0 flex-col rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
       <h3 className="mb-4 text-sm font-semibold text-gray-900">{title}</h3>
-      {children}
+      <div className="flex flex-1 flex-col justify-center">{children}</div>
     </div>
   );
 }
