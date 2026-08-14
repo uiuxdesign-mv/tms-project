@@ -488,8 +488,12 @@ function SummaryCard({ label, value }: { label: string; value: number | string }
 }
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+  // Bugfix (permintaan user Round 8): sama seperti ChartCard di dashboard-view.tsx — `min-w-0`
+  // supaya kartu ini bisa menyusut mengikuti lebar kolom grid, tidak ikut melebar keluar kolom
+  // gara-gara label panjang di dalam VerticalBarChart. Lihat catatan lengkap di
+  // charts/vertical-bar-chart.tsx.
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
+    <div className="min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
       <h3 className="mb-4 text-sm font-semibold text-gray-900">{title}</h3>
       {children}
     </div>

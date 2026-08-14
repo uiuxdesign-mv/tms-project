@@ -80,8 +80,15 @@ function SummaryCard({
 }
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
+  // Bugfix (permintaan user Round 8): `min-w-0` ditambahkan supaya kartu ini (grid item di kolom
+  // ke-3 grid "grid-cols-1 lg:grid-cols-3" di bawah) bisa MENYUSUT mengikuti lebar kolom grid yang
+  // sebenarnya. Tanpa ini, grid item secara default punya ukuran minimum otomatis = lebar konten
+  // MIN-CONTENT anak-anaknya (di sini: bar chart dengan label yang panjang, lihat catatan lengkap
+  // di charts/vertical-bar-chart.tsx) — kalau konten itu lebih lebar dari kolom grid, kartu ini
+  // ikut melebar melampaui kolomnya, sampai terpotong tepi layar (bukan cuma tulisan di dalamnya
+  // yang keluar kotak, tapi SELURUH kartu).
   return (
-    <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
+    <div className="min-w-0 rounded-2xl border border-gray-200 bg-white p-5 shadow-card">
       <h3 className="mb-4 text-sm font-semibold text-gray-900">{title}</h3>
       {children}
     </div>

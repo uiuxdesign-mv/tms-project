@@ -29,11 +29,25 @@ export function VerticalBarChart({
   }
 
   return (
+    // Bugfix (permintaan user Round 8): kartu chart yang memakai komponen ini ("Tugas per Proyek/
+    // Klien", "Beban Kerja Assignee") bisa meluber keluar dari kotak kartunya, bahkan sampai
+    // terpotong tepi layar — BUKAN cuma masalah kosmetik kecil seperti chart Productivity Trend
+    // yang sudah diperbaiki di ronde sebelumnya, melainkan seluruh kartu ikut melebar. Akar
+    // masalahnya: `min-w-0` di bawah TIDAK ADA sebelumnya. Setiap item di sini adalah flex child
+    // `flex-1`, dan browser secara default memberi flex child ukuran minimum = lebar KONTEN
+    // ASLINYA (belum terpotong) kalau `min-width` tidak diset — jadi kalau label klien/nama
+    // assignee panjang (mis. "PT Paragon Technology and Partners"), `truncate` di span label TIDAK
+    // BISA benar-benar memotong teksnya, karena item flex ini menolak menyusut lebih kecil dari
+    // lebar teks penuh tsb. Akibatnya baris flex ini (dan kartu di atasnya, lihat ChartCard di
+    // dashboard-view.tsx/reports-view.tsx yang JUGA diberi `min-w-0` untuk alasan sama) ikut
+    // melebar mengikuti label terpanjang, mendorong kolom grid ke-3 sampai keluar viewport.
+    // `min-w-0` di sini mengizinkan item menyusut sekecil yang grid/flex induk berikan, baru
+    // setelah itu `truncate` benar-benar bisa memotong teks dengan "...".
     <div className="flex items-end gap-2" style={{ height: 160 }}>
       {shown.map((item) => {
         const heightPct = (item.count / max) * 100;
         return (
-          <div key={item.key} className="flex flex-1 flex-col items-center justify-end gap-1" style={{ height: '100%' }}>
+          <div key={item.key} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1" style={{ height: '100%' }}>
             <span className="text-[10px] text-gray-500">{item.count > 0 ? item.count : ''}</span>
             <div
               className={`w-full rounded-t ${barClassName}`}
