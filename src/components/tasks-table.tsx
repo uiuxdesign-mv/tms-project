@@ -8,6 +8,7 @@ import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { useTableControls } from '@/lib/hooks/use-table-controls';
 import { usePolling } from '@/lib/hooks/use-polling';
+import { getViewCache, setViewCache } from '@/lib/hooks/view-cache';
 import { SortableHeader, PaginationBar } from '@/components/table-controls';
 import { Badge } from '@/components/badge';
 import { TasksPageHeader, TasksViewSwitcher } from '@/components/tasks-view-header';
@@ -75,9 +76,15 @@ export default function TasksTable({
   const { t } = useLanguage();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [rows, setRows] = useState<TaskRow[]>([]);
-  const [opts, setOpts] = useState<OptionsData | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Perbaikan (permintaan user Round 7, poin 3): render pertama komponen ini langsung memakai data
+  // dari cache antar-tab (lihat lib/hooks/view-cache.ts) kalau ada — jadi begitu user pindah dari
+  // Kanban/Calendar balik ke tab List ini, tabel langsung tampil dengan data TERAKHIR (tanpa
+  // "Memuat..." sekilas), sambil tetap di-refresh diam-diam di belakang layar lewat load() di
+  // effect mount di bawah. Kunjungan PERTAMA KALI ke tab ini dalam satu sesi (cache masih kosong)
+  // tetap menampilkan "Memuat..." seperti biasa — memang belum ada apa pun untuk ditampilkan.
+  const [rows, setRows] = useState<TaskRow[]>(() => getViewCache<TaskRow[]>('tasks:list:rows') || []);
+  const [opts, setOpts] = useState<OptionsData | null>(() => getViewCache<OptionsData>('tasks:list:opts') || null);
+  const [loading, setLoading] = useState(() => !getViewCache<TaskRow[]>('tasks:list:rows'));
   const [error, setError] = useState<string | null>(null);
 
   // Perbaikan (permintaan user Round 6, poin 1): "Tambah Task" (createOpen) & "Detail/Edit Task"
@@ -122,6 +129,10 @@ export default function TasksTable({
       if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || t('toast_load_options_failed'));
       setRows(tasksJson.data);
       setOpts(optsJson.data);
+      // Simpan hasil fetch terbaru ke cache antar-tab (Round 7, poin 3) — dipakai tab List
+      // berikutnya (termasuk kunjungan ulang ke tab ini sendiri) sebagai render pertama instan.
+      setViewCache('tasks:list:rows', tasksJson.data);
+      setViewCache('tasks:list:opts', optsJson.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('toast_load_data_failed'));
     } finally {
@@ -131,7 +142,13 @@ export default function TasksTable({
   }, []);
 
   useEffect(() => {
-    load();
+    // Perbaikan (Round 7, poin 3): kalau render pertama tadi sudah terisi dari cache (lihat
+    // useState di atas), load() awal ini dijalankan `silent` — tidak menampilkan "Memuat...",
+    // cukup refresh diam-diam. Dicek sekali lewat rows.length/opts saat effect ini pertama jalan
+    // (bukan referensi ke variabel di luar closure yang bisa berubah), supaya perilakunya pasti:
+    // ada isi dari cache = silent, kosong = tampilkan loading seperti semula.
+    load({ silent: rows.length > 0 || opts !== null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
   const silentReload = useCallback(() => load({ silent: true }), [load]);

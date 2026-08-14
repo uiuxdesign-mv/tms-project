@@ -17,12 +17,12 @@ export default async function UsersPage() {
     );
   }
 
+  // Bugfix (permintaan user Round 7, poin 1): lihat catatan lengkap di src/app/(app)/tasks/page.tsx
+  // — pembungkus mx-auto max-w-5xl dihapus supaya spacing kiri-kanan sama dengan halaman lain.
   return (
-    <div className="mx-auto max-w-5xl">
-      <UsersTable
-        currentUserId={session.userId}
-        permissions={{ canCreate: true, canEdit: true, canDelete: true }}
-      />
-    </div>
+    <UsersTable
+      currentUserId={session.userId}
+      permissions={{ canCreate: true, canEdit: true, canDelete: true }}
+    />
   );
 }

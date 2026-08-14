@@ -22,16 +22,17 @@ export default async function TasksCalendarPage() {
 
   const now = new Date();
 
+  // Bugfix (permintaan user Round 7, poin 1): lihat catatan lengkap di src/app/(app)/tasks/page.tsx
+  // — pembungkus mx-auto max-w-[1200px] dihapus supaya lebar tab Calendar sama dengan List/Kanban
+  // & seluruh halaman lain, konsisten dengan Dashboard.
   return (
-    <div className="mx-auto max-w-[1200px]">
-      <CalendarView
-        initialYear={now.getFullYear()}
-        initialMonth={now.getMonth() + 1}
-        canCreate={canCreate}
-        currentUserId={session.userId}
-        isAdmin={session.isAdmin}
-        permissions={{ canEdit }}
-      />
-    </div>
+    <CalendarView
+      initialYear={now.getFullYear()}
+      initialMonth={now.getMonth() + 1}
+      canCreate={canCreate}
+      currentUserId={session.userId}
+      isAdmin={session.isAdmin}
+      permissions={{ canEdit }}
+    />
   );
 }

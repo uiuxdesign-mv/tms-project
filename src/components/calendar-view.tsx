@@ -8,6 +8,7 @@ import TaskCreateModal, { type TaskCreateOptionsData } from '@/components/task-c
 import TaskFilterBar from '@/components/task-filter-bar';
 import { useLanguage } from '@/components/language-provider';
 import { usePolling } from '@/lib/hooks/use-polling';
+import { getViewCache, setViewCache } from '@/lib/hooks/view-cache';
 
 type TaskRow = {
   id: string;
@@ -70,9 +71,12 @@ export default function CalendarView({
   const DAY_NAMES = lang === 'id' ? DAY_NAMES_ID : DAY_NAMES_EN;
   const [year, setYear] = useState(initialYear);
   const [month, setMonth] = useState(initialMonth); // 1-12
-  const [rows, setRows] = useState<TaskRow[]>([]);
-  const [opts, setOpts] = useState<OptionsData | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Perbaikan (permintaan user Round 7, poin 3): lihat catatan lengkap di tasks-table.tsx — render
+  // pertama langsung pakai data cache antar-tab (lib/hooks/view-cache.ts) kalau ada, supaya pindah
+  // tab dari List/Kanban ke Calendar tidak lagi kedip "Memuat...".
+  const [rows, setRows] = useState<TaskRow[]>(() => getViewCache<TaskRow[]>('tasks:calendar:rows') || []);
+  const [opts, setOpts] = useState<OptionsData | null>(() => getViewCache<OptionsData>('tasks:calendar:opts') || null);
+  const [loading, setLoading] = useState(() => !getViewCache<TaskRow[]>('tasks:calendar:rows'));
   const [error, setError] = useState<string | null>(null);
   const [detailTaskId, setDetailTaskId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -113,6 +117,9 @@ export default function CalendarView({
       if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || t('toast_load_options_failed'));
       setRows(tasksJson.data);
       setOpts(optsJson.data);
+      // Simpan ke cache antar-tab (Round 7, poin 3) — lihat catatan lengkap di tasks-table.tsx.
+      setViewCache('tasks:calendar:rows', tasksJson.data);
+      setViewCache('tasks:calendar:opts', optsJson.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('toast_load_data_failed'));
     } finally {
@@ -122,7 +129,10 @@ export default function CalendarView({
   }, []);
 
   useEffect(() => {
-    load();
+    // Perbaikan (Round 7, poin 3): silent kalau render pertama sudah terisi dari cache — lihat
+    // catatan lengkap di tasks-table.tsx.
+    load({ silent: rows.length > 0 || opts !== null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
   const silentReload = useCallback(() => load({ silent: true }), [load]);

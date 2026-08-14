@@ -40,13 +40,13 @@ export default async function MasterEntityPage({ params }: { params: Promise<{ e
     );
   }
 
+  // Bugfix (permintaan user Round 7, poin 1): lihat catatan lengkap di src/app/(app)/tasks/page.tsx
+  // — pembungkus mx-auto max-w-5xl dihapus supaya spacing kiri-kanan sama dengan halaman lain.
   return (
-    <div className="mx-auto max-w-5xl">
-      <MasterDataTable
-        entityKey={entity}
-        config={clientConfig}
-        permissions={{ canCreate, canEdit, canDelete, canExport }}
-      />
-    </div>
+    <MasterDataTable
+      entityKey={entity}
+      config={clientConfig}
+      permissions={{ canCreate, canEdit, canDelete, canExport }}
+    />
   );
 }

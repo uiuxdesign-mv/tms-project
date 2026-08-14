@@ -23,13 +23,19 @@ export default async function TasksPage() {
     );
   }
 
+  // Bugfix (permintaan user Round 7, poin 1): pembungkus `mx-auto max-w-*` di halaman ini
+  // (juga di 8 halaman lain — lihat catatan sama di masing-masing) DIHAPUS supaya spacing kiri-
+  // kanan konten SAMA di semua menu, mengikuti halaman Dashboard yang memang tidak pernah punya
+  // pembatas lebar sama sekali (lihat src/app/(app)/dashboard/page.tsx) — sebelumnya tiap halaman
+  // punya nilai max-w berbeda-beda (2xl/4xl/5xl/6xl/1200px/1400px), termasuk antar tab List/
+  // Kanban/Calendar di halaman Tasking ini sendiri yang sebelumnya tidak sama lebarnya satu sama
+  // lain. Gutter kiri-kanan sekarang murni dari padding `main` di app-shell.tsx (p-4 sm:p-6),
+  // konsisten di seluruh aplikasi.
   return (
-    <div className="mx-auto max-w-6xl">
-      <TasksTable
-        currentUserId={session.userId}
-        isAdmin={session.isAdmin}
-        permissions={{ canCreate, canEdit, canDelete }}
-      />
-    </div>
+    <TasksTable
+      currentUserId={session.userId}
+      isAdmin={session.isAdmin}
+      permissions={{ canCreate, canEdit, canDelete }}
+    />
   );
 }

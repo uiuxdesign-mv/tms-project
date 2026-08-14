@@ -21,9 +21,8 @@ export default async function ReportsPage() {
     );
   }
 
-  return (
-    <div className="mx-auto max-w-6xl">
-      <ReportsView canExport={canExport} />
-    </div>
-  );
+  // Bugfix (permintaan user Round 7, poin 1): lihat catatan lengkap di src/app/(app)/tasks/page.tsx
+  // — pembungkus mx-auto max-w-6xl dihapus supaya spacing kiri-kanan sama dengan halaman lain
+  // (chart di dalamnya juga jadi punya lebih banyak ruang, relevan dengan poin 2).
+  return <ReportsView canExport={canExport} />;
 }

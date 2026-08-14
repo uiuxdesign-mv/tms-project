@@ -11,6 +11,7 @@ import TaskCreateModal, { type TaskCreateOptionsData } from '@/components/task-c
 import TaskFilterBar from '@/components/task-filter-bar';
 import { useLanguage } from '@/components/language-provider';
 import { usePolling } from '@/lib/hooks/use-polling';
+import { getViewCache, setViewCache } from '@/lib/hooks/view-cache';
 
 type TaskRow = {
   id: string;
@@ -86,9 +87,12 @@ export default function KanbanBoard({
 }) {
   const toast = useToast();
   const { t } = useLanguage();
-  const [rows, setRows] = useState<TaskRow[]>([]);
-  const [opts, setOpts] = useState<OptionsData | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Perbaikan (permintaan user Round 7, poin 3): lihat catatan lengkap di tasks-table.tsx — render
+  // pertama langsung pakai data cache antar-tab (lib/hooks/view-cache.ts) kalau ada, supaya pindah
+  // tab dari List/Calendar ke Kanban tidak lagi kedip "Memuat...".
+  const [rows, setRows] = useState<TaskRow[]>(() => getViewCache<TaskRow[]>('tasks:kanban:rows') || []);
+  const [opts, setOpts] = useState<OptionsData | null>(() => getViewCache<OptionsData>('tasks:kanban:opts') || null);
+  const [loading, setLoading] = useState(() => !getViewCache<TaskRow[]>('tasks:kanban:rows'));
   const [error, setError] = useState<string | null>(null);
   const [dragTaskId, setDragTaskId] = useState<string | null>(null);
   const [dragOverStatusId, setDragOverStatusId] = useState<string | null>(null);
@@ -133,13 +137,17 @@ export default function KanbanBoard({
       if (!tasksRes.ok || !tasksJson.data) throw new Error(tasksJson.error || t('toast_load_data_failed'));
       if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || t('toast_load_options_failed'));
       setRows(tasksJson.data);
-      setOpts({
+      const nextOpts = {
         ...optsJson.data,
         statuses: optsJson.data.statuses.map((s: Record<string, unknown>) => ({
           ...s,
           workflowLevel: s.workflow_level !== undefined && s.workflow_level !== '' ? Number(s.workflow_level) : null,
         })),
-      });
+      };
+      setOpts(nextOpts);
+      // Simpan ke cache antar-tab (Round 7, poin 3) — lihat catatan lengkap di tasks-table.tsx.
+      setViewCache('tasks:kanban:rows', tasksJson.data);
+      setViewCache('tasks:kanban:opts', nextOpts);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('toast_load_data_failed'));
     } finally {
@@ -149,7 +157,10 @@ export default function KanbanBoard({
   }, []);
 
   useEffect(() => {
-    load();
+    // Perbaikan (Round 7, poin 3): silent kalau render pertama sudah terisi dari cache — lihat
+    // catatan lengkap di tasks-table.tsx.
+    load({ silent: rows.length > 0 || opts !== null });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [load]);
 
   const silentReload = useCallback(() => load({ silent: true }), [load]);

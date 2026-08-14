@@ -20,9 +20,8 @@ export default async function TasksKanbanPage() {
     );
   }
 
-  return (
-    <div className="mx-auto max-w-[1400px]">
-      <KanbanBoard currentUserId={session.userId} isAdmin={session.isAdmin} permissions={{ canEdit }} />
-    </div>
-  );
+  // Bugfix (permintaan user Round 7, poin 1): lihat catatan lengkap di src/app/(app)/tasks/page.tsx
+  // — pembungkus mx-auto max-w-[1400px] dihapus supaya lebar tab Kanban sama dengan List/Calendar
+  // & seluruh halaman lain, konsisten dengan Dashboard.
+  return <KanbanBoard currentUserId={session.userId} isAdmin={session.isAdmin} permissions={{ canEdit }} />;
 }
