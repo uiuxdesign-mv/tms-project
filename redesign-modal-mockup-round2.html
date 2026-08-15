@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mockup Redesign Modal Task Detail — Round 2 (basis ClickUp)</title>
+<style>
+  :root {
+    --ink: #1f2430; --sub: #6b7280; --line: #e2e5eb; --card: #ffffff; --bg: #f4f5f7;
+    --brand: #4f46e5; --brand-soft: #eef0ff; --amber: #f59e0b; --green: #10b981; --red: #ef4444;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; background: var(--bg); color: var(--ink); }
+  header.page { padding: 28px 32px 16px; max-width: 1220px; margin: 0 auto; }
+  header.page h1 { font-size: 22px; margin: 0 0 6px; }
+  header.page p { margin: 0; color: var(--sub); font-size: 14px; line-height: 1.6; max-width: 820px; }
+
+  .tabs { max-width: 1220px; margin: 18px auto 0; padding: 0 32px; display: flex; gap: 8px; flex-wrap: wrap; }
+  .tabs button { border: 1px solid var(--line); background: var(--card); color: var(--sub); padding: 9px 16px; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s ease; }
+  .tabs button:hover { background: #f0f1f4; }
+  .tabs button.active { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+  main { max-width: 1220px; margin: 20px auto 60px; padding: 0 32px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  .concept-head { margin-bottom: 14px; }
+  .concept-head .badge { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; color: var(--brand); background: var(--brand-soft); padding: 3px 9px; border-radius: 999px; margin-bottom: 8px; }
+  .concept-head h2 { margin: 0 0 6px; font-size: 19px; }
+  .concept-head p { margin: 0; color: var(--sub); font-size: 13.5px; max-width: 860px; line-height: 1.6; }
+
+  .stage { background: #e9eaee; border-radius: 16px; padding: 28px; display: flex; justify-content: center; }
+
+  .wf-modal { background: var(--card); border-radius: 14px; box-shadow: 0 10px 30px rgba(20,20,40,.12); width: 920px; max-width: 100%; overflow: hidden; }
+  .wf-modal-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 1px solid var(--line); }
+  .wf-modal-header .title { font-weight: 700; font-size: 15px; }
+  .wf-modal-header .status-chip { font-size: 11px; background: #f1f2f5; color: var(--sub); padding: 2px 9px; border-radius: 999px; margin-left: 8px; font-weight: 600; }
+  .wf-x { color: #9aa0ac; font-size: 16px; }
+
+  .block { background: #f6f7f9; border: 1px dashed #c9cdd6; border-radius: 8px; color: #8a90a0; font-size: 11.5px; display: flex; align-items: center; justify-content: center; text-align: center; padding: 6px; }
+  .block.filled { background: var(--brand-soft); border: 1px solid #c7cbfa; color: var(--brand); font-weight: 600; }
+  .block.soft { background: #fff; border: 1px solid var(--line); color: var(--ink); font-weight: 600; }
+
+  .two-col { display: flex; height: 460px; }
+  .col-left { flex: 1.1; border-right: 1px solid var(--line); padding: 16px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+  .col-right { flex: 1; padding: 0; display: flex; flex-direction: column; background: #fafbfc; }
+  .act-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid var(--line); font-size: 12px; font-weight: 700; }
+  .act-head .icons { color: var(--sub); font-size: 12px; letter-spacing: 4px; }
+  .act-body { flex: 1; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px; overflow: hidden; }
+  .act-footer { border-top: 1px solid var(--line); padding: 10px 16px; }
+
+  .field-row { display: flex; align-items: center; gap: 10px; font-size: 12px; padding: 7px 4px; border-bottom: 1px solid #f0f1f4; }
+  .field-row .ic { width: 16px; color: #9aa0ac; }
+  .field-row .lbl { width: 90px; color: var(--sub); flex-shrink: 0; }
+  .field-row .val { font-weight: 600; }
+  .tag { background: var(--brand-soft); color: var(--brand); padding: 2px 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+  .field-section-title { font-size: 11px; text-transform: uppercase; color: #9aa0ac; font-weight: 700; letter-spacing: .04em; display: flex; align-items: center; gap: 6px; margin-top: 4px; }
+  .hide-empty { font-size: 11px; color: var(--brand); font-weight: 600; margin-top: 2px; }
+  .quick-links { display: flex; flex-direction: column; gap: 6px; margin-top: 6px; }
+  .quick-links span { font-size: 11.5px; color: var(--sub); }
+
+  .tt-strip { display: flex; align-items: center; gap: 14px; background: var(--brand-soft); border: 1px solid #c7cbfa; border-radius: 10px; padding: 10px 14px; font-size: 12px; font-weight: 700; color: var(--brand); }
+  .tt-strip .btn { background: var(--brand); color: #fff; padding: 4px 12px; border-radius: 7px; font-size: 11px; }
+  .tt-strip.full { width: 100%; margin: 0 0 4px; }
+
+  .feed-item { display:flex; gap:10px; }
+  .feed-avatar { width: 24px; height:24px; border-radius:50%; background: var(--brand-soft); color: var(--brand); font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+  .feed-text { font-size: 11.5px; }
+  .feed-text .who { font-weight: 700; }
+  .feed-text .meta { color: var(--sub); font-size: 10.5px; margin-top: 2px; }
+  .feed-comment { background: #f6f7f9; border-radius: 10px; padding: 7px 10px; margin-top: 4px; font-size: 11.5px; color: #444; }
+  .feed-event { color: var(--sub); font-size: 11.5px; }
+  .feed-collapse { font-size: 11px; color: var(--brand); font-weight: 600; }
+
+  .filter-row { display:flex; gap:6px; }
+  .filter-chip { font-size: 10.5px; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--sub); font-weight: 600; }
+  .filter-chip.on { background: var(--brand); border-color: var(--brand); color: #fff; }
+
+  .grid2col { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 14px; }
+  .grid2col .field-row { border-bottom: none; padding: 4px 0; }
+
+  .scrollhint { position:absolute; right: 6px; top: 50%; width: 4px; height: 60px; background: #d8dae0; border-radius: 4px; }
+
+  .note { max-width: 1220px; margin: 0 auto 40px; padding: 0 32px; font-size: 12.5px; color: var(--sub); line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<header class="page">
+  <h1>Mockup Redesign — Round 2 (basis referensi ClickUp)</h1>
+  <p>Lima variasi berdasarkan pola 2 kolom (Fields + Activity persisten) dari screenshot ClickUp yang Anda kirim. Detail & trade-off tiap saran ada di dokumen <strong>redesign-modal-round2-clickup.md</strong> yang dikirim bersama file ini.</p>
+</header>
+
+<div class="tabs" id="tabs"></div>
+<main id="panels"></main>
+<p class="note">Sama seperti mockup Round 1: ini wireframe struktural, bukan gaya visual final — warna & komponen sebenarnya akan tetap memakai palet aplikasi (Tailwind gray/indigo + dark mode) begitu satu saran dipilih untuk dieksekusi.</p>
+
+<script>
+const FIELDS_ROWS = `
+  <div class="field-row"><span class="ic">◐</span><span class="lbl">Status</span><span class="val">To Do</span></div>
+  <div class="field-row"><span class="ic">📁</span><span class="lbl">Proyek</span><span class="tag">PRTS</span></div>
+  <div class="field-row"><span class="ic">🏢</span><span class="lbl">Klien</span><span class="val">Electra Mobilitas</span></div>
+  <div class="field-row"><span class="ic">☰</span><span class="lbl">Tipe Tugas</span><span class="tag">New Design</span></div>
+  <div class="field-row"><span class="ic">▲</span><span class="lbl">Prioritas</span><span class="val">Urgent</span></div>
+  <div class="field-row"><span class="ic">👤</span><span class="lbl">Assignee</span><span class="val">Azmy Ikhwan</span></div>
+`;
+const ACTIVITY_FEED = `
+  <div class="feed-item"><div class="feed-avatar">AI</div><div class="feed-text"><span class="who">Azmy</span> <span class="feed-event">membuat task</span><div class="meta">15 Agu, 01:12</div></div></div>
+  <div class="feed-item"><div class="feed-avatar">NR</div><div class="feed-text"><span class="who">Nendy</span> <span class="feed-event">ubah Status → In Progress</span><div class="meta">15 Agu, 09:40</div></div></div>
+  <div class="feed-item"><div class="feed-avatar">AI</div><div class="feed-text"><span class="who">Azmy</span><div class="feed-comment">Sudah mulai dikerjakan.</div><div class="meta">15 Agu, 10:02</div></div></div>
+`;
+
+const CONCEPTS = [
+  {
+    id: 'r2c1', tab: 'Saran 1 — Melebur ke Fields & Activity',
+    badge: 'Paling mirip ClickUp asli', title: 'Time Tracking Melebur ke Fields & Activity',
+    desc: 'Tombol Mulai/Stop jadi satu baris ringkas paling atas Fields. Detail Sesi Kerja/Sesi Review dipindah jadi event di Activity feed, bukan tab terpisah.',
+    render: () => `
+      <div class="stage"><div class="wf-modal">
+        <div class="wf-modal-header"><div class="title">Tugas Azmy 1 <span class="status-chip">To Do</span></div><div class="wf-x">✕</div></div>
+        <div class="two-col">
+          <div class="col-left">
+            <div class="block filled" style="height:26px;">Judul</div>
+            <div class="block" style="height:44px;">Deskripsi</div>
+            <div class="field-section-title">Fields</div>
+            <div class="tt-strip"><span>⏱ 00:00:00</span><span class="btn">▶ Mulai</span><span style="color:#8a90a0;font-weight:500;">(digabung ke baris Fields)</span></div>
+            ${FIELDS_ROWS}
+            <div class="hide-empty">Sembunyikan 3 field kosong ▾</div>
+          </div>
+          <div class="col-right">
+            <div class="act-head"><span>Activity</span><span class="icons">⌕ ⚑ ⋮</span></div>
+            <div class="act-body">
+              ${ACTIVITY_FEED}
+              <div class="feed-item"><div class="feed-avatar">AI</div><div class="feed-text"><span class="who">Azmy</span> <span class="feed-event">memulai sesi kerja</span><div class="meta">15 Agu, 11:00</div></div></div>
+              <div class="feed-item"><div class="feed-avatar">AI</div><div class="feed-text"><span class="who">Azmy</span> <span class="feed-event">menghentikan sesi kerja · 15m</span><div class="meta">15 Agu, 11:15</div></div></div>
+            </div>
+            <div class="act-footer"><div class="block soft" style="height:36px;">Tulis komentar…</div></div>
+          </div>
+        </div>
+      </div></div>`
+  },
+  {
+    id: 'r2c2', tab: 'Saran 2 — Time Tracking Full-Width',
+    badge: 'Fitur Time Tracking tetap detail', title: 'Time Tracking Full-Width di Atas, 2 Kolom di Bawah',
+    desc: 'Kartu Time Tracking (dengan tab Sesi Kerja/Sesi Review) dipertahankan utuh, tapi jadi strip horizontal penuh di ATAS pembagian 2 kolom — tidak lagi menghuni salah satu kolom.',
+    render: () => `
+      <div class="stage"><div class="wf-modal">
+        <div class="wf-modal-header"><div class="title">Tugas Azmy 1 <span class="status-chip">To Do</span></div><div class="wf-x">✕</div></div>
+        <div style="padding:14px 20px 0;">
+          <div class="tt-strip full"><span>⏱ Time Tracking · Belum dimulai</span><span class="btn">▶ Mulai</span><span style="font-weight:500;">Sesi Kerja (0) · Sesi Review (0)</span><span style="margin-left:auto;color:#ef4444;font-weight:700;">✕ Batalkan</span></div>
+        </div>
+        <div class="two-col" style="height:410px;">
+          <div class="col-left">
+            <div class="block filled" style="height:26px;">Judul</div>
+            <div class="block" style="height:44px;">Deskripsi</div>
+            <div class="field-section-title">Fields</div>
+            ${FIELDS_ROWS}
+          </div>
+          <div class="col-right">
+            <div class="act-head"><span>Activity</span><span class="icons">⌕ ⚑ ⋮</span></div>
+            <div class="act-body">${ACTIVITY_FEED}</div>
+            <div class="act-footer"><div class="block soft" style="height:36px;">Tulis komentar…</div></div>
+          </div>
+        </div>
+      </div></div>`
+  },
+  {
+    id: 'r2c3', tab: 'Saran 3 — Fields Grid 2 Kolom',
+    badge: '9 field lebih ringkas', title: 'Fields Jadi Grid 2 Kolom Ringkas',
+    desc: 'Field pendek (Prioritas, Tipe, Tanggal, Estimasi) ditata berdampingan 2 kolom. Field yang butuh ruang (Assignee, Klien/Proyek) tetap 1 baris penuh.',
+    render: () => `
+      <div class="stage"><div class="wf-modal">
+        <div class="wf-modal-header"><div class="title">Tugas Azmy 1 <span class="status-chip">To Do</span></div><div class="wf-x">✕</div></div>
+        <div class="two-col">
+          <div class="col-left">
+            <div class="block filled" style="height:26px;">Judul</div>
+            <div class="block" style="height:44px;">Deskripsi</div>
+            <div class="tt-strip"><span>⏱ 00:00:00</span><span class="btn">▶ Mulai</span></div>
+            <div class="field-section-title">Fields</div>
+            <div class="field-row"><span class="ic">📁</span><span class="lbl">Proyek</span><span class="tag">PRTS</span></div>
+            <div class="field-row"><span class="ic">🏢</span><span class="lbl">Klien</span><span class="val">Electra Mobilitas</span></div>
+            <div class="field-row"><span class="ic">👤</span><span class="lbl">Assignee</span><span class="val">Azmy Ikhwan</span></div>
+            <div class="grid2col">
+              <div class="field-row"><span class="ic">▲</span><span class="lbl">Prioritas</span><span class="val">Urgent</span></div>
+              <div class="field-row"><span class="ic">☰</span><span class="lbl">Tipe</span><span class="tag">New Design</span></div>
+              <div class="field-row"><span class="ic">📅</span><span class="lbl">Mulai</span><span class="val">15 Aug</span></div>
+              <div class="field-row"><span class="ic">⏰</span><span class="lbl">Tempo</span><span class="val">17 Aug</span></div>
+              <div class="field-row"><span class="ic">Σ</span><span class="lbl">Estimasi</span><span class="val">4 jam</span></div>
+              <div class="field-row"><span class="ic">◐</span><span class="lbl">Status</span><span class="val">To Do</span></div>
+            </div>
+          </div>
+          <div class="col-right">
+            <div class="act-head"><span>Activity</span><span class="icons">⌕ ⚑ ⋮</span></div>
+            <div class="act-body">${ACTIVITY_FEED}</div>
+            <div class="act-footer"><div class="block soft" style="height:36px;">Tulis komentar…</div></div>
+          </div>
+        </div>
+      </div></div>`
+  },
+  {
+    id: 'r2c4', tab: 'Saran 4 — Activity dengan Filter',
+    badge: 'Activity tidak berisik', title: 'Activity dengan Filter & Sembunyikan Riwayat Lama',
+    desc: 'Header Activity dapat filter chip (Semua/Komentar/Perubahan) dan tautan untuk collapse event-event lama secara berkelompok.',
+    render: () => `
+      <div class="stage"><div class="wf-modal">
+        <div class="wf-modal-header"><div class="title">Tugas Azmy 1 <span class="status-chip">To Do</span></div><div class="wf-x">✕</div></div>
+        <div class="two-col">
+          <div class="col-left">
+            <div class="block filled" style="height:26px;">Judul</div>
+            <div class="block" style="height:44px;">Deskripsi</div>
+            <div class="tt-strip"><span>⏱ 00:00:00</span><span class="btn">▶ Mulai</span></div>
+            <div class="field-section-title">Fields</div>
+            ${FIELDS_ROWS}
+          </div>
+          <div class="col-right">
+            <div class="act-head" style="flex-direction:column;align-items:flex-start;gap:8px;">
+              <div style="display:flex;justify-content:space-between;width:100%;"><span>Activity</span><span class="icons">⌕ ⚑ ⋮</span></div>
+              <div class="filter-row"><span class="filter-chip on">Semua</span><span class="filter-chip">Komentar</span><span class="filter-chip">Perubahan</span></div>
+            </div>
+            <div class="act-body">
+              <div class="feed-collapse">▸ 6 aktivitas lama disembunyikan</div>
+              ${ACTIVITY_FEED}
+            </div>
+            <div class="act-footer"><div class="block soft" style="height:36px;">Tulis komentar…</div></div>
+          </div>
+        </div>
+      </div></div>`
+  },
+  {
+    id: 'r2c5', tab: 'Saran 5 — Scroll Independen + Sticky',
+    badge: 'Fokus mekanisme, effort rendah', title: 'Scroll 2 Kolom Independen + Komentar Sticky',
+    desc: 'Kolom Fields & Activity scroll sendiri-sendiri (2 scrollbar terpisah). Kotak komentar selalu menempel di bawah kolom kanan, tidak pernah perlu di-scroll untuk ditemukan.',
+    render: () => `
+      <div class="stage"><div class="wf-modal">
+        <div class="wf-modal-header"><div class="title">Tugas Azmy 1 <span class="status-chip">To Do</span></div><div class="wf-x">✕</div></div>
+        <div class="two-col">
+          <div class="col-left" style="position:relative;">
+            <div class="block filled" style="height:26px;">Judul</div>
+            <div class="block" style="height:44px;">Deskripsi</div>
+            <div class="tt-strip"><span>⏱ 00:00:00</span><span class="btn">▶ Mulai</span></div>
+            <div class="field-section-title">Fields (scroll sendiri ↕)</div>
+            ${FIELDS_ROWS}${FIELDS_ROWS}
+            <div class="scrollhint" style="right:2px;top:120px;"></div>
+          </div>
+          <div class="col-right" style="position:relative;">
+            <div class="act-head"><span>Activity (scroll sendiri ↕)</span><span class="icons">⌕ ⚑ ⋮</span></div>
+            <div class="act-body">${ACTIVITY_FEED}${ACTIVITY_FEED}</div>
+            <div class="act-footer" style="box-shadow:0 -6px 12px rgba(0,0,0,.05);"><div class="block soft" style="height:36px;">📌 Tulis komentar… (selalu terlihat)</div></div>
+            <div class="scrollhint" style="right:2px;top:160px;"></div>
+          </div>
+        </div>
+      </div></div>`
+  },
+];
+
+const tabsEl = document.getElementById('tabs');
+const panelsEl = document.getElementById('panels');
+
+CONCEPTS.forEach((c, i) => {
+  const btn = document.createElement('button');
+  btn.textContent = c.tab;
+  btn.dataset.id = c.id;
+  if (i === 0) btn.classList.add('active');
+  btn.addEventListener('click', () => selectConcept(c.id));
+  tabsEl.appendChild(btn);
+
+  const panel = document.createElement('div');
+  panel.className = 'panel' + (i === 0 ? ' active' : '');
+  panel.id = 'panel-' + c.id;
+  panel.innerHTML = `
+    <div class="concept-head">
+      <span class="badge">${c.badge}</span>
+      <h2>${c.title}</h2>
+      <p>${c.desc}</p>
+    </div>
+    ${c.render()}
+  `;
+  panelsEl.appendChild(panel);
+});
+
+function selectConcept(id) {
+  document.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('active', b.dataset.id === id));
+  document.querySelectorAll('.panel').forEach(p => p.classList.toggle('active', p.id === 'panel-' + id));
+}
+</script>
+
+</body>
+</html>

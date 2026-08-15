@@ -286,6 +286,22 @@ export const translations = {
   hist_field_est_hours: { id: 'Estimasi Jam', en: 'Est. Hours' },
   hist_field_related_task: { id: 'Task Terkait', en: 'Related Task' },
 
+  // Activity Feed Terpadu (Redesign Modal Task Detail Round 10, "Saran 4" — permintaan user:
+  // gabungkan Komentar + Riwayat Perubahan jadi satu feed kronologis dengan filter & collapse
+  // aktivitas lama, ala ClickUp). Key comments_*/history_* di atas TETAP dipakai apa adanya di
+  // dalam feed ini (item komentar & item riwayat individual) — tidak ada yang dihapus, cuma
+  // judul panel gabungan & kontrol baru (filter, loading, empty state) yang pakai key baru.
+  activity_heading: { id: 'Aktivitas', en: 'Activity' },
+  activity_loading: { id: 'Memuat aktivitas...', en: 'Loading activity...' },
+  activity_empty: { id: 'Belum ada aktivitas.', en: 'No activity yet.' },
+  activity_filter_aria: { id: 'Filter aktivitas', en: 'Filter activity' },
+  activity_filter_all: { id: 'Semua', en: 'All' },
+  activity_filter_comments: { id: 'Komentar', en: 'Comments' },
+  activity_filter_history: { id: 'Perubahan', en: 'Changes' },
+  // {n} diganti lewat .replace() di client (pola sama seperti notif_task_assigned).
+  activity_show_older: { id: 'Tampilkan {n} aktivitas lama', en: 'Show {n} older activities' },
+  activity_hide_older: { id: 'Sembunyikan aktivitas lama', en: 'Hide older activities' },
+
   // Halaman Audit Log.
   audit_page_title: { id: 'Audit Log', en: 'Audit Log' },
   audit_subtitle: {

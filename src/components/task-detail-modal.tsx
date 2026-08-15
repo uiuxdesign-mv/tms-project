@@ -6,8 +6,7 @@ import { formatDuration } from '@/components/time-tracking-controls';
 import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { Badge } from '@/components/badge';
-import TaskComments from '@/components/task-comments';
-import TaskHistory from '@/components/task-history';
+import TaskActivityFeed from '@/components/task-activity-feed';
 import { useLanguage } from '@/components/language-provider';
 
 type TaskRow = {
@@ -877,7 +876,11 @@ export default function TaskDetailModal({
                   </div>
                 </form>
 
-                <TaskComments
+                {/* Redesign Round 10, "Saran 4": Komentar + Riwayat Perubahan digabung jadi satu
+                    Activity Feed dengan filter (Semua/Komentar/Perubahan) & collapse aktivitas
+                    lama — menggantikan dua kartu terpisah <TaskComments>/<TaskHistory> di atas.
+                    Semua fitur asli kedua komponen itu tetap ada di dalam TaskActivityFeed. */}
+                <TaskActivityFeed
                   taskId={taskId}
                   currentUserId={currentUserId}
                   canDeleteAny={permissions.canDelete && canManageInfo}
@@ -886,8 +889,6 @@ export default function TaskDetailModal({
                   // pernah dibuka untuk task yang lolos canViewTask, jadi selalu boleh berkomentar.
                   readOnly={false}
                 />
-
-                <TaskHistory taskId={taskId} />
               </div>
             </div>
           </div>
