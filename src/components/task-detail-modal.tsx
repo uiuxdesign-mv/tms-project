@@ -517,8 +517,13 @@ export default function TaskDetailModal({
                 permintaan user): dari 320px-Time-Tracking + form lebar, sekarang 2 kolom sepadan —
                 kiri notice+Time Tracking(ringkas)+Judul/Deskripsi+Fields, kanan Activity. */}
             <div className="flex flex-col gap-5 lg:min-h-0 lg:flex-1 lg:flex-row">
-              {/* Kolom kiri — scroll sendiri di layar besar (lg:overflow-y-auto) */}
-              <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
+              {/* Kolom kiri — permintaan user (perbaikan lanjutan): Time Tracking harus SELALU
+                  terlihat (tidak ikut ter-scroll), cuma Judul/Deskripsi/Fields di bawahnya yang
+                  scroll — jadi kolom ini sekarang dipecah 2 bagian: bagian atas "shrink-0" (fixed,
+                  notice + Time Tracking) dan bagian bawah yang scroll sendiri (lg:overflow-y-auto),
+                  supaya scrollbar-nya sejajar mulai dari field Judul, bukan dari Time Tracking. */}
+              <div className="flex flex-col lg:min-h-0 lg:flex-1">
+                <div className="shrink-0 lg:pr-1">
                 {/* Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas poin 1-3): TIGA
                     kemungkinan notice tergantung kombinasi canManageInfo/canOperateTT —
                     (a) murni view-only (tidak bisa apa-apa selain lihat & komentar),
@@ -568,7 +573,11 @@ export default function TaskDetailModal({
                   onAction={runTimeAction}
                   onCancelTask={handleCancelTask}
                 />
+                </div>
 
+                {/* Bagian yang scroll: Judul/Deskripsi/Fields — dibatasi ke breakpoint lg supaya
+                    mobile tetap satu scroll penuh seperti sebelumnya (tidak berubah). */}
+                <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
                 <form id="task-edit-form" onSubmit={handleSave} className="space-y-3">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_title')}</label>
@@ -797,6 +806,7 @@ export default function TaskDetailModal({
                     </div>
                   </div>
                 </form>
+                </div>
               </div>
 
               {/* Kolom kanan: Activity (Redesign Round 10, "Saran 4": Komentar + Riwayat Perubahan
