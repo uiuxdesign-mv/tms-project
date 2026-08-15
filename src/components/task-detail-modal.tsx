@@ -465,6 +465,14 @@ export default function TaskDetailModal({
   const selectedTaskType = opts?.taskTypes.find((tt) => tt.value === form?.task_type_id);
   const showRelatedTask = !!selectedTaskType?.requiresRelatedTask;
 
+  // Permintaan user (redesign lanjutan): ikon chevron-down (dari class global `.select-field`,
+  // lihat globals.css) dihilangkan KHUSUS saat field sedang view-only/terkunci (!canEditFields) —
+  // supaya select yang tidak bisa diklik tidak terlihat seperti dropdown interaktif. Saat field
+  // BOLEH diedit, tampilannya tidak berubah sama sekali (tetap pakai `.select-field` + chevron).
+  const selectFieldClass = canEditFields
+    ? 'select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500'
+    : 'focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-3 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500';
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-900/40 p-4 backdrop-blur-sm">
       <div className="flex max-h-[90vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-modal">
@@ -486,13 +494,18 @@ export default function TaskDetailModal({
         {error && <div className="m-4 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</div>}
 
         {!loading && task && opts && form && (
-          <div className="flex-1 overflow-y-auto p-5">
+          // Permintaan user (redesign lanjutan): modal secara keseluruhan TIDAK lagi scroll — yang
+          // scroll cuma kolom kiri (Time Tracking/Judul/Deskripsi/Fields), kolom kanan (Activity)
+          // punya scroll internalnya sendiri (lihat task-activity-feed.tsx) dan mengisi penuh
+          // tinggi kolom. Dibatasi ke breakpoint lg supaya perilaku mobile (belum pernah diminta
+          // berubah) tetap sama seperti sebelumnya (satu scroll container penuh).
+          <div className="flex-1 overflow-y-auto p-5 lg:overflow-hidden">
             {/* Redesign Modal Task Detail Round 10 lanjutan (layout total ala Saran 4 —
                 permintaan user): dari 320px-Time-Tracking + form lebar, sekarang 2 kolom sepadan —
                 kiri notice+Time Tracking(ringkas)+Judul/Deskripsi+Fields, kanan Activity. */}
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-              {/* Kolom kiri */}
-              <div>
+            <div className="grid grid-cols-1 gap-5 lg:h-full lg:grid-cols-2">
+              {/* Kolom kiri — scroll sendiri di layar besar (lg:overflow-y-auto) */}
+              <div className="lg:min-h-0 lg:overflow-y-auto lg:pr-1">
                 {/* Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas poin 1-3): TIGA
                     kemungkinan notice tergantung kombinasi canManageInfo/canOperateTT —
                     (a) murni view-only (tidak bisa apa-apa selain lihat & komentar),
@@ -598,7 +611,7 @@ export default function TaskDetailModal({
                           value={form.project_id}
                           disabled={!canEditFields}
                           onChange={(e) => setForm((f) => (f ? { ...f, project_id: e.target.value } : f))}
-                          className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                          className={selectFieldClass}
                         >
                           <option value="">{t('td_option_none')}</option>
                           {/* Fase 12: Project & Client independen (sesuai video) — Project master
@@ -617,7 +630,7 @@ export default function TaskDetailModal({
                           value={form.client_id}
                           disabled={!canEditFields}
                           onChange={(e) => setForm((f) => (f ? { ...f, client_id: e.target.value } : f))}
-                          className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                          className={selectFieldClass}
                         >
                           <option value="">{t('td_option_none')}</option>
                           {opts.clients.map((c) => (
@@ -633,7 +646,7 @@ export default function TaskDetailModal({
                           value={form.priority_id}
                           disabled={!canEditFields}
                           onChange={(e) => setForm((f) => (f ? { ...f, priority_id: e.target.value } : f))}
-                          className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                          className={selectFieldClass}
                         >
                           <option value="">{t('td_option_choose')}</option>
                           {opts.priorities.map((p) => (
@@ -649,7 +662,7 @@ export default function TaskDetailModal({
                           value={form.task_type_id}
                           disabled={!canEditFields}
                           onChange={(e) => setForm((f) => (f ? { ...f, task_type_id: e.target.value, related_task_id: '' } : f))}
-                          className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                          className={selectFieldClass}
                         >
                           <option value="">{t('td_option_choose_task_type')}</option>
                           {opts.taskTypes.map((tt) => (
@@ -670,7 +683,7 @@ export default function TaskDetailModal({
                             value={form.related_task_id}
                             disabled={!canEditFields}
                             onChange={(e) => setForm((f) => (f ? { ...f, related_task_id: e.target.value } : f))}
-                            className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                            className={selectFieldClass}
                           >
                             <option value="">{t('td_option_choose_task')}</option>
                             {opts.relatedTasks
@@ -692,7 +705,12 @@ export default function TaskDetailModal({
                           konteks kenapa cek "beda dari assigned_to" ini penting untuk data lama). */}
                       {task.assigned_by && task.assigned_by !== task.assigned_to && (
                         <FieldRow icon={<FieldRowIcon d={FIELD_ICON_PATHS.user} />} label={t('td_assigned_by_label')}>
-                          <p className="text-sm font-medium text-gray-900">{task.assigned_by_name || '-'}</p>
+                          {/* Permintaan user (redesign lanjutan): style disamakan dengan field
+                              lain yang view-only/disabled (kotak border + bg-gray-50), bukan lagi
+                              teks polos. */}
+                          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                            {task.assigned_by_name || '-'}
+                          </p>
                         </FieldRow>
                       )}
 
@@ -702,7 +720,7 @@ export default function TaskDetailModal({
                             value={form.assigned_to}
                             disabled={!canEditFields}
                             onChange={(e) => setForm((f) => (f ? { ...f, assigned_to: e.target.value } : f))}
-                            className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                            className={selectFieldClass}
                           >
                             <option value="">{t('td_option_self')}</option>
                             {opts.assignees.map((a) => (
@@ -773,7 +791,7 @@ export default function TaskDetailModal({
                   collapse aktivitas lama — menggantikan dua kartu terpisah <TaskComments>/
                   <TaskHistory>. Semua fitur asli kedua komponen itu tetap ada di dalam
                   TaskActivityFeed.) */}
-              <div>
+              <div className="flex flex-col lg:min-h-0">
                 <TaskActivityFeed
                   taskId={taskId}
                   currentUserId={currentUserId}

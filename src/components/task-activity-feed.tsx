@@ -400,8 +400,13 @@ export default function TaskActivityFeed({
   }
 
   return (
-    <div className="mt-4 rounded-2xl border border-gray-200 bg-white p-4">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+    // Permintaan user (redesign lanjutan): kartu Activity ini sekarang mengisi PENUH tinggi kolom
+    // kanan (dari atas sampai bawah, sejajar kolom kiri) di layar besar — bukan lagi cuma
+    // se-tinggi kontennya dengan sisa ruang kosong di bawah. "lg:h-full" & "flex flex-col" DIBATASI
+    // ke breakpoint lg supaya perilaku mobile (yang belum pernah diminta berubah) tetap sama persis
+    // seperti sebelumnya.
+    <div className="flex flex-col rounded-2xl border border-gray-200 bg-white p-4 lg:h-full">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2 shrink-0">
         <h3 className="text-sm font-semibold text-gray-900">
           {t('activity_heading')} <span className="font-normal text-gray-400">({merged.length})</span>
         </h3>
@@ -421,10 +426,10 @@ export default function TaskActivityFeed({
         </div>
       </div>
 
-      {commentsError && <div className="mb-2 rounded-lg bg-red-50 p-2 text-xs text-red-700">{commentsError}</div>}
-      {historyError && <div className="mb-2 rounded-lg bg-red-50 p-2 text-xs text-red-700">{historyError}</div>}
+      {commentsError && <div className="mb-2 shrink-0 rounded-lg bg-red-50 p-2 text-xs text-red-700">{commentsError}</div>}
+      {historyError && <div className="mb-2 shrink-0 rounded-lg bg-red-50 p-2 text-xs text-red-700">{historyError}</div>}
 
-      <div className="max-h-80 overflow-y-auto">
+      <div className="max-h-80 overflow-y-auto lg:max-h-none lg:min-h-0 lg:flex-1">
         {loading && <p className="py-2 text-sm text-gray-400">{t('activity_loading')}</p>}
         {!loading && filtered.length === 0 && <p className="py-2 text-sm text-gray-400">{t('activity_empty')}</p>}
 
@@ -458,7 +463,7 @@ export default function TaskActivityFeed({
       </div>
 
       {!readOnly && (
-        <form onSubmit={handleSubmit} className="mt-3 border-t border-gray-100 pt-3">
+        <form onSubmit={handleSubmit} className="mt-3 shrink-0 border-t border-gray-100 pt-3">
           <textarea
             value={text}
             onChange={(e) => setText(e.target.value)}
