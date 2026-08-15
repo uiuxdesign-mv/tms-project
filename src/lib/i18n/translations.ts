@@ -229,6 +229,11 @@ export const translations = {
   tt_btn_resume: { id: 'Lanjut', en: 'Resume' },
   tt_btn_back: { id: 'Kembali', en: 'Back' },
   tt_btn_done: { id: 'Selesai', en: 'Done' },
+  // Redesign Modal Task Detail Round 10 lanjutan ("Opsi 7" — permintaan user): Time Tracking
+  // dipindah jadi bar ringkas di atas Judul/Deskripsi, detail (3 statistik + tab Sesi Kerja/
+  // Review + tabel) disembunyikan di belakang tautan toggle ini secara default.
+  tt_show_detail: { id: 'Detail Waktu', en: 'Time Details' },
+  tt_hide_detail: { id: 'Sembunyikan Detail', en: 'Hide Details' },
   toast_tt_action_failed: { id: 'Gagal menjalankan aksi Time Tracking.', en: 'Failed to run Time Tracking action.' },
   toast_tt_started: { id: 'Task dimulai.', en: 'Task started.' },
   toast_tt_paused: { id: 'Task di-pause.', en: 'Task paused.' },
@@ -357,6 +362,9 @@ export const translations = {
     id: 'Detail task ini terkunci karena status sudah bukan To Do lagi. Status hanya bisa berubah lewat tombol aksi di panel Time Tracking (Start/Pause/Stop/Back/Done), Cancel Task, atau drag & drop kartu di Kanban — bukan lewat form ini.',
     en: 'This task detail is locked because its status is no longer To Do. Status can only change via the action buttons in the Time Tracking panel (Start/Pause/Stop/Back/Done), Cancel Task, or drag & drop on the Kanban board — not through this form.',
   },
+  // Redesign Round 10 lanjutan (layout total ala Saran 4): judul kecil di atas section field
+  // ringkas (ikon + label + kontrol) di kolom kiri modal.
+  td_fields_section_title: { id: 'Fields', en: 'Fields' },
   td_field_title: { id: 'Judul', en: 'Title' },
   td_field_title_placeholder: { id: 'Contoh: Perbaiki bug login di halaman utama', en: 'e.g., Fix login bug on the main page' },
   td_field_description: { id: 'Deskripsi', en: 'Description' },

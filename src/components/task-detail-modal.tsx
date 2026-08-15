@@ -2,11 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
-import { formatDuration } from '@/components/time-tracking-controls';
 import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { Badge } from '@/components/badge';
 import TaskActivityFeed from '@/components/task-activity-feed';
+import TaskTimeTrackingPanel from '@/components/task-time-tracking-panel';
 import { useLanguage } from '@/components/language-provider';
 
 type TaskRow = {
@@ -133,6 +133,56 @@ function formatLogTimestamp(iso: string): string {
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleString('en-US', { month: 'short', day: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+// Redesign Modal Task Detail Round 10 lanjutan (layout total ala Saran 4 — permintaan user):
+// section "Fields" ditata jadi baris ringkas (ikon + label + kontrol), bukan lagi label-di-atas-
+// input bertumpuk seperti sebelumnya. Kontrol form (select/input) di dalam tiap baris TETAP
+// persis sama (value/onChange/disabled/opsi) — cuma pembungkus visualnya yang berubah, supaya
+// tidak ada satu pun fungsi form yang hilang.
+const FIELD_ICON_PATHS = {
+  folder:
+    'M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 00-1.883 2.542l.857 6a2.25 2.25 0 002.227 1.932H19.05a2.25 2.25 0 002.227-1.932l.857-6a2.25 2.25 0 00-1.883-2.542m-16.5 0V6A2.25 2.25 0 016 3.75h3.879a1.5 1.5 0 011.06.44l2.122 2.12a1.5 1.5 0 001.06.44H18A2.25 2.25 0 0120.25 9v.776',
+  building:
+    'M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21',
+  flag: 'M3 3v1.5M3 21v-6m0 0l2.77-.693a9 9 0 016.208.682l.108.054a9 9 0 006.086.71l3.114-.732a48.524 48.524 0 01-.005-10.499l-3.11.732a9 9 0 01-6.085-.711l-.108-.054a9 9 0 00-6.208-.682L3 4.5M3 15V4.5',
+  tag: 'M9.568 3H5.25A2.25 2.25 0 003 5.25v4.318c0 .597.237 1.17.659 1.591l9.581 9.581c.699.699 1.78.872 2.607.33a18.095 18.095 0 005.223-5.223c.542-.827.369-1.908-.33-2.607L11.16 3.66A2.25 2.25 0 009.568 3z',
+  link: 'M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244',
+  user: 'M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z',
+  calendar:
+    'M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5',
+  clock: 'M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z',
+} as const;
+
+function FieldRowIcon({ d }: { d: string }) {
+  return (
+    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+      <path strokeLinecap="round" strokeLinejoin="round" d={d} />
+    </svg>
+  );
+}
+
+function FieldRow({
+  icon,
+  label,
+  children,
+  error,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  children: React.ReactNode;
+  error?: string;
+}) {
+  return (
+    <div className="flex items-start gap-3 border-b border-gray-100 py-2.5 last:border-b-0">
+      <span className="mt-2.5 flex h-5 w-5 shrink-0 items-center justify-center text-gray-400">{icon}</span>
+      <span className="mt-2.5 w-32 shrink-0 text-sm text-gray-500">{label}</span>
+      <div className="min-w-0 flex-1">
+        {children}
+        {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      </div>
+    </div>
+  );
 }
 
 export default function TaskDetailModal({
@@ -411,14 +461,6 @@ export default function TaskDetailModal({
     }
   }
 
-  const btnBase =
-    'inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40';
-  const startBtn = `${btnBase} bg-indigo-600 text-white hover:bg-indigo-700`;
-  const pauseBtn = `${btnBase} border border-amber-400 text-amber-600 hover:bg-amber-50`;
-  const stopBtn = `${btnBase} border border-red-300 text-red-600 hover:bg-red-50`;
-  const backBtn = `${btnBase} border border-gray-300 text-gray-900 hover:bg-gray-100`;
-  const doneBtn = `${btnBase} bg-emerald-600 text-white hover:bg-emerald-700`;
-
   const selectedTaskType = opts?.taskTypes.find((tt) => tt.value === form?.task_type_id);
   const showRelatedTask = !!selectedTaskType?.requiresRelatedTask;
 
@@ -444,201 +486,11 @@ export default function TaskDetailModal({
 
         {!loading && task && opts && form && (
           <div className="flex-1 overflow-y-auto p-5">
-            <div className="grid grid-cols-1 gap-5 lg:grid-cols-[320px_1fr]">
-              {/* Kolom kiri: Time Tracking */}
-              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                {timeUnavailable ? (
-                  <p className="text-sm text-gray-500">{t('td_tt_not_configured')}</p>
-                ) : (
-                  <>
-                    <div className="mb-3 flex items-center justify-between">
-                      <h3 className="text-sm font-semibold text-gray-900">Time Tracking</h3>
-                      {!status?.isFinal && timeState && (
-                        <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                            timeState.state === 'running'
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : timeState.state === 'paused'
-                              ? 'bg-amber-50 text-amber-700'
-                              : 'bg-gray-200 text-gray-600'
-                          }`}
-                        >
-                          {timeState.state === 'running'
-                            ? t('td_tt_state_running')
-                            : timeState.state === 'paused'
-                            ? t('td_tt_state_paused')
-                            : t('td_tt_state_not_started')}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="grid grid-cols-3 gap-2 text-center">
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wide text-gray-400">{t('td_current_session')}</p>
-                        <p className="tabular-nums text-base font-semibold text-gray-900">{formatDuration(currentSessionSeconds)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wide text-gray-400">{t('tt_work_time')}</p>
-                        <p className="tabular-nums text-base font-semibold text-gray-900">{formatDuration(workTimeSeconds)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[10px] uppercase tracking-wide text-gray-400">{t('tt_review_time')}</p>
-                        <p className="tabular-nums text-base font-semibold text-amber-600">{formatDuration(reviewTimeSeconds)}</p>
-                      </div>
-                    </div>
-
-                    {canOperateTT && timeState && !status?.isFinal && (
-                      <div className="mt-3 flex flex-wrap items-center gap-2">
-                        {status?.isReview ? (
-                          <>
-                            <button disabled={busy} onClick={() => runTimeAction('back')} className={backBtn}>
-                              {t('tt_btn_back')}
-                            </button>
-                            <button disabled={busy} onClick={() => runTimeAction('done')} className={doneBtn}>
-                              {t('tt_btn_done')}
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            {timeState.state === 'idle' && (
-                              <>
-                                <button disabled={busy} onClick={() => runTimeAction('start')} className={startBtn}>
-                                  ▶ {t('tt_btn_start')}
-                                </button>
-                                {/* Bugfix (Fase 19, spec §2 "Kondisi Awal"): tombol Stop tetap
-                                    DITAMPILKAN (dalam kondisi disabled) saat status To Do —
-                                    sebelumnya disembunyikan total. Pause memang sengaja tidak
-                                    ditampilkan sama sekali di kondisi ini, sesuai spesifikasi. */}
-                                <button disabled className={stopBtn}>
-                                  {t('tt_btn_stop')}
-                                </button>
-                              </>
-                            )}
-                            {timeState.state === 'running' && (
-                              <>
-                                <button disabled={busy} onClick={() => runTimeAction('pause')} className={pauseBtn}>
-                                  {t('tt_btn_pause')}
-                                </button>
-                                <button disabled={busy} onClick={() => runTimeAction('stop')} className={stopBtn}>
-                                  {t('tt_btn_stop')}
-                                </button>
-                              </>
-                            )}
-                            {timeState.state === 'paused' && (
-                              <>
-                                <button disabled={busy} onClick={() => runTimeAction('resume')} className={startBtn}>
-                                  ▶ {t('tt_btn_start')}
-                                </button>
-                                <button disabled={busy} onClick={() => runTimeAction('stop')} className={stopBtn}>
-                                  {t('tt_btn_stop')}
-                                </button>
-                              </>
-                            )}
-                          </>
-                        )}
-                        {/* Perbaikan (permintaan user poin 3): Cancel Task TIDAK termasuk "boleh
-                            mengoperasikan status/Time Tracking" — penerima delegasi cuma boleh
-                            mengerjakan (Start/Pause/Resume/Stop/Back/Done), tidak boleh membatalkan
-                            sepihak task yang ditugaskan orang lain ke dia. Tetap digerbangi
-                            canManageInfo, sama seperti field lain. */}
-                        {canManageInfo && (
-                          <button
-                            disabled={busy}
-                            onClick={handleCancelTask}
-                            className={`${btnBase} ml-auto bg-red-600 text-white hover:bg-red-700`}
-                          >
-                            ✕ {t('td_cancel_task_btn')}
-                          </button>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="mt-4 border-t border-gray-200 pt-3">
-                      <div className="flex gap-4 border-b border-gray-200 text-sm">
-                        <button
-                          onClick={() => setActiveTab('work')}
-                          className={`-mb-px border-b-2 pb-2 font-medium ${
-                            activeTab === 'work' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400'
-                          }`}
-                        >
-                          {t('td_work_session_label')} ({workIntervals.length})
-                        </button>
-                        <button
-                          onClick={() => setActiveTab('review')}
-                          className={`-mb-px border-b-2 pb-2 font-medium ${
-                            activeTab === 'review' ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-gray-400'
-                          }`}
-                        >
-                          {t('td_review_session_label')} ({reviewIntervals.length})
-                        </button>
-                      </div>
-                      <div className="mt-2 max-h-48 overflow-y-auto">
-                        {(activeTab === 'work' ? workIntervals : reviewIntervals).length === 0 && (
-                          <p className="py-3 text-center text-xs text-gray-400">{t('td_no_time_recorded')}</p>
-                        )}
-                        {(activeTab === 'work' ? workIntervals : reviewIntervals).length > 0 && (
-                          <table className="w-full text-left text-xs">
-                            <thead className="text-[10px] uppercase text-gray-400">
-                              <tr>
-                                <th className="pb-1 pr-2 font-medium">{t('td_col_start_resume')}</th>
-                                <th className="pb-1 pr-2 font-medium">{activeTab === 'review' ? t('td_col_back_done') : t('td_col_pause_stop')}</th>
-                                <th className="pb-1 font-medium">{t('td_col_duration')}</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {(activeTab === 'work' ? workIntervals : reviewIntervals).map((iv, i) => {
-                                // Bugfix (Fase 19, spec §6): label + warna Action/Activity meniru tabel warna aplikasi
-                                // lama — Start=Blue, Resume=Green, Pause=Orange, Stop=Red. Sesi review cuma bisa
-                                // ditutup lewat tombol Back atau Done (tidak ada Pause/Stop di tahap review), jadi
-                                // penutupan sesi review dilabeli "Done" + hijau, bukan "Stop" + merah, konsisten
-                                // dengan warna "Review Done = Green" di spec (event mentahnya tetap sama-sama `stop`,
-                                // yang membedakan cuma konteks tab-nya).
-                                const openLabel = iv.openedBy === 'start' ? t('tt_btn_start') : t('tt_btn_resume');
-                                const openColor = iv.openedBy === 'start' ? 'text-blue-600' : 'text-emerald-600';
-                                const closeLabel =
-                                  iv.closedBy === null
-                                    ? t('td_tt_state_running')
-                                    : activeTab === 'review'
-                                    ? t('tt_btn_done')
-                                    : iv.closedBy === 'pause'
-                                    ? t('tt_btn_pause')
-                                    : t('tt_btn_stop');
-                                const closeColor =
-                                  iv.closedBy === null
-                                    ? 'text-gray-400'
-                                    : activeTab === 'review'
-                                      ? 'text-emerald-600'
-                                      : iv.closedBy === 'pause'
-                                        ? 'text-amber-600'
-                                        : 'text-red-600';
-                                return (
-                                  <tr key={i} className="align-top">
-                                    <td className="py-1 pr-2">
-                                      <div className={`font-medium ${openColor}`}>{openLabel}</div>
-                                      <div className="text-gray-500">{formatLogTimestamp(iv.startAt)}</div>
-                                      <div className="text-[10px] text-gray-400">{resolveActorName(iv.startedByUserId)}</div>
-                                    </td>
-                                    <td className="py-1 pr-2">
-                                      <div className={`font-medium ${closeColor}`}>{closeLabel}</div>
-                                      <div className="text-gray-500">{iv.endAt ? formatLogTimestamp(iv.endAt) : '-'}</div>
-                                      {iv.endAt && <div className="text-[10px] text-gray-400">{resolveActorName(iv.endedByUserId)}</div>}
-                                    </td>
-                                    <td className="py-1 tabular-nums text-gray-700">
-                                      {iv.endAt ? formatDuration(iv.seconds) : formatDuration(currentSessionSeconds)}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Kolom kanan: form + komentar */}
+            {/* Redesign Modal Task Detail Round 10 lanjutan (layout total ala Saran 4 —
+                permintaan user): dari 320px-Time-Tracking + form lebar, sekarang 2 kolom sepadan —
+                kiri notice+Time Tracking(ringkas)+Judul/Deskripsi+Fields, kanan Activity. */}
+            <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+              {/* Kolom kiri */}
               <div>
                 {/* Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas poin 1-3): TIGA
                     kemungkinan notice tergantung kombinasi canManageInfo/canOperateTT —
@@ -683,6 +535,32 @@ export default function TaskDetailModal({
                     {t('td_locked_notice')}
                   </div>
                 )}
+
+                {/* Redesign Round 10 lanjutan ("Opsi 7" dari redesign-modal-round4-timetracking.md,
+                    dengan penyesuaian permintaan user: dipindah ke ATAS Judul/Deskripsi, bukan di
+                    footer). Seluruh logic Time Tracking (state machine tombol, tab Sesi Kerja/
+                    Review, tabel riwayat, Batalkan Task) dipindah 1:1 ke komponen ini — lihat
+                    src/components/task-time-tracking-panel.tsx. */}
+                <TaskTimeTrackingPanel
+                  timeUnavailable={timeUnavailable}
+                  isFinalStatus={status?.isFinal ?? false}
+                  isReviewStatus={status?.isReview ?? false}
+                  timeState={timeState}
+                  canOperateTT={canOperateTT}
+                  canManageInfo={canManageInfo}
+                  busy={busy}
+                  currentSessionSeconds={currentSessionSeconds}
+                  workTimeSeconds={workTimeSeconds}
+                  reviewTimeSeconds={reviewTimeSeconds}
+                  activeTab={activeTab}
+                  onTabChange={setActiveTab}
+                  workIntervals={workIntervals}
+                  reviewIntervals={reviewIntervals}
+                  resolveActorName={resolveActorName}
+                  onAction={runTimeAction}
+                  onCancelTask={handleCancelTask}
+                />
+
                 <form id="task-edit-form" onSubmit={handleSave} className="space-y-3">
                   <div>
                     <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_title')}</label>
@@ -708,178 +586,200 @@ export default function TaskDetailModal({
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_project')}</label>
-                      <select
-                        value={form.project_id}
-                        disabled={!canEditFields}
-                        onChange={(e) => setForm((f) => (f ? { ...f, project_id: e.target.value } : f))}
-                        className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
-                      >
-                        <option value="">{t('td_option_none')}</option>
-                        {/* Fase 12: Project & Client independen (sesuai video) — Project master
-                            data tidak lagi punya field Client, jadi daftar Project TIDAK difilter
-                            oleh Client yang dipilih di sini. */}
-                        {opts.projects.map((p) => (
-                          <option key={p.value} value={p.value}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_client')}</label>
-                      <select
-                        value={form.client_id}
-                        disabled={!canEditFields}
-                        onChange={(e) => setForm((f) => (f ? { ...f, client_id: e.target.value } : f))}
-                        className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
-                      >
-                        <option value="">{t('td_option_none')}</option>
-                        {opts.clients.map((c) => (
-                          <option key={c.value} value={c.value}>
-                            {c.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
+                  {/* Redesign Round 10 lanjutan: section field ala mockup Saran 4 — tiap field jadi
+                      1 baris ringkas (ikon + label + kontrol) menggantikan grid 2-kolom
+                      label-di-atas-input. Kontrolnya (select/input) TETAP fungsi & handler yang
+                      sama persis seperti sebelumnya, cuma pembungkusnya yang berubah. */}
+                  <div>
+                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                      {t('td_fields_section_title')}
+                    </p>
+                    <div className="rounded-xl border border-gray-200 bg-white px-3">
+                      {/* Baris Status murni tambahan visual (mencerminkan badge yang sudah ada di
+                          judul modal) — TIDAK menggantikan atau mengubah cara Status diubah (tetap
+                          lewat Time Tracking/Kanban/Cancel Task, bukan lewat form ini). */}
+                      {status && (
+                        <FieldRow
+                          icon={
+                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                              <circle cx="12" cy="12" r="8.25" />
+                            </svg>
+                          }
+                          label={t('col_status')}
+                        >
+                          <Badge label={status.label} color={status.colorCode} />
+                        </FieldRow>
+                      )}
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_priority')}</label>
-                      <select
-                        value={form.priority_id}
-                        disabled={!canEditFields}
-                        onChange={(e) => setForm((f) => (f ? { ...f, priority_id: e.target.value } : f))}
-                        className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
-                      >
-                        <option value="">{t('td_option_choose')}</option>
-                        {opts.priorities.map((p) => (
-                          <option key={p.value} value={p.value}>
-                            {p.label}
-                          </option>
-                        ))}
-                      </select>
-                      {fieldErrors.priority_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.priority_id}</p>}
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_task_type')}</label>
-                      <select
-                        value={form.task_type_id}
-                        disabled={!canEditFields}
-                        onChange={(e) => setForm((f) => (f ? { ...f, task_type_id: e.target.value, related_task_id: '' } : f))}
-                        className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
-                      >
-                        <option value="">{t('td_option_choose_task_type')}</option>
-                        {opts.taskTypes.map((tt) => (
-                          <option key={tt.value} value={tt.value}>
-                            {tt.label}
-                          </option>
-                        ))}
-                      </select>
-                      {fieldErrors.task_type_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.task_type_id}</p>}
-                    </div>
-                  </div>
-
-                  {showRelatedTask && (
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_related_task')}</label>
-                      <select
-                        value={form.related_task_id}
-                        disabled={!canEditFields}
-                        onChange={(e) => setForm((f) => (f ? { ...f, related_task_id: e.target.value } : f))}
-                        className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
-                      >
-                        <option value="">{t('td_option_choose_task')}</option>
-                        {opts.relatedTasks
-                          .filter((rt) => rt.value !== taskId)
-                          .map((rt) => (
-                            <option key={rt.value} value={rt.value}>
-                              {rt.label}
+                      <FieldRow icon={<FieldRowIcon d={FIELD_ICON_PATHS.folder} />} label={t('td_field_project')}>
+                        <select
+                          value={form.project_id}
+                          disabled={!canEditFields}
+                          onChange={(e) => setForm((f) => (f ? { ...f, project_id: e.target.value } : f))}
+                          className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                        >
+                          <option value="">{t('td_option_none')}</option>
+                          {/* Fase 12: Project & Client independen (sesuai video) — Project master
+                              data tidak lagi punya field Client, jadi daftar Project TIDAK
+                              difilter oleh Client yang dipilih di sini. */}
+                          {opts.projects.map((p) => (
+                            <option key={p.value} value={p.value}>
+                              {p.label}
                             </option>
                           ))}
-                      </select>
-                      {fieldErrors.related_task_id && <p className="mt-1 text-xs text-red-600">{fieldErrors.related_task_id}</p>}
-                    </div>
-                  )}
+                        </select>
+                      </FieldRow>
 
-                  <div>
-                    <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_assignee')}</label>
-                    {opts.canAssignOthers ? (
-                      <select
-                        value={form.assigned_to}
-                        disabled={!canEditFields}
-                        onChange={(e) => setForm((f) => (f ? { ...f, assigned_to: e.target.value } : f))}
-                        className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
-                      >
-                        <option value="">{t('td_option_self')}</option>
-                        {opts.assignees.map((a) => (
-                          <option key={a.value} value={a.value}>
-                            {a.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
-                        {label(opts.assignees, form.assigned_to)}
-                      </p>
-                    )}
-                    {opts.canAssignOthers && canEditFields && form.assigned_to !== currentUserId && (
-                      <button
-                        type="button"
-                        onClick={() => setForm((f) => (f ? { ...f, assigned_to: currentUserId } : f))}
-                        className="mt-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700"
-                      >
-                        {t('td_assign_to_me')}
-                      </button>
-                    )}
-                    {fieldErrors.assigned_to && <p className="mt-1 text-xs text-red-600">{fieldErrors.assigned_to}</p>}
-                  </div>
+                      <FieldRow icon={<FieldRowIcon d={FIELD_ICON_PATHS.building} />} label={t('td_field_client')}>
+                        <select
+                          value={form.client_id}
+                          disabled={!canEditFields}
+                          onChange={(e) => setForm((f) => (f ? { ...f, client_id: e.target.value } : f))}
+                          className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                        >
+                          <option value="">{t('td_option_none')}</option>
+                          {opts.clients.map((c) => (
+                            <option key={c.value} value={c.value}>
+                              {c.label}
+                            </option>
+                          ))}
+                        </select>
+                      </FieldRow>
 
-                  <div className="grid grid-cols-3 gap-3">
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_start_date')}</label>
-                      <input
-                        type="datetime-local"
-                        value={form.start_date}
-                        disabled={!canEditFields}
-                        onChange={(e) => setForm((f) => (f ? { ...f, start_date: e.target.value } : f))}
-                        className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_due_date')}</label>
-                      <input
-                        type="datetime-local"
-                        value={form.due_date}
-                        disabled={!canEditFields}
-                        onChange={(e) => setForm((f) => (f ? { ...f, due_date: e.target.value } : f))}
-                        className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="mb-1.5 block text-sm font-medium text-gray-700">{t('td_field_est_hours')}</label>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.25"
-                        placeholder={t('td_est_hours_placeholder')}
-                        value={form.estimated_hours}
-                        disabled={!canEditFields}
-                        onChange={(e) => setForm((f) => (f ? { ...f, estimated_hours: e.target.value } : f))}
-                        className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
-                      />
-                      {fieldErrors.estimated_hours && <p className="mt-1 text-xs text-red-600">{fieldErrors.estimated_hours}</p>}
+                      <FieldRow icon={<FieldRowIcon d={FIELD_ICON_PATHS.flag} />} label={t('td_field_priority')} error={fieldErrors.priority_id}>
+                        <select
+                          value={form.priority_id}
+                          disabled={!canEditFields}
+                          onChange={(e) => setForm((f) => (f ? { ...f, priority_id: e.target.value } : f))}
+                          className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                        >
+                          <option value="">{t('td_option_choose')}</option>
+                          {opts.priorities.map((p) => (
+                            <option key={p.value} value={p.value}>
+                              {p.label}
+                            </option>
+                          ))}
+                        </select>
+                      </FieldRow>
+
+                      <FieldRow icon={<FieldRowIcon d={FIELD_ICON_PATHS.tag} />} label={t('td_field_task_type')} error={fieldErrors.task_type_id}>
+                        <select
+                          value={form.task_type_id}
+                          disabled={!canEditFields}
+                          onChange={(e) => setForm((f) => (f ? { ...f, task_type_id: e.target.value, related_task_id: '' } : f))}
+                          className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                        >
+                          <option value="">{t('td_option_choose_task_type')}</option>
+                          {opts.taskTypes.map((tt) => (
+                            <option key={tt.value} value={tt.value}>
+                              {tt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </FieldRow>
+
+                      {showRelatedTask && (
+                        <FieldRow
+                          icon={<FieldRowIcon d={FIELD_ICON_PATHS.link} />}
+                          label={t('td_field_related_task')}
+                          error={fieldErrors.related_task_id}
+                        >
+                          <select
+                            value={form.related_task_id}
+                            disabled={!canEditFields}
+                            onChange={(e) => setForm((f) => (f ? { ...f, related_task_id: e.target.value } : f))}
+                            className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                          >
+                            <option value="">{t('td_option_choose_task')}</option>
+                            {opts.relatedTasks
+                              .filter((rt) => rt.value !== taskId)
+                              .map((rt) => (
+                                <option key={rt.value} value={rt.value}>
+                                  {rt.label}
+                                </option>
+                              ))}
+                          </select>
+                        </FieldRow>
+                      )}
+
+                      <FieldRow icon={<FieldRowIcon d={FIELD_ICON_PATHS.user} />} label={t('td_field_assignee')} error={fieldErrors.assigned_to}>
+                        {opts.canAssignOthers ? (
+                          <select
+                            value={form.assigned_to}
+                            disabled={!canEditFields}
+                            onChange={(e) => setForm((f) => (f ? { ...f, assigned_to: e.target.value } : f))}
+                            className="select-field focus-ring w-full appearance-none rounded-lg border border-gray-300 bg-white py-2 pl-3 pr-9 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                          >
+                            <option value="">{t('td_option_self')}</option>
+                            {opts.assignees.map((a) => (
+                              <option key={a.value} value={a.value}>
+                                {a.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <p className="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-500">
+                            {label(opts.assignees, form.assigned_to)}
+                          </p>
+                        )}
+                        {opts.canAssignOthers && canEditFields && form.assigned_to !== currentUserId && (
+                          <button
+                            type="button"
+                            onClick={() => setForm((f) => (f ? { ...f, assigned_to: currentUserId } : f))}
+                            className="mt-1.5 text-xs font-medium text-indigo-600 hover:text-indigo-700"
+                          >
+                            {t('td_assign_to_me')}
+                          </button>
+                        )}
+                      </FieldRow>
+
+                      <FieldRow icon={<FieldRowIcon d={FIELD_ICON_PATHS.calendar} />} label={t('td_field_start_date')}>
+                        <input
+                          type="datetime-local"
+                          value={form.start_date}
+                          disabled={!canEditFields}
+                          onChange={(e) => setForm((f) => (f ? { ...f, start_date: e.target.value } : f))}
+                          className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                        />
+                      </FieldRow>
+
+                      <FieldRow icon={<FieldRowIcon d={FIELD_ICON_PATHS.calendar} />} label={t('td_field_due_date')}>
+                        <input
+                          type="datetime-local"
+                          value={form.due_date}
+                          disabled={!canEditFields}
+                          onChange={(e) => setForm((f) => (f ? { ...f, due_date: e.target.value } : f))}
+                          className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                        />
+                      </FieldRow>
+
+                      <FieldRow
+                        icon={<FieldRowIcon d={FIELD_ICON_PATHS.clock} />}
+                        label={t('td_field_est_hours')}
+                        error={fieldErrors.estimated_hours}
+                      >
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.25"
+                          placeholder={t('td_est_hours_placeholder')}
+                          value={form.estimated_hours}
+                          disabled={!canEditFields}
+                          onChange={(e) => setForm((f) => (f ? { ...f, estimated_hours: e.target.value } : f))}
+                          className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 transition-colors disabled:bg-gray-50 disabled:text-gray-500"
+                        />
+                      </FieldRow>
                     </div>
                   </div>
                 </form>
+              </div>
 
-                {/* Redesign Round 10, "Saran 4": Komentar + Riwayat Perubahan digabung jadi satu
-                    Activity Feed dengan filter (Semua/Komentar/Perubahan) & collapse aktivitas
-                    lama — menggantikan dua kartu terpisah <TaskComments>/<TaskHistory> di atas.
-                    Semua fitur asli kedua komponen itu tetap ada di dalam TaskActivityFeed. */}
+              {/* Kolom kanan: Activity (Redesign Round 10, "Saran 4": Komentar + Riwayat Perubahan
+                  digabung jadi satu Activity Feed dengan filter Semua/Komentar/Perubahan &
+                  collapse aktivitas lama — menggantikan dua kartu terpisah <TaskComments>/
+                  <TaskHistory>. Semua fitur asli kedua komponen itu tetap ada di dalam
+                  TaskActivityFeed.) */}
+              <div>
                 <TaskActivityFeed
                   taskId={taskId}
                   currentUserId={currentUserId}
