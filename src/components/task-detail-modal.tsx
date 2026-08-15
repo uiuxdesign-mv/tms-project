@@ -332,8 +332,9 @@ export default function TaskDetailModal({
   // Detail Task (Title/Description/Project/Client/Priority/Task Type/Assignee/tanggal) cuma boleh
   // diedit bebas selama status masih To Do (default) DAN session-nya termasuk yang boleh mengelola
   // info (canManageInfo) — sudah termasuk aturan "Pemberi Tugas hanya selagi status awal" (poin 2)
-  // lewat can_edit_fields_now yang dihitung di server (canEditTaskFieldsNow).
-  const isDefaultStatus = status?.isDefault ?? false;
+  // lewat can_edit_fields_now yang dihitung di server (canEditTaskFieldsNow). (`status?.isDefault`
+  // sebelumnya juga dipakai utk menampilkan banner "locked notice" terpisah — banner itu sudah
+  // dihapus per permintaan user, redesign lanjutan, jadi variabelnya tidak dipakai lagi di sini.)
   const canEditFields = permissions.canEdit && !!task && !!task.can_edit_fields_now;
 
   const { work: workIntervals, review: reviewIntervals } = useMemo(() => deriveIntervals(events), [events]);
@@ -509,32 +510,13 @@ export default function TaskDetailModal({
                     {t('td_operate_only_notice')}
                   </div>
                 )}
-                {/* Bugfix (permintaan user, item detail tasking): blok info Pemberi Tugas/
-                    Ditugaskan Kepada — hanya tampil kalau task ini benar-benar hasil PENUNJUKAN
-                    TUGAS (assigned_by terisi DAN beda dari assigned_to). Cek "beda dari
-                    assigned_to" ini SENGAJA ditambahkan karena data lama (sebelum perbaikan ini)
-                    selalu mengisi assigned_by = pembuat task, walau task itu self-assigned — tanpa
-                    cek ini, task lama yang dibuat untuk diri sendiri akan salah menampilkan blok
-                    ini juga. jangan lupa i18n: label lewat t('td_assigned_by_label') dst. */}
-                {task.assigned_by && task.assigned_by !== task.assigned_to && (
-                  <div className="mb-3 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs text-indigo-800">
-                    <p className="mb-1 font-semibold">{t('td_assignment_info_title')}</p>
-                    <p>
-                      {t('td_assigned_by_label')}: <span className="font-medium">{task.assigned_by_name || '-'}</span>
-                    </p>
-                    <p>
-                      {t('td_assigned_to_label')}: <span className="font-medium">{label(opts.assignees, task.assigned_to)}</span>
-                    </p>
-                  </div>
-                )}
-                {/* Bugfix (Fase 14): id di sini dipakai tombol "Save changes" di footer bawah
-                    (di luar area scroll) lewat atribut `form=` — supaya tombolnya tidak ikut
-                    hilang ke-scroll padahal secara DOM sudah dipindah keluar dari <form> ini. */}
-                {canManageInfo && !isDefaultStatus && (
-                  <div className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                    {t('td_locked_notice')}
-                  </div>
-                )}
+                {/* Permintaan user (redesign lanjutan): blok banner "Informasi Penugasan"
+                    (Pemberi Tugas/Ditugaskan Kepada) dan banner "locked notice" DIHAPUS dari
+                    posisi ini — informasi "Pemberi Tugas" TIDAK hilang, cuma dipindah jadi 1 baris
+                    ringkas di section Fields, tepat di atas baris Assignee (lihat FieldRow
+                    "Pemberi Tugas" di bawah). "Ditugaskan Kepada" tidak diduplikasi lagi di sini
+                    karena sudah terwakili oleh baris Assignee itu sendiri. Teks penjelasan locked
+                    notice sengaja tidak dipindahkan ke mana pun, sesuai permintaan eksplisit user. */}
 
                 {/* Redesign Round 10 lanjutan ("Opsi 7" dari redesign-modal-round4-timetracking.md,
                     dengan penyesuaian permintaan user: dipindah ke ATAS Judul/Deskripsi, bukan di
@@ -699,6 +681,18 @@ export default function TaskDetailModal({
                                 </option>
                               ))}
                           </select>
+                        </FieldRow>
+                      )}
+
+                      {/* Permintaan user (redesign lanjutan): baris "Pemberi Tugas" — sebelumnya
+                          banner terpisah "Informasi Penugasan" di atas form, sekarang dipindah
+                          jadi 1 baris ringkas di sini, TEPAT DI ATAS baris Assignee. Kondisi
+                          tampil sama persis seperti banner sebelumnya (assigned_by terisi DAN
+                          beda dari assigned_to — lihat catatan lama di git blame kalau perlu
+                          konteks kenapa cek "beda dari assigned_to" ini penting untuk data lama). */}
+                      {task.assigned_by && task.assigned_by !== task.assigned_to && (
+                        <FieldRow icon={<FieldRowIcon d={FIELD_ICON_PATHS.user} />} label={t('td_assigned_by_label')}>
+                          <p className="text-sm font-medium text-gray-900">{task.assigned_by_name || '-'}</p>
                         </FieldRow>
                       )}
 
