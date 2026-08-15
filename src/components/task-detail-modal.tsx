@@ -499,13 +499,26 @@ export default function TaskDetailModal({
           // punya scroll internalnya sendiri (lihat task-activity-feed.tsx) dan mengisi penuh
           // tinggi kolom. Dibatasi ke breakpoint lg supaya perilaku mobile (belum pernah diminta
           // berubah) tetap sama seperti sebelumnya (satu scroll container penuh).
-          <div className="flex-1 overflow-y-auto p-5 lg:overflow-hidden">
+          //
+          // Perbaikan lanjutan (round berikutnya, verifikasi via browser sungguhan bukan cuma
+          // tsc/eslint/build): percobaan sebelumnya pakai "lg:h-full" (height:100%) di div 2-kolom
+          // di bawah ini TIDAK benar-benar bekerja di browser — walau lolos build. Penyebabnya:
+          // wrapper INI ("lg:flex" tanpa arah eksplisit = row secara default) membuat anaknya
+          // (div 2-kolom) jadi flex-item di sumbu ROW, dan height:100% (persentase) di flex-item
+          // semacam itu TIDAK reliable diresolve oleh browser meski parent-nya sudah py min-h-0 —
+          // hasilnya div 2-kolom melebar mengikuti tinggi KONTEN aslinya (overflow), bukan
+          // mengikuti tinggi container. Diperbaiki dengan mengganti ke pola flex-grow murni
+          // (bukan persentase): wrapper ini dijadikan "lg:flex-col" eksplisit (kolom, 1 anak),
+          // dan anaknya pakai "lg:flex-1" (bukan "lg:h-full") supaya tumbuh mengisi sisa ruang
+          // lewat flex-grow — pola ini jauh lebih konsisten di semua browser untuk chain flex
+          // bertingkat seperti ini.
+          <div className="min-h-0 flex-1 overflow-y-auto p-5 lg:flex lg:flex-col lg:overflow-hidden">
             {/* Redesign Modal Task Detail Round 10 lanjutan (layout total ala Saran 4 —
                 permintaan user): dari 320px-Time-Tracking + form lebar, sekarang 2 kolom sepadan —
                 kiri notice+Time Tracking(ringkas)+Judul/Deskripsi+Fields, kanan Activity. */}
-            <div className="grid grid-cols-1 gap-5 lg:h-full lg:grid-cols-2">
+            <div className="flex flex-col gap-5 lg:min-h-0 lg:flex-1 lg:flex-row">
               {/* Kolom kiri — scroll sendiri di layar besar (lg:overflow-y-auto) */}
-              <div className="lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+              <div className="lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pr-1">
                 {/* Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas poin 1-3): TIGA
                     kemungkinan notice tergantung kombinasi canManageInfo/canOperateTT —
                     (a) murni view-only (tidak bisa apa-apa selain lihat & komentar),
@@ -791,7 +804,7 @@ export default function TaskDetailModal({
                   collapse aktivitas lama — menggantikan dua kartu terpisah <TaskComments>/
                   <TaskHistory>. Semua fitur asli kedua komponen itu tetap ada di dalam
                   TaskActivityFeed.) */}
-              <div className="flex flex-col lg:min-h-0">
+              <div className="flex flex-col lg:min-h-0 lg:flex-1">
                 <TaskActivityFeed
                   taskId={taskId}
                   currentUserId={currentUserId}
