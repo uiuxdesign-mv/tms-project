@@ -92,7 +92,7 @@ export default function TaskFilterBar({
         <button
           type="button"
           onClick={openFilterDropdown}
-          className={`relative flex h-[34px] w-[38px] items-center justify-center rounded-lg border transition-colors ${
+          className={`relative flex h-[2.125rem] w-[2.375rem] items-center justify-center rounded-lg border transition-colors ${
             activeFilterCount > 0 ? 'border-indigo-300 bg-indigo-50 text-indigo-600' : 'border-gray-300 text-gray-500 hover:bg-gray-50'
           }`}
           title={t('filter_title')}
@@ -102,7 +102,7 @@ export default function TaskFilterBar({
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4.5h18M6 9.75h12M10.5 15h3" />
           </svg>
           {activeFilterCount > 0 && (
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 text-[10px] font-medium text-white">
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-indigo-600 text-[0.625rem] font-medium text-white">
               {activeFilterCount}
             </span>
           )}

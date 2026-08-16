@@ -43,18 +43,22 @@ export function VerticalBarChart({
     // melebar mengikuti label terpanjang, mendorong kolom grid ke-3 sampai keluar viewport.
     // `min-w-0` di sini mengizinkan item menyusut sekecil yang grid/flex induk berikan, baru
     // setelah itu `truncate` benar-benar bisa memotong teks dengan "...".
-    <div className="flex items-end gap-2" style={{ height: 160 }}>
+    // Perbaikan (permintaan user, "sesuaikan ukuran semua tampilan menjadi 80%"): tinggi 160 di
+    // sini diganti ke '10rem' (setara 160px di skala 100%) — style inline pakai px MENTAH (bukan
+    // Tailwind), jadi tidak otomatis ikut menyusut waktu font-size root dikecilkan (lihat
+    // globals.css) kalau tetap angka polos.
+    <div className="flex items-end gap-2" style={{ height: '10rem' }}>
       {shown.map((item) => {
         const heightPct = (item.count / max) * 100;
         return (
           <div key={item.key} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1" style={{ height: '100%' }}>
-            <span className="text-[10px] text-gray-500">{item.count > 0 ? item.count : ''}</span>
+            <span className="text-[0.625rem] text-gray-500">{item.count > 0 ? item.count : ''}</span>
             <div
               className={`w-full rounded-t ${barClassName}`}
               style={{ height: `${Math.max(2, heightPct)}%`, minHeight: item.count > 0 ? 4 : 0 }}
               title={`${item.label}: ${item.count}`}
             />
-            <span className="w-full truncate text-center text-[10px] text-gray-400" title={item.label}>
+            <span className="w-full truncate text-center text-[0.625rem] text-gray-400" title={item.label}>
               {item.label}
             </span>
           </div>

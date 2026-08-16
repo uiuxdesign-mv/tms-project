@@ -287,7 +287,7 @@ export default function CalendarView({
                           <button
                             key={t.id}
                             onClick={() => setDetailTaskId(t.id)}
-                            className="block w-full truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium text-gray-900 hover:bg-gray-100"
+                            className="block w-full truncate rounded px-1.5 py-0.5 text-left text-[0.6875rem] font-medium text-gray-900 hover:bg-gray-100"
                             style={{ borderLeft: `3px solid ${status?.colorCode || '#94a3b8'}` }}
                             title={t.title}
                           >
@@ -295,7 +295,7 @@ export default function CalendarView({
                           </button>
                         );
                       })}
-                      {dayTasks.length > 3 && <p className="px-1.5 text-[11px] text-gray-400">+{dayTasks.length - 3} {t('calendar_more_suffix')}</p>}
+                      {dayTasks.length > 3 && <p className="px-1.5 text-[0.6875rem] text-gray-400">+{dayTasks.length - 3} {t('calendar_more_suffix')}</p>}
                     </div>
                   </>
                 )}
@@ -312,7 +312,7 @@ export default function CalendarView({
           </h3>
           <p className="text-xs text-gray-400">{t('calendar_unscheduled_subtitle')}</p>
         </div>
-        <div className="max-h-[500px] divide-y divide-gray-100 overflow-y-auto p-2">
+        <div className="max-h-[31.25rem] divide-y divide-gray-100 overflow-y-auto p-2">
           {unscheduled.length === 0 && <p className="p-2 text-center text-xs text-gray-400">{t('calendar_unscheduled_empty')}</p>}
           {unscheduled.map((t) => (
             <button

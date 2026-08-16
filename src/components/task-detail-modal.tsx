@@ -615,7 +615,7 @@ export default function TaskDetailModal({
                       label-di-atas-input. Kontrolnya (select/input) TETAP fungsi & handler yang
                       sama persis seperti sebelumnya, cuma pembungkusnya yang berubah. */}
                   <div>
-                    <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wider text-gray-400">
+                    <p className="mb-1.5 text-[0.6875rem] font-semibold uppercase tracking-wider text-gray-400">
                       {t('td_fields_section_title')}
                     </p>
                     <div className="rounded-xl border border-gray-200 bg-white px-3">

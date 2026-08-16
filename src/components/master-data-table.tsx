@@ -689,7 +689,7 @@ export default function MasterDataTable({
                       <td key={f.key} className="px-4 py-2 text-gray-700">
                         {renderCellForTable(t, f, row[f.key], options[f.key])}
                         {idx === 0 && isSystemRow && (
-                          <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[10px] font-medium uppercase text-gray-500">
+                          <span className="ml-2 rounded-full bg-gray-100 px-2 py-0.5 text-[0.625rem] font-medium uppercase text-gray-500">
                             {t('md_badge_system')}
                           </span>
                         )}

@@ -470,7 +470,7 @@ export default function UsersTable({
                         <span>{row.name}</span>
                       </div>
                       {row.must_change_password === 'Ya' && (
-                        <span className="ml-11 mt-0.5 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium uppercase text-amber-700">
+                        <span className="ml-11 mt-0.5 inline-block rounded-full bg-amber-100 px-2 py-0.5 text-[0.625rem] font-medium uppercase text-amber-700">
                           {t('u_must_change_password_badge')}
                         </span>
                       )}

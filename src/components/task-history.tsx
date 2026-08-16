@@ -100,7 +100,7 @@ export default function TaskHistory({ taskId }: { taskId: string }) {
                   <span className="font-medium text-gray-900">{h.changed_by_name}</span>
                   <span className="text-xs text-gray-400">{formatDate(h.created_at)}</span>
                   {h.change_type === 'status' && (
-                    <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700">
+                    <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[0.625rem] font-medium text-indigo-700">
                       {t('col_status')}
                     </span>
                   )}

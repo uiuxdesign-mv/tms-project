@@ -48,7 +48,7 @@ export function DonutChart({ items, emptyLabel = 'Tidak ada data.' }: { items: D
           className="relative h-40 w-40 rounded-full"
           style={{ backgroundImage: `conic-gradient(${stops.join(', ')})` }}
         >
-          <div className="absolute inset-[16px] rounded-full bg-white" />
+          <div className="absolute inset-[1rem] rounded-full bg-white" />
         </div>
       </div>
     </div>

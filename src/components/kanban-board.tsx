@@ -313,7 +313,12 @@ export default function KanbanBoard({
         />
 
         <div className="overflow-x-auto p-4">
-        <div className="flex gap-4" style={{ minWidth: `${sortedStatuses.length * 280}px` }}>
+        {/* Perbaikan (permintaan user, "sesuaikan ukuran semua tampilan menjadi 80%"): lebar kolom
+            Kanban di bawah diganti dari `w-[280px]` (px mentah, tidak ikut menyusut waktu font-size
+            root dikecilkan) ke `w-[17.5rem]` (setara 280px di skala 100%) — angka `17.5` di sini
+            HARUS tetap sama dengan angka rem di `w-[17.5rem]` pada kolom di bawah, supaya lebar
+            total tetap konsisten dengan lebar kolom asli. */}
+        <div className="flex gap-4" style={{ minWidth: `${sortedStatuses.length * 17.5}rem` }}>
           {sortedStatuses.map((status) => {
             const columnTasks = visibleRows.filter((r) => r.status_id === status.value);
             const isDropTarget = dragOverStatusId === status.value;
@@ -329,7 +334,7 @@ export default function KanbanBoard({
                   e.preventDefault();
                   handleDrop(status);
                 }}
-                className={`flex w-[280px] shrink-0 flex-col rounded-xl border transition-colors ${
+                className={`flex w-[17.5rem] shrink-0 flex-col rounded-xl border transition-colors ${
                   isDropTarget ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-gray-50'
                 }`}
               >
@@ -391,7 +396,7 @@ export default function KanbanBoard({
                             <span />
                           )}
                           <span
-                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[11px] font-medium text-white"
+                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[0.6875rem] font-medium text-white"
                             title={assigneeName}
                           >
                             {initialOf(assigneeName)}

@@ -24,7 +24,7 @@ export function SortableHeader({
         className={`flex items-center gap-1 hover:text-gray-900 ${active ? 'text-gray-900' : ''}`}
       >
         {label}
-        <span className="text-[10px]">{active ? (dir === 'asc' ? '▲' : '▼') : ''}</span>
+        <span className="text-[0.625rem]">{active ? (dir === 'asc' ? '▲' : '▼') : ''}</span>
       </button>
     </th>
   );

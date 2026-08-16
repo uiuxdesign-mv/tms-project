@@ -159,7 +159,7 @@ export default function TaskTimeTrackingPanel({
             </span>
           ) : (
             <span className="flex items-baseline gap-1">
-              <span className="text-[10px] uppercase tracking-wide text-gray-400">
+              <span className="text-[0.625rem] uppercase tracking-wide text-gray-400">
                 {isReviewStatus ? t('tt_review_time') : t('tt_work_time')}
               </span>
               <span className="tabular-nums text-sm font-semibold text-gray-900">
@@ -256,16 +256,16 @@ export default function TaskTimeTrackingPanel({
           <div className={`grid gap-2 text-center ${isFinalStatus ? 'grid-cols-2' : 'grid-cols-3'}`}>
             {!isFinalStatus && (
               <div>
-                <p className="text-[10px] uppercase tracking-wide text-gray-400">{t('td_current_session')}</p>
+                <p className="text-[0.625rem] uppercase tracking-wide text-gray-400">{t('td_current_session')}</p>
                 <p className="tabular-nums text-base font-semibold text-gray-900">{formatDuration(currentSessionSeconds)}</p>
               </div>
             )}
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-gray-400">{t('tt_work_time')}</p>
+              <p className="text-[0.625rem] uppercase tracking-wide text-gray-400">{t('tt_work_time')}</p>
               <p className="tabular-nums text-base font-semibold text-gray-900">{formatDuration(workTimeSeconds)}</p>
             </div>
             <div>
-              <p className="text-[10px] uppercase tracking-wide text-gray-400">{t('tt_review_time')}</p>
+              <p className="text-[0.625rem] uppercase tracking-wide text-gray-400">{t('tt_review_time')}</p>
               <p className="tabular-nums text-base font-semibold text-amber-600">{formatDuration(reviewTimeSeconds)}</p>
             </div>
           </div>
@@ -293,7 +293,7 @@ export default function TaskTimeTrackingPanel({
               {intervals.length === 0 && <p className="py-3 text-center text-xs text-gray-400">{t('td_no_time_recorded')}</p>}
               {intervals.length > 0 && (
                 <table className="w-full text-left text-xs">
-                  <thead className="text-[10px] uppercase text-gray-400">
+                  <thead className="text-[0.625rem] uppercase text-gray-400">
                     <tr>
                       <th className="pb-1 pr-2 font-medium">{t('td_col_start_resume')}</th>
                       <th className="pb-1 pr-2 font-medium">{activeTab === 'review' ? t('td_col_back_done') : t('td_col_pause_stop')}</th>
@@ -331,12 +331,12 @@ export default function TaskTimeTrackingPanel({
                           <td className="py-1 pr-2">
                             <div className={`font-medium ${openColor}`}>{openLabel}</div>
                             <div className="text-gray-500">{formatLogTimestamp(iv.startAt)}</div>
-                            <div className="text-[10px] text-gray-400">{resolveActorName(iv.startedByUserId)}</div>
+                            <div className="text-[0.625rem] text-gray-400">{resolveActorName(iv.startedByUserId)}</div>
                           </td>
                           <td className="py-1 pr-2">
                             <div className={`font-medium ${closeColor}`}>{closeLabel}</div>
                             <div className="text-gray-500">{iv.endAt ? formatLogTimestamp(iv.endAt) : '-'}</div>
-                            {iv.endAt && <div className="text-[10px] text-gray-400">{resolveActorName(iv.endedByUserId)}</div>}
+                            {iv.endAt && <div className="text-[0.625rem] text-gray-400">{resolveActorName(iv.endedByUserId)}</div>}
                           </td>
                           <td className="py-1 tabular-nums text-gray-700">
                             {iv.endAt ? formatDuration(iv.seconds) : formatDuration(currentSessionSeconds)}

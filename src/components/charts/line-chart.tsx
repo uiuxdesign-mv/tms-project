@@ -35,7 +35,7 @@ export function LineChart({
           </svg>
         </span>
         <p className="text-sm text-gray-500">{emptyTitle}</p>
-        {emptyCaption && <p className="max-w-[220px] text-xs text-gray-400">{emptyCaption}</p>}
+        {emptyCaption && <p className="max-w-[13.75rem] text-xs text-gray-400">{emptyCaption}</p>}
       </div>
     );
   }
@@ -79,7 +79,7 @@ export function LineChart({
           </circle>
         ))}
       </svg>
-      <div className="relative mt-1 h-4 text-[10px] text-gray-400">
+      <div className="relative mt-1 h-4 text-[0.625rem] text-gray-400">
         {coords
           .filter((_, i) => i % labelStride === 0 || i === coords.length - 1)
           .map((c) => {

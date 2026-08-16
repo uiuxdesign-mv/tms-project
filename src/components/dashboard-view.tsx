@@ -328,7 +328,7 @@ export default function DashboardView({
                     <span className="font-medium text-gray-800">{a.actor_name}</span>{' '}
                     <span className={ACTION_COLOR[a.action]}>{ACTION_LABEL[a.action]}</span>{' '}
                     <span className="text-gray-600">{a.entity_label}</span>
-                    <div className="text-[11px] text-gray-400">{formatDateShort(a.created_at)}</div>
+                    <div className="text-[0.6875rem] text-gray-400">{formatDateShort(a.created_at)}</div>
                   </div>
                 ))}
               </div>

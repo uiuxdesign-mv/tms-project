@@ -108,30 +108,33 @@
 }
 
 /*
- * Perbaikan (permintaan user): skala SELURUH tampilan aplikasi jadi 80%. Sengaja pakai `zoom`
- * (bukan mengecilkan `font-size` di root `html`) setelah dicek dulu — banyak sekali tempat di
- * aplikasi ini yang pakai ukuran piksel MENTAH lewat Tailwind arbitrary value (mis. `text-[10px]`
- * untuk label/badge kecil, `w-[280px]` untuk kolom Kanban, `max-h-[500px]`, dst — puluhan titik
- * tersebar di banyak file), bukan cuma unit `rem` yang ikut mengecil kalau cuma font-size root
- * yang diubah. Kalau cuma font-size root yang dikecilkan, semua yang px MENTAH itu TIDAK ikut
- * menyusut — hasilnya badge/label kecil itu malah kelihatan RELATIF LEBIH BESAR dibanding elemen
- * di sekitarnya yang sudah menyusut, tampilan jadi tidak proporsional/konsisten (persis risiko
- * "keterkaitan satu sama lain" yang diminta user untuk dipikirkan dulu).
+ * Perbaikan (permintaan user): skala SELURUH tampilan aplikasi jadi 80%.
  *
- * `zoom` menyisir SEMUA ukuran sekaligus (px mentah maupun rem) jadi 80% tanpa perlu menyisir satu
- * per satu — dan sudah dicek lewat Playwright sebelum dipasang, supaya tidak menebak-nebak:
- * - Modal/dialog `position: fixed` (dipakai di HAMPIR SEMUA modal aplikasi ini) tetap menutupi
- *   PENUH viewport seperti biasa — `zoom` TIDAK membuat containing block baru untuk elemen fixed
- *   (beda dari `transform: scale` yang akan merusak semua modal fixed kalau dipakai sebagai
- *   pengganti `zoom` di sini).
- * - Breakpoint responsif Tailwind (`md:`/`lg:` dkk, berbasis media query) TETAP dievaluasi
- *   terhadap lebar viewport ASLI perangkat, tidak ikut bergeser gara-gara zoom — jadi kapan
- *   sidebar mobile vs desktop muncul tidak berubah dari sebelumnya.
- * - Koordinat pointer/klik & `getBoundingClientRect()` (dipakai al. oleh komponen crop foto
- *   profil) tetap mengikuti ukuran VISUAL hasil zoom, konsisten dengan apa yang terlihat di layar.
+ * RIWAYAT (penting supaya tidak diulang lagi): percobaan PERTAMA pakai `zoom: 0.8` di sini —
+ * dipilih karena bisa menyisir ukuran piksel MENTAH (`text-[10px]`, `w-[280px]`, dst, yang TIDAK
+ * ikut mengecil kalau cuma font-size root yang diubah) sekaligus rem, dan sudah dicek dulu lewat
+ * Playwright soal modal `position:fixed` & breakpoint responsif — keduanya aman. TAPI ternyata ada
+ * satu hal yang lolos dari pengecekan itu: `zoom` mengecilkan HASIL RENDER dari elemen yang lebar/
+ * tingginya dihitung dari unit viewport (`min-h-screen` = min-height:100vh, `h-full` yang
+ * rantainya sampai ke `<html>`/`<body>`, dst — dipakai di HAMPIR SEMUA halaman aplikasi ini untuk
+ * memastikan layout penuh 1 layar). Karena `vh`/`vw` selalu dihitung dari ukuran viewport ASLI
+ * (tidak ikut mengecil walau leluhurnya di-zoom), box yang tingginya "100vh" itu computed height-
+ * nya tetap penuh 1 layar, TAPI setelah di-zoom 0.8 hasil render visualnya cuma menutupi 80% dari
+ * layar — sisa 20% di kanan/bawah jadi kosong putih (persis keluhan user: "tampilannya tidak full
+ * layar"). Ini baru kelihatan setelah dicoba di deployment sungguhan, tidak kelihatan di skenario
+ * uji sebelumnya (skenario ujinya tidak menyertakan kombinasi zoom + `min-h-screen`).
+ *
+ * SOLUSI: pindah ke pendekatan mengecilkan `font-size` di root `html` (12.8px, dari default 16px)
+ * — TIDAK py problem di atas sama sekali, karena `vh`/`vw` tidak terpengaruh font-size, jadi
+ * `min-h-screen`/`h-full` tetap PERSIS menutupi 1 layar penuh seperti biasa, cuma isinya (yang
+ * berbasis `rem`) yang mengecil proporsional. Supaya tetap konsisten (isu piksel mentah yang jadi
+ * alasan awal pakai `zoom`), SEMUA Tailwind arbitrary value berbasis piksel mentah di seluruh
+ * komponen (`text-[10px]`, `w-[280px]`, `max-h-[500px]`, dkk — lihat commit ini) sudah disisir
+ * satu-satu diganti ke satuan `rem` yang setara, supaya tetap ikut menyusut sama seperti elemen
+ * lain di sekitarnya walau pendekatannya sekarang font-size, bukan zoom lagi.
  */
 html {
-  zoom: 0.8;
+  font-size: 80%;
 }
 
 body {
