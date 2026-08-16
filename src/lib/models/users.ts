@@ -27,16 +27,6 @@ export async function findUserByEmail(email: string): Promise<UserRow | undefine
   return row as UserRow | undefined;
 }
 
-export async function findUserById(id: string): Promise<UserRow | undefined> {
-  const row = await SheetTable.findById('users', id);
-  return row as UserRow | undefined;
-}
-
-export async function getAllUsers(): Promise<UserRow[]> {
-  const rows = await SheetTable.getAll('users');
-  return rows as UserRow[];
-}
-
 export async function verifyPassword(plain: string, hash: string): Promise<boolean> {
   return bcrypt.compare(plain, hash);
 }

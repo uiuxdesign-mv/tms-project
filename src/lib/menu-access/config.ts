@@ -2,8 +2,6 @@ import { MASTER_DATA_ENTITIES } from '@/lib/master-data/config';
 
 export type MenuAction = 'view' | 'create' | 'edit' | 'delete' | 'export';
 
-export const MENU_ACTIONS: MenuAction[] = ['view', 'create', 'edit', 'delete', 'export'];
-
 export type MenuKeyDef = {
   key: string;
   label: string;
@@ -36,11 +34,3 @@ export const MASTER_MENU_KEYS: MenuKeyDef[] = Object.entries(MASTER_DATA_ENTITIE
  * Lihat requireAdmin() di src/app/api/users/*.
  */
 export const MENU_KEYS: MenuKeyDef[] = [...TASK_MENU_KEYS, ...MASTER_MENU_KEYS];
-
-export function isValidMenuKey(key: string): boolean {
-  return MENU_KEYS.some((m) => m.key === key);
-}
-
-export function getMenuLabel(key: string): string {
-  return MENU_KEYS.find((m) => m.key === key)?.label || key;
-}

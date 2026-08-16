@@ -24,8 +24,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   // pesan jelas ("belum dikonfigurasi") daripada 500 mentah — pola sama seperti Time Tracking
   // Fase 8 (getTimeStatesForTasks).
   try {
-    const comments = await getCommentsForTask(id);
-    const users = await SheetTable.getAll('users');
+    // Perbaikan (Round 23 — audit efisiensi menyeluruh): komentar (sheet task_comments) dan daftar
+    // users (untuk lookup nama) SALING BEBAS satu sama lain — sebelumnya dibaca berurutan sehingga
+    // total waktu tunggu = jumlah kedua panggilan. Diparalelkan lewat Promise.all, pola yang sama
+    // dipakai di seluruh Round 22/23 untuk memangkas latensi endpoint yang sering diakses (modal
+    // komentar task) menjadi hanya selama panggilan TERLAMBAT di antara keduanya.
+    const [comments, users] = await Promise.all([getCommentsForTask(id), SheetTable.getAll('users')]);
     const nameById = new Map(users.map((u) => [u.id, u.name]));
 
     return NextResponse.json({

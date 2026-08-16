@@ -24,8 +24,9 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   }
 
   try {
-    const history = await getHistoryForTask(id);
-    const users = await SheetTable.getAll('users');
+    // Perbaikan (Round 23): sama pola dengan GET /api/tasks/[id]/comments — riwayat (task_history)
+    // dan daftar users (untuk lookup nama) saling bebas, diparalelkan lewat Promise.all.
+    const [history, users] = await Promise.all([getHistoryForTask(id), SheetTable.getAll('users')]);
     const nameById = new Map(users.map((u) => [u.id, u.name]));
 
     return NextResponse.json({

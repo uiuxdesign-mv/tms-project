@@ -145,9 +145,10 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
     return NextResponse.json({ error: 'Tidak bisa menghapus akun Anda sendiri.' }, { status: 400 });
   }
 
-  const existing = await SheetTable.findById('users', id);
-
-  await SheetTable.softDeleteRow('users', id);
+  // Perbaikan (Round 23): route ini TIDAK punya guard 404 (softDeleteRow dipanggil tanpa syarat)
+  // — `existing` cuma dipakai utk label audit log di after(), tidak menggerbang softDeleteRow sama
+  // sekali. Jadi keduanya independen, diparalelkan lewat Promise.all.
+  const [existing] = await Promise.all([SheetTable.findById('users', id), SheetTable.softDeleteRow('users', id)]);
 
   after(() =>
     logAction({

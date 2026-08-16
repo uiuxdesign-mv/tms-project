@@ -89,9 +89,13 @@ export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: str
   const existing = (await SheetTable.findById('task_comments', commentId)) as CommentRow | undefined;
   if (!existing) return NextResponse.json({ error: 'Komentar tidak ditemukan.' }, { status: 404 });
 
-  const parentTask = existing.task_id ? await SheetTable.findById('tasks', existing.task_id) : undefined;
+  // Perbaikan (Round 23): lookup task induk (untuk canManageTaskInfo) dan pengecekan izin 'delete'
+  // menu Tasking SALING BEBAS — sebelumnya berurutan, sekarang diparalelkan (Promise.all).
+  const [parentTask, hasDeletePermission] = await Promise.all([
+    existing.task_id ? SheetTable.findById('tasks', existing.task_id) : Promise.resolve(undefined),
+    hasMenuPermission(session, 'tasking', 'delete'),
+  ]);
   const canManageParentTask = !!parentTask && canManageTaskInfo(session, parentTask);
-  const hasDeletePermission = await hasMenuPermission(session, 'tasking', 'delete');
   if (!canDeleteComment(session, existing, hasDeletePermission, canManageParentTask)) {
     return NextResponse.json({ error: 'Anda tidak punya akses untuk menghapus komentar ini.' }, { status: 403 });
   }

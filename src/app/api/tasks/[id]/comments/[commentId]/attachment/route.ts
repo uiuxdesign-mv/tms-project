@@ -16,13 +16,20 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
   const { session } = guard;
   const { id, commentId } = await ctx.params;
 
-  const task = await SheetTable.findById('tasks', id);
+  // Perbaikan (Round 23): lookup task (untuk cek izin canReadComments) dan lookup komentar (untuk
+  // validasi attachment) SALING BEBAS — id task & commentId sama-sama sudah ada dari params, tidak
+  // saling butuh hasil satu sama lain. Diparalelkan; kalau task ternyata tidak ada/izin ditolak,
+  // hasil comment yang sudah ikut terambil cukup dibuang (trade-off kecil demi mempercepat jalur
+  // normal, sama seperti pola paralelisasi lain di Round 22/23).
+  const [task, comment] = await Promise.all([
+    SheetTable.findById('tasks', id),
+    SheetTable.findById('task_comments', commentId) as Promise<CommentRow | undefined>,
+  ]);
   if (!task) return NextResponse.json({ error: 'Task tidak ditemukan.' }, { status: 404 });
   if (!canReadComments(session, task)) {
     return NextResponse.json({ error: 'Anda tidak punya akses ke task ini.' }, { status: 403 });
   }
 
-  const comment = (await SheetTable.findById('task_comments', commentId)) as CommentRow | undefined;
   if (!comment || comment.task_id !== id || !comment.attachment_drive_file_id) {
     return NextResponse.json({ error: 'Lampiran tidak ditemukan.' }, { status: 404 });
   }
