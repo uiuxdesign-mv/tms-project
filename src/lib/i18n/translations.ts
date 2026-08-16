@@ -304,6 +304,13 @@ export const translations = {
   hist_field_est_hours: { id: 'Estimasi Jam', en: 'Est. Hours' },
   hist_field_related_task: { id: 'Task Terkait', en: 'Related Task' },
 
+  // Riwayat aksi Jeda/Lanjutkan Time Tracking (permintaan user poin 1: "catat juga di aktifitas
+  // perubahan saat melakukan action jeda dan saat melakukan resume di tasking"). BEDA dari
+  // hist_field_*/history_changed_from/history_changed_to di atas — entri ini bukan "field diubah
+  // dari X menjadi Y", jadi butuh kalimat lengkap tersendiri, bukan potongan kalimat.
+  history_tt_pause: { id: 'Menjeda Time Tracking.', en: 'Paused Time Tracking.' },
+  history_tt_resume: { id: 'Melanjutkan Time Tracking.', en: 'Resumed Time Tracking.' },
+
   // Activity Feed Terpadu (Redesign Modal Task Detail Round 10, "Saran 4" — permintaan user:
   // gabungkan Komentar + Riwayat Perubahan jadi satu feed kronologis dengan filter & collapse
   // aktivitas lama, ala ClickUp). Key comments_*/history_* di atas TETAP dipakai apa adanya di

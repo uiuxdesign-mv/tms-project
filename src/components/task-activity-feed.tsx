@@ -39,7 +39,10 @@ type Comment = {
 type HistoryEntry = {
   id: string;
   task_id: string;
-  change_type: 'field' | 'status';
+  // Perbaikan (permintaan user poin 1): 'time_tracking' — entri aksi Jeda/Lanjutkan, lihat
+  // renderHistoryItem di bawah untuk cara tampilnya (beda dari 'field'/'status' yang berupa
+  // "diubah dari X menjadi Y").
+  change_type: 'field' | 'status' | 'time_tracking';
   field_key: string;
   old_value_label: string;
   new_value_label: string;
@@ -643,6 +646,24 @@ export default function TaskActivityFeed({
               <span>{t('history_changed_to')}</span>
               <Badge label={valueLabel(h.new_value_label)} color={statusColorByLabel[h.new_value_label]} />
             </div>
+          ) : h.change_type === 'time_tracking' ? (
+            // Perbaikan (permintaan user poin 1 — "catat juga di aktifitas perubahan saat
+            // melakukan action jeda dan saat melakukan resume di tasking"): entri aksi Jeda/
+            // Lanjutkan BUKAN perubahan nilai field (tidak ada "dari X menjadi Y"), jadi cukup 1
+            // kalimat pendek berikon — ikon sama seperti tombol Jeda/Lanjut di
+            // TimeTrackingControls supaya konsisten secara visual di seluruh aplikasi.
+            <p className="mt-0.5 flex items-center gap-1.5 text-gray-700">
+              {h.field_key === 'pause' ? (
+                <svg className="h-3.5 w-3.5 shrink-0 text-amber-600" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M6 5h4v14H6zm8 0h4v14h-4z" />
+                </svg>
+              ) : (
+                <svg className="h-3.5 w-3.5 shrink-0 text-indigo-600" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M8 5v14l11-7z" />
+                </svg>
+              )}
+              {h.field_key === 'pause' ? t('history_tt_pause') : t('history_tt_resume')}
+            </p>
           ) : (
             <p className="mt-0.5 text-gray-700">
               <span className="font-medium">{fieldLabel(h.field_key)}</span>{' '}

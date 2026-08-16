@@ -158,13 +158,29 @@ export async function insertRow(sheetKey: SheetKey, data: Record<string, string>
 
   const row = header.map((col) => full[col] ?? '');
 
-  await sheets.spreadsheets.values.append({
-    spreadsheetId,
-    range: 'A1',
-    valueInputOption: 'RAW',
-    insertDataOption: 'INSERT_ROWS',
-    requestBody: { values: [row] },
-  });
+  // Bugfix (permintaan user: "action ... masih sering lama merespon, bahkan sering error"): dulu
+  // panggilan TULIS ini (values.append) sama sekali TIDAK di-retry — beda dengan pembacaan
+  // (readHeaderAndRows di atas, sudah dibungkus withRetry sejak perbaikan reliability sebelumnya).
+  // Begitu Google Sheets API kena rate-limit (429) atau error 5xx sesaat persis di momen menulis
+  // (mis. Start/Pause/Resume/Stop Time Tracking, tambah komentar, dll — semuanya lewat insertRow),
+  // request langsung gagal total walau cuma butuh dicoba ulang sebentar. Sekarang pakai withRetry
+  // yang sama seperti pembacaan. CATATAN transparansi: berbeda dari pembacaan yang selalu aman
+  // diulang (idempotent), menulis SECARA TEORI berisiko menghasilkan baris duplikat kalau request
+  // sebenarnya SUDAH sukses diproses Google tapi responsnya hilang di jaringan sebelum sampai balik
+  // ke server ini (retry lalu mengirim ulang append yang sama). Risiko ini kecil (bukan skenario
+  // utama withRetry, yang menyasar 429/5xx — respons error EKSPLISIT dari Google, artinya request
+  // MEMANG ditolak/belum diproses, bukan "sukses tapi responsnya hilang") dan jauh lebih baik
+  // daripada kegagalan total 100% seperti sebelumnya — tapi dicatat di sini supaya tidak
+  // mengejutkan kalau suatu saat perlu didiagnosis.
+  await withRetry(() =>
+    sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: 'A1',
+      valueInputOption: 'RAW',
+      insertDataOption: 'INSERT_ROWS',
+      requestBody: { values: [row] },
+    })
+  );
 
   invalidateCache(`sheet:${sheetKey}`);
 
@@ -239,12 +255,19 @@ export async function updateRow(
   const newRow = header.map((col) => merged[col] ?? '');
   const sheetRowNumber = rowIndex + 2; // +1 karena header, +1 karena 1-indexed
 
-  await sheets.spreadsheets.values.update({
-    spreadsheetId,
-    range: `A${sheetRowNumber}:${columnLetter(header.length)}${sheetRowNumber}`,
-    valueInputOption: 'RAW',
-    requestBody: { values: [newRow] },
-  });
+  // Bugfix (permintaan user: "sering error") — sama seperti insertRow di atas, sekarang di-retry
+  // lewat withRetry. updateRow LEBIH AMAN diulang daripada insertRow: `newRow` sudah dihitung TETAP
+  // di atas SEBELUM percobaan pertama (bukan dihitung ulang tiap retry), jadi retry cuma mengirim
+  // ULANG konten target yang SAMA PERSIS (overwrite idempotent) — tidak ada risiko duplikasi baris
+  // seperti pada append.
+  await withRetry(() =>
+    sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `A${sheetRowNumber}:${columnLetter(header.length)}${sheetRowNumber}`,
+      valueInputOption: 'RAW',
+      requestBody: { values: [newRow] },
+    })
+  );
 
   invalidateCache(`sheet:${sheetKey}`);
   return merged;

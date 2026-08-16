@@ -1,6 +1,5 @@
 import * as SheetTable from '@/lib/google/sheet-table';
 import type { SheetRow } from '@/lib/google/sheet-table';
-import { logTaskChange } from '@/lib/models/task-history';
 
 /**
  * Time Tracking (Fase 8) — meniru spesifikasi Time Tracking di aplikasi lama:
@@ -155,15 +154,43 @@ async function getCancelStatus(): Promise<StatusRow | undefined> {
 }
 
 /**
- * Log history perubahan STATUS (permintaan user poin 4): dipanggil di SETIAP titik runTimeAction
- * yang memindahkan status_id (start-dari-default, stop-ke-review, back, done, cancel). Kedua
- * StatusRow (lama & baru) sudah tersedia di tiap call site tanpa fetch tambahan, jadi label bisa
- * langsung diambil dari status_name masing-masing. logTaskChange sendiri sudah fire-and-forget
- * (tidak pernah melempar), jadi aman langsung di-await di tengah alur Time Tracking.
+ * Entri riwayat yang MASIH TERTUNDA ditulis (permintaan user poin 2 — "aksi ... masih sering lama
+ * merespon, bahkan sering error"): sebelumnya tiap perubahan status di runTimeAction langsung
+ * `await logTaskChange(...)` di tengah alur — 1 penulisan Google Sheets TAMBAHAN (task_history)
+ * SERIAL sebelum response bisa dikirim ke client, di atas penulisan-penulisan lain yang sudah wajib
+ * (task_time_logs, tasks.status_id/actual_duration_seconds). Untuk aksi seperti `stop` yang
+ * memindahkan ke status review, ini bisa jadi 4-5 panggilan Google Sheets API BERURUTAN dalam satu
+ * request — padahal Google Sheets API punya jeda respons yang tidak murah (ratusan ms per
+ * panggilan) DITAMBAH kuota per-menit yang ketat (lihat catatan withRetry di sheet-table.ts),
+ * sehingga rentan lambat/kena rate-limit saat banyak user memakai Time Tracking bersamaan.
+ *
+ * Riwayat (task_history) HANYA dipakai untuk tampilan tab Aktivitas — tidak pernah dibaca ulang
+ * oleh alur Time Tracking itu sendiri untuk menentukan state berikutnya — jadi AMAN ditunda:
+ * setiap titik yang tadinya `await logStatusHistory(...)` sekarang cukup `queueStatusHistory(...)`
+ * (operasi sinkron, push ke array, TIDAK ada I/O) supaya tidak menambah latensi respons sama
+ * sekali. Array ini disisipkan ke TimeActionResult, lalu route handler
+ * (POST /api/tasks/[id]/time-tracking) yang benar-benar menuliskannya ke Google Sheets — dibungkus
+ * `after()` (Next.js) supaya penulisannya jalan SETELAH response dikirim ke client, tidak
+ * memperlambat apa pun yang user rasakan, sekaligus tetap PASTI jalan sampai selesai (tidak seperti
+ * fire-and-forget biasa yang bisa terpotong kalau proses serverless keburu mati).
  */
-async function logStatusHistory(taskId: string, userId: string, oldStatus: StatusRow | undefined, newStatus: StatusRow | undefined) {
-  await logTaskChange({
-    taskId,
+type PendingHistoryEntry = {
+  changeType: 'status' | 'time_tracking';
+  fieldKey: string;
+  oldValueLabel: string;
+  newValueLabel: string;
+  changedBy: string;
+};
+
+/** Antre 1 entri riwayat perubahan STATUS (permintaan user poin 4 — round sebelumnya). Kedua
+ *  StatusRow (lama & baru) sudah tersedia di tiap call site tanpa fetch tambahan. */
+function queueStatusHistory(
+  pending: PendingHistoryEntry[],
+  userId: string,
+  oldStatus: StatusRow | undefined,
+  newStatus: StatusRow | undefined
+) {
+  pending.push({
     changeType: 'status',
     fieldKey: 'status_id',
     oldValueLabel: oldStatus?.status_name || '',
@@ -172,8 +199,19 @@ async function logStatusHistory(taskId: string, userId: string, oldStatus: Statu
   });
 }
 
+/** Antre 1 entri riwayat aksi Jeda/Lanjutkan (permintaan user poin 1 — round ini). */
+function queuePauseResumeHistory(pending: PendingHistoryEntry[], userId: string, action: 'pause' | 'resume') {
+  pending.push({
+    changeType: 'time_tracking',
+    fieldKey: action,
+    oldValueLabel: '',
+    newValueLabel: '',
+    changedBy: userId,
+  });
+}
+
 export type TimeActionResult =
-  | { ok: true; task: SheetRow; events: TimeLogRow[]; state: DerivedTimeState }
+  | { ok: true; task: SheetRow; events: TimeLogRow[]; state: DerivedTimeState; pendingHistory: PendingHistoryEntry[] }
   | { ok: false; error: string };
 
 /**
@@ -246,6 +284,11 @@ async function runTimeActionLocked(
   const events = await getEventsForTask(taskId);
   const derived = deriveState(events);
 
+  // Riwayat perubahan (status & aksi Jeda/Lanjutkan) DIKUMPULKAN di sini dulu (lihat catatan
+  // panjang di PendingHistoryEntry/queueStatusHistory di atas), BUKAN langsung ditulis ke Google
+  // Sheets di tengah alur — supaya tidak menambah latensi respons Time Tracking.
+  const pending: PendingHistoryEntry[] = [];
+
   async function logEvent(sessionNo: number, ev: TimeAction, reviewFlag: boolean, occurredAt: string) {
     await SheetTable.insertRow('task_time_logs', {
       task_id: taskId,
@@ -277,10 +320,10 @@ async function runTimeActionLocked(
     await logEvent(sessionNo, 'start', false, now);
 
     if (isDefault) {
-      const advanced = await advanceToNextStatus(task, status, userId);
+      const advanced = await advanceToNextStatus(task, status, userId, pending);
       if (!advanced.ok) return advanced;
     }
-    return finish(taskId);
+    return finish(taskId, pending);
   }
 
   if (action === 'pause') {
@@ -288,14 +331,18 @@ async function runTimeActionLocked(
     const now = new Date().toISOString();
     await logEvent(derived.currentSessionNo!, 'pause', derived.currentSessionIsReview, now);
     await persistDuration(secondsBetween(derived.liveSince!, now));
-    return finish(taskId);
+    // Permintaan user poin 1: catat aksi Jeda ke Aktivitas/riwayat task.
+    queuePauseResumeHistory(pending, userId, 'pause');
+    return finish(taskId, pending);
   }
 
   if (action === 'resume') {
     if (derived.state !== 'paused') return { ok: false, error: 'Tidak ada sesi yang di-pause untuk di-resume.' };
     const now = new Date().toISOString();
     await logEvent(derived.currentSessionNo!, 'resume', derived.currentSessionIsReview, now);
-    return finish(taskId);
+    // Permintaan user poin 1: catat aksi Lanjutkan ke Aktivitas/riwayat task.
+    queuePauseResumeHistory(pending, userId, 'resume');
+    return finish(taskId, pending);
   }
 
   if (action === 'stop') {
@@ -311,11 +358,11 @@ async function runTimeActionLocked(
     const reviewStatus = statuses.find((s) => s.is_review === 'Ya');
     if (reviewStatus) {
       await SheetTable.updateRow('tasks', taskId, { status_id: reviewStatus.id });
-      await logStatusHistory(taskId, userId, status, reviewStatus);
+      queueStatusHistory(pending, userId, status, reviewStatus);
       // Otomatis buka sesi review baru begitu masuk tahap review (spesifikasi Time Tracking).
       await logEvent(closingSessionNo + 1, 'start', true, now);
     }
-    return finish(taskId);
+    return finish(taskId, pending);
   }
 
   if (action === 'back') {
@@ -334,8 +381,8 @@ async function runTimeActionLocked(
     const previous = statuses.filter((s) => Number(s.workflow_level) < currentLevel).pop();
     if (!previous) return { ok: false, error: 'Tidak ada status sebelumnya untuk kembali (Back).' };
     await SheetTable.updateRow('tasks', taskId, { status_id: previous.id });
-    await logStatusHistory(taskId, userId, status, previous);
-    return finish(taskId);
+    queueStatusHistory(pending, userId, status, previous);
+    return finish(taskId, pending);
   }
 
   if (action === 'done') {
@@ -360,8 +407,8 @@ async function runTimeActionLocked(
       status_id: finalStatus.id,
       completed_at: task.completed_at || now,
     });
-    await logStatusHistory(taskId, userId, status, finalStatus);
-    return finish(taskId);
+    queueStatusHistory(pending, userId, status, finalStatus);
+    return finish(taskId, pending);
   }
 
   if (action === 'cancel') {
@@ -388,8 +435,8 @@ async function runTimeActionLocked(
       status_id: cancelStatus.id,
       completed_at: task.completed_at || now,
     });
-    await logStatusHistory(taskId, userId, status, cancelStatus);
-    return finish(taskId);
+    queueStatusHistory(pending, userId, status, cancelStatus);
+    return finish(taskId, pending);
   }
 
   return { ok: false, error: 'Aksi tidak dikenal.' };
@@ -398,23 +445,24 @@ async function runTimeActionLocked(
 async function advanceToNextStatus(
   task: SheetRow,
   currentStatus: StatusRow,
-  userId: string
+  userId: string,
+  pending: PendingHistoryEntry[]
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const statuses = await getStatusesSorted();
   const currentLevel = Number(currentStatus.workflow_level);
   const next = statuses.find((s) => Number(s.workflow_level) === currentLevel + 1);
   if (!next) return { ok: false, error: 'Tidak ada status berikutnya (workflow_level+1) untuk maju.' };
   await SheetTable.updateRow('tasks', task.id, { status_id: next.id });
-  await logStatusHistory(task.id, userId, currentStatus, next);
+  queueStatusHistory(pending, userId, currentStatus, next);
   return { ok: true };
 }
 
-async function finish(taskId: string): Promise<TimeActionResult> {
+async function finish(taskId: string, pendingHistory: PendingHistoryEntry[]): Promise<TimeActionResult> {
   const task = await SheetTable.findById('tasks', taskId);
   if (!task) return { ok: false, error: 'Task tidak ditemukan setelah update.' };
   const events = await getEventsForTask(taskId);
   const state = deriveState(events);
-  return { ok: true, task, events, state };
+  return { ok: true, task, events, state, pendingHistory };
 }
 
 /** Dipakai UI untuk menghitung "closedSeconds" total (sudah termasuk cache tasks.actual_duration_seconds). */

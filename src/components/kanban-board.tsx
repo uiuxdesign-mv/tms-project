@@ -165,6 +165,30 @@ export default function KanbanBoard({
 
   const silentReload = useCallback(() => load({ silent: true }), [load]);
 
+  // Perbaikan (permintaan user poin 2 — "aksi pada card kanban ... masih sering lama merespon,
+  // bahkan sering error"): reload versi RINGAN khusus dipakai `onChanged` milik
+  // <TimeTrackingControls> yang menempel langsung di kartu (Start/Pause/Resume/Stop). Aksi Time
+  // Tracking TIDAK PERNAH mengubah opsi master data (Client/Project/Task Type/Priority/Status/
+  // Assignee) — silentReload biasa di atas selalu ikut me-refetch /api/tasks/options juga (2 dari
+  // 8 sheet-nya SELALU langsung ke Google Sheets API, lihat catatan di route-nya), padahal untuk
+  // kasus ini datanya dijamin tidak berubah. Cukup /api/tasks saja (berisi status_id & timeTracking
+  // task yang barusan diubah — yang sebenarnya dibutuhkan kartu untuk re-render). Modal Detail
+  // (`onChanged={silentReload}` di <TaskDetailModal> di bawah) TETAP pakai versi lengkap — Save
+  // (bisa reassign/pindah client-project) & aksi lain dari modal lebih aman disamakan seperti
+  // semula. Kegagalan reload latar belakang ini sengaja TIDAK men-set `error` (yang akan mem-blank
+  // SELURUH papan) — cukup dicoba lagi di reload berikutnya (polling 20 detik atau aksi berikutnya).
+  const silentReloadTasksOnly = useCallback(async () => {
+    try {
+      const tasksRes = await apiFetch('/api/tasks');
+      const tasksJson = await parseJsonSafe(tasksRes);
+      if (!tasksRes.ok || !tasksJson.data) return;
+      setRows(tasksJson.data);
+      setViewCache('tasks:kanban:rows', tasksJson.data);
+    } catch {
+      // Diam-diam — lihat catatan di atas.
+    }
+  }, []);
+
   // Perbaikan (permintaan user Round 5, poin 2): polling diam-diam, sama pola & alasannya dengan
   // tasks-table.tsx (lihat use-polling.ts) — dimatikan selagi kartu sedang di-drag atau modal
   // Detail terbuka, supaya papan tidak "melompat" di tengah interaksi user.
@@ -230,6 +254,19 @@ export default function KanbanBoard({
       return;
     }
 
+    // Perbaikan (permintaan user poin 3 — "card tidak langsung berpindah, delay lama"): begitu drop
+    // dinyatakan valid, kartu dipindah ke kolom baru SEKARANG JUGA di state lokal (`rows`) —
+    // sebelumnya kartu baru tampak pindah kolom setelah `load({silent:true})` di bawah selesai
+    // (menunggu penuh round-trip POST/PATCH + reload berikutnya, jadi berasa lambat/macet padahal
+    // servernya sendiri sudah merespons). `previousStatusId` disimpan untuk ROLLBACK kalau request
+    // ternyata ditolak/gagal server — supaya tidak ada kartu yang "salah tempat" pada kegagalan.
+    const previousStatusId = task.status_id;
+    setRows((prev) => prev.map((r) => (r.id === taskId ? { ...r, status_id: targetStatus.value } : r)));
+
+    function rollback() {
+      setRows((prev) => prev.map((r) => (r.id === taskId ? { ...r, status_id: previousStatusId } : r)));
+    }
+
     try {
       let res: Response;
       if (currentStatus?.isDefault) {
@@ -263,12 +300,17 @@ export default function KanbanBoard({
       }
       const json = await parseJsonSafe(res);
       if (!res.ok) {
+        rollback();
         toast.error(json.fieldErrors?.status_id || json.error || t('toast_move_task_failed'));
         return;
       }
+      // Kartu sudah tampak di kolom baru sejak optimistic update di atas — reload di sini cuma
+      // menyinkronkan detail lain (state Time Tracking, durasi, dst) dengan data server yang
+      // sebenarnya, BUKAN yang membuat kartu terlihat berpindah (itu sudah terjadi instan tadi).
       await load({ silent: true });
       toast.success(`${t('toast_task_moved_prefix')} "${targetStatus.label}".`);
     } catch {
+      rollback();
       toast.error(t('toast_network_error'));
     }
   }
@@ -392,7 +434,24 @@ export default function KanbanBoard({
                       <div
                         key={row.id}
                         draggable={manageable}
-                        onDragStart={() => setDragTaskId(row.id)}
+                        onDragStart={(e) => {
+                          setDragTaskId(row.id);
+                          // Perbaikan (permintaan user poin 3 — "ketika card saya geser, maka card
+                          // itu nampak ikut tergeser kemana pun kursor bergerak selama di drag"):
+                          // set drag image SECARA EKSPLISIT ke elemen kartu itu sendiri, dengan
+                          // offset persis di titik kursor menekan kartu (bukan pojok kiri-atas) —
+                          // sebelumnya mengandalkan default browser tanpa parameter eksplisit, yang
+                          // konsistensinya tidak terjamin di semua kombinasi browser/OS (sebagian
+                          // menampilkan ghost pudar/kecil, bukan tampilan kartu yang sebenarnya).
+                          // `effectAllowed` juga diset supaya kursor menampilkan ikon "pindah" yang
+                          // benar sepanjang drag berlangsung.
+                          if (e.dataTransfer) {
+                            e.dataTransfer.effectAllowed = 'move';
+                            const target = e.currentTarget;
+                            const rect = target.getBoundingClientRect();
+                            e.dataTransfer.setDragImage(target, e.clientX - rect.left, e.clientY - rect.top);
+                          }
+                        }}
                         onDragEnd={() => {
                           setDragTaskId(null);
                           setDragOverStatusId(null);
@@ -443,7 +502,7 @@ export default function KanbanBoard({
                             timeTracking={row.timeTracking}
                             status={status}
                             canManage={manageable}
-                            onChanged={silentReload}
+                            onChanged={silentReloadTasksOnly}
                             compact
                           />
                         </div>

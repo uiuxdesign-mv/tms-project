@@ -4,6 +4,7 @@ import * as SheetTable from '@/lib/google/sheet-table';
 import { canManageTaskInfo, canOperateTimeTracking, canViewTask } from '@/lib/models/tasks';
 import { runTimeAction, getTimeStateForTask } from '@/lib/models/time-tracking';
 import { logAction } from '@/lib/models/audit-log';
+import { logTaskChange, logTimeTrackingHistory } from '@/lib/models/task-history';
 
 const VALID_ACTIONS = new Set(['start', 'pause', 'resume', 'stop', 'back', 'done', 'cancel']);
 
@@ -90,6 +91,32 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ id: string
       entityLabel: `${existing.title || id} — Time Tracking: ${action}`,
     })
   );
+
+  // Perbaikan (permintaan user poin 1 & 2): riwayat perubahan status DAN aksi Jeda/Lanjutkan
+  // (lihat catatan panjang di PendingHistoryEntry, src/lib/models/time-tracking.ts) ditulis di sini
+  // — SETELAH response dikirim ke client (after()) — supaya penulisan task_history TIDAK menambah
+  // waktu tunggu user sama sekali, tapi tetap dijamin selesai walau proses serverless-nya sudah
+  // "boleh" berhenti sejak response terkirim. Setiap entri diproses lewat fungsi yang sesuai
+  // change_type-nya: 'time_tracking' (Jeda/Lanjutkan) lewat logTimeTrackingHistory (tidak ada
+  // old/new value), sisanya ('status') lewat logTaskChange seperti perubahan field/status lainnya.
+  if (result.pendingHistory.length > 0) {
+    after(async () => {
+      for (const h of result.pendingHistory) {
+        if (h.changeType === 'time_tracking') {
+          await logTimeTrackingHistory({ taskId: id, action: h.fieldKey as 'pause' | 'resume', changedBy: h.changedBy });
+        } else {
+          await logTaskChange({
+            taskId: id,
+            changeType: h.changeType,
+            fieldKey: h.fieldKey,
+            oldValueLabel: h.oldValueLabel,
+            newValueLabel: h.newValueLabel,
+            changedBy: h.changedBy,
+          });
+        }
+      }
+    });
+  }
 
   return NextResponse.json({ data: { task: result.task, state: result.state, events: result.events } });
 }

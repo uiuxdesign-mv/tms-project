@@ -235,28 +235,40 @@ export default function TaskDetailModal({
   // parameter `silent` dipakai untuk reload setelah aksi: data & tampilan tetap ada di layar,
   // cuma di-refresh di belakang layar begitu response datang — TIDAK ada blank/flash lagi.
   // Blocking skeleton ("Memuat...") hanya muncul untuk load PERTAMA kali modal dibuka.
-  const load = async ({ silent = false }: { silent?: boolean } = {}) => {
+  // Perbaikan (permintaan user poin 2 — "aksi pada card kanban maupun modal tasking masih sering
+  // lama merespon, bahkan sering error"): parameter `skipOptions` BARU — dipakai setelah aksi Time
+  // Tracking/Cancel Task (lihat runTimeAction & handleCancelTask di bawah), yang TIDAK PERNAH
+  // mengubah opsi master data (Client/Project/Task Type/Priority/Status/Assignee) sama sekali.
+  // GET /api/tasks/options sengaja membaca 2 dari 8 sheet-nya SELALU langsung ke Google Sheets API
+  // (users & tasks, lihat catatan di route-nya) — kalau tetap ikut di-refetch di sini pada SETIAP
+  // klik Start/Pause/Resume/Stop/Back/Done/Cancel, itu 2 pemanggilan API tambahan yang sia-sia
+  // (datanya tidak mungkin berubah dari aksi ini) sekaligus menambah beban ke kuota per-menit yang
+  // ketat — salah satu penyebab utama "sering error" saat banyak user memakai Time Tracking
+  // bersamaan. `opts` yang sudah ada di state cukup dipertahankan apa adanya.
+  const load = async ({ silent = false, skipOptions = false }: { silent?: boolean; skipOptions?: boolean } = {}) => {
     if (!silent) setLoading(true);
     setError(null);
     try {
       const [taskRes, optsRes, ttRes] = await Promise.all([
         apiFetch(`/api/tasks/${taskId}`),
-        apiFetch('/api/tasks/options'),
+        skipOptions ? Promise.resolve(null) : apiFetch('/api/tasks/options'),
         apiFetch(`/api/tasks/${taskId}/time-tracking`),
       ]);
       const taskJson = await parseJsonSafe(taskRes);
-      const optsJson = await parseJsonSafe(optsRes);
       if (!taskRes.ok || !taskJson.data) throw new Error(taskJson.error || t('toast_load_task_failed'));
-      if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || t('toast_load_options_failed'));
 
       setTask(taskJson.data);
-      setOpts({
-        ...optsJson.data,
-        statuses: optsJson.data.statuses.map((s: Record<string, unknown>) => ({
-          ...s,
-          workflowLevel: s.workflow_level !== undefined && s.workflow_level !== '' ? Number(s.workflow_level) : null,
-        })),
-      });
+      if (optsRes) {
+        const optsJson = await parseJsonSafe(optsRes);
+        if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || t('toast_load_options_failed'));
+        setOpts({
+          ...optsJson.data,
+          statuses: optsJson.data.statuses.map((s: Record<string, unknown>) => ({
+            ...s,
+            workflowLevel: s.workflow_level !== undefined && s.workflow_level !== '' ? Number(s.workflow_level) : null,
+          })),
+        });
+      }
       setForm({
         title: taskJson.data.title || '',
         description: taskJson.data.description || '',
@@ -367,7 +379,9 @@ export default function TaskDetailModal({
         toast.error(json.error || t('toast_tt_action_failed'));
         return;
       }
-      await load({ silent: true });
+      // skipOptions: true — aksi Time Tracking tidak pernah mengubah opsi master data (lihat
+      // catatan panjang di definisi load()).
+      await load({ silent: true, skipOptions: true });
       onChanged();
       const actionLabel: Record<typeof action, string> = {
         start: t('toast_tt_started'),
@@ -420,7 +434,9 @@ export default function TaskDetailModal({
         toast.error(json.error || t('toast_cancel_task_failed'));
         return;
       }
-      await load({ silent: true });
+      // skipOptions: true — sama alasannya dengan runTimeAction di atas (Cancel Task juga lewat
+      // aksi Time Tracking `cancel`, tidak mengubah opsi master data sama sekali).
+      await load({ silent: true, skipOptions: true });
       onChanged();
       toast.success(t('toast_cancel_task_success'));
     } catch {

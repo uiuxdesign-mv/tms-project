@@ -25,7 +25,12 @@ import type { SheetKey } from '@/lib/google/spreadsheet-ids';
  *   baca sheet users tambahan di setiap aksi Time Tracking/update task.
  * - Append-only, tidak ada updated_at/deleted_at (riwayat tidak pernah diedit/dihapus).
  */
-export type TaskHistoryChangeType = 'field' | 'status';
+// Perbaikan (permintaan user: "catat juga di aktifitas perubahan saat melakukan action jeda dan
+// saat melakukan resume di tasking"): tambah 'time_tracking' — dipakai KHUSUS untuk aksi Jeda
+// (pause) & Lanjutkan (resume), yang BEDA sifatnya dari 'field'/'status': keduanya bukan
+// perubahan NILAI suatu kolom (tidak ada "dari X menjadi Y"), melainkan sebuah AKSI momentual.
+// Lihat logTimeTrackingHistory() di bawah untuk detail kenapa ini tidak lewat logTaskChange().
+export type TaskHistoryChangeType = 'field' | 'status' | 'time_tracking';
 
 export type TaskHistoryRow = SheetRow & {
   id: string;
@@ -72,6 +77,45 @@ export async function logTaskChange(input: LogTaskChangeInput): Promise<void> {
     });
   } catch (err) {
     console.error('[task-history] gagal mencatat perubahan:', err);
+  }
+}
+
+export type LogTimeTrackingHistoryInput = {
+  taskId: string;
+  action: 'pause' | 'resume';
+  changedBy: string;
+};
+
+/**
+ * Catat aksi Jeda/Lanjutkan Time Tracking ke riwayat task (permintaan user, poin 1: "catat juga di
+ * aktifitas perubahan saat melakukan action jeda dan saat melakukan resume di tasking"). SENGAJA
+ * TIDAK lewat logTaskChange() di atas — fungsi itu punya guard "lewati kalau old===new atau
+ * keduanya kosong" yang cocok untuk perubahan NILAI field/status, tapi Jeda/Lanjutkan tidak punya
+ * old/new value sama sekali (murni sebuah AKSI), jadi guard itu justru akan salah-diam-diam
+ * melewatkan entrinya (old_value_label & new_value_label sama-sama kosong).
+ *
+ * `field_key` menyimpan KEY aksi ('pause'/'resume', BUKAN label siap-tayang bahasa tertentu) —
+ * sama pola dengan field_key di change_type 'field' — supaya UI (task-activity-feed.tsx) bisa
+ * me-resolve teksnya sesuai bahasa aktif (ID/EN) lewat translation key `history_tt_pause`/
+ * `history_tt_resume`, konsisten dengan "konfigurasi bahasa" aplikasi.
+ *
+ * Sengaja fire-and-forget sama seperti logTaskChange — kegagalan mencatat riwayat TIDAK PERNAH
+ * boleh membatalkan/menunda aksi Time Tracking yang sebenarnya (lihat pemanggilnya di
+ * src/app/api/tasks/[id]/time-tracking/route.ts, dijalankan lewat after() supaya juga tidak
+ * memperlambat response — permintaan user poin 2 "aksi ... masih sering lama merespon").
+ */
+export async function logTimeTrackingHistory(input: LogTimeTrackingHistoryInput): Promise<void> {
+  try {
+    await SheetTable.insertRow('task_history', {
+      task_id: input.taskId,
+      change_type: 'time_tracking',
+      field_key: input.action,
+      old_value_label: '',
+      new_value_label: '',
+      changed_by: input.changedBy,
+    });
+  } catch (err) {
+    console.error('[task-history] gagal mencatat aksi Time Tracking:', err);
   }
 }
 
