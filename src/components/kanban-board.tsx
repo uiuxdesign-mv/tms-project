@@ -285,20 +285,32 @@ export default function KanbanBoard({
   });
 
   return (
-    <div>
-      <TasksPageHeader
-        subtitle={t('tasks_kanban_subtitle')}
-        onAddTask={permissions.canEdit ? () => setCreateOpen(true) : undefined}
-        canCreate={permissions.canEdit}
-      />
+    // Perbaikan (permintaan user): papan Kanban dulu tumbuh bebas ke bawah mengikuti kolom
+    // terpanjang, jadi SELURUH HALAMAN yang ikut memanjang & discroll. Sekarang root-nya dipatok
+    // tingginya = sisa layar (100vh dikurangi topbar AppShell `h-16`=4rem, dan padding halaman
+    // `<main>` di app-shell.tsx yang `p-4 sm:p-6` — makanya ada 2 varian, mobile & sm+). Efek
+    // rantainya (lihat `min-h-0`/`flex-1` di elemen-elemen di bawah, pola "flexbox height-chain"
+    // yang sama dipakai di Task Detail Modal): begitu wadah PALING LUAR ini dipatok, kolom yang
+    // isinya kepanjangan TERPAKSA scroll sendiri di dalam kolomnya — bukan lagi mendorong seluruh
+    // halaman. Sudah dites lewat preview (Playwright) sebelum diterapkan ke sini.
+    <div className="flex h-[calc(100vh_-_4rem_-_2rem)] flex-col sm:h-[calc(100vh_-_4rem_-_3rem)]">
+      <div className="shrink-0">
+        <TasksPageHeader
+          subtitle={t('tasks_kanban_subtitle')}
+          onAddTask={permissions.canEdit ? () => setCreateOpen(true) : undefined}
+          canCreate={permissions.canEdit}
+        />
+      </div>
 
       {/* Perbaikan (permintaan user Round 6, poin 2 & 3): search box, filter, DAN switcher tab
           List/Kanban/Calendar (rightSlot, mentok kanan) sekarang satu baris, digabung dalam SATU
           container bordered yang sama dengan papan Kanban di bawahnya (border-b sebagai pemisah)
-          — sama persis pola yang sudah ada di view List, bukan 2 card terpisah seperti sebelumnya. */}
-      <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
+          — sama persis pola yang sudah ada di view List, bukan 2 card terpisah seperti sebelumnya.
+          `min-h-0 flex-1` (BARU): card ini sekarang mengisi SISA tinggi wadah luar (bukan tumbuh
+          bebas), supaya baris kolom di dalamnya bisa dipatok juga. */}
+      <div className="flex min-h-0 flex-1 flex-col rounded-2xl border border-gray-200 bg-white shadow-card">
         <TaskFilterBar
-          className="border-b border-gray-200 p-4"
+          className="shrink-0 border-b border-gray-200 p-4"
           search={search}
           onSearchChange={setSearch}
           statuses={opts.statuses}
@@ -312,13 +324,14 @@ export default function KanbanBoard({
           rightSlot={<TasksViewSwitcher />}
         />
 
-        <div className="overflow-x-auto p-4">
-        {/* Perbaikan (permintaan user, "sesuaikan ukuran semua tampilan menjadi 80%"): lebar kolom
-            Kanban di bawah diganti dari `w-[280px]` (px mentah, tidak ikut menyusut waktu font-size
-            root dikecilkan) ke `w-[17.5rem]` (setara 280px di skala 100%) — angka `17.5` di sini
-            HARUS tetap sama dengan angka rem di `w-[17.5rem]` pada kolom di bawah, supaya lebar
-            total tetap konsisten dengan lebar kolom asli. */}
-        <div className="flex gap-4" style={{ minWidth: `${sortedStatuses.length * 17.5}rem` }}>
+        {/* Perbaikan (permintaan user, poin 2 & 3): baris kolom sekarang `min-h-0 flex-1` (mengisi
+            sisa tinggi card, bukan tumbuh bebas) — `overflow-x-auto` DIPERTAHANKAN tapi sekarang
+            cuma jaring pengaman kalau status-nya sangat banyak (lihat `min-w-[15rem]` di tiap
+            kolom di bawah), BUKAN mekanisme utama lagi seperti sebelumnya. Perhitungan
+            `minWidth: jumlah kolom × 17.5rem` yang dulu di sini SUDAH TIDAK DIPERLUKAN lagi —
+            kolom sekarang `flex-1` (saling membagi rata lebar tersedia, "fill kiri-kanan" sesuai
+            permintaan), bukan lebar tetap yang perlu dijumlah manual. */}
+        <div className="flex min-h-0 flex-1 gap-4 overflow-x-auto p-4">
           {sortedStatuses.map((status) => {
             const columnTasks = visibleRows.filter((r) => r.status_id === status.value);
             const isDropTarget = dragOverStatusId === status.value;
@@ -334,11 +347,18 @@ export default function KanbanBoard({
                   e.preventDefault();
                   handleDrop(status);
                 }}
-                className={`flex w-[17.5rem] shrink-0 flex-col rounded-xl border transition-colors ${
+                // Perbaikan (permintaan user, redesign Kanban): kolom dulu lebar tetap
+                // `w-[17.5rem]` (280px) + `shrink-0` sehingga papan selalu overflow ke samping
+                // ("scroll satu halaman" secara horizontal). Sekarang `flex-1` supaya kolom saling
+                // membagi rata lebar tersedia ("fill kiri-kanan"), `min-w-[15rem]` sebagai jaring
+                // pengaman agar kolom tidak collapse terlalu sempit saat status sangat banyak, dan
+                // `min-h-0` supaya rantai flexbox tinggi (lihat komentar di root wrapper) bisa
+                // diteruskan ke area task list di bawah agar scroll-nya independen per kolom.
+                className={`flex min-h-0 min-w-[15rem] flex-1 flex-col rounded-xl border transition-colors ${
                   isDropTarget ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 bg-gray-50'
                 }`}
               >
-                <div className="flex items-center justify-between border-b border-gray-200 px-3 py-2.5">
+                <div className="flex shrink-0 items-center justify-between border-b border-gray-200 px-3 py-2.5">
                   <div className="flex items-center gap-2">
                     <span
                       className="h-2.5 w-2.5 shrink-0 rounded-full"
@@ -348,7 +368,10 @@ export default function KanbanBoard({
                   </div>
                   <span className="rounded-full bg-gray-200 px-2 py-0.5 text-xs font-medium text-gray-600">{columnTasks.length}</span>
                 </div>
-                <div className="flex-1 space-y-2 p-2">
+                {/* Perbaikan: `min-h-0 flex-1 overflow-y-auto` di sini (dulu hanya `flex-1`, tanpa
+                    overflow sendiri) adalah kunci permintaan #1 — setiap kolom status sekarang
+                    scroll sendiri secara independen, bukan ikut men-scroll seluruh halaman/papan. */}
+                <div className="min-h-0 flex-1 space-y-2 overflow-y-auto p-2">
                   {columnTasks.length === 0 && <p className="px-2 py-4 text-center text-xs text-gray-400">{t('kanban_no_tasks')}</p>}
                   {columnTasks.map((row) => {
                     // Fase 19: task yang statusnya sudah Final (Done/Cancelled) tidak boleh di-drag
@@ -431,7 +454,6 @@ export default function KanbanBoard({
               </div>
             );
           })}
-        </div>
         </div>
       </div>
 
