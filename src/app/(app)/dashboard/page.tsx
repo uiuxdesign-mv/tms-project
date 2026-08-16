@@ -27,26 +27,39 @@ export default async function DashboardPage() {
   //
   // Perbaikan (Round 22, permintaan user poin 3 & 4 — "klik menu dashboard responya lama" &
   // "pengambilan data ... lebih efisien"): "Aktivitas Terbaru" (Audit Log, admin-only) SAMA SEKALI
-  // tidak butuh tahu izin menu Tasking/Report — sebelumnya baru mulai diambil setelah menunggu
-  // getVisibleMenuKeys selesai (di bagian bawah halaman ini), padahal keduanya independen.
-  // Sekarang dijalankan BERSAMAAN lewat Promise.all supaya tidak menambah waktu tunggu tambahan
-  // untuk admin (yang paling sering membuka Dashboard ini).
-  const [visibleKeys, recentActivity] = await Promise.all([
-    session
-      ? getVisibleMenuKeys(session).catch((e) => {
-          console.error('[dashboard] gagal memuat menu access:', e);
-          return new Set<string>();
+  // tidak butuh tahu izin menu Tasking/Report — independen dari getVisibleMenuKeys.
+  //
+  // Perbaikan susulan (Round 25 — permintaan user, ditemukan lewat video rekaman layar "klik menu
+  // dashboard masih terjadi delay"): Round 22 SEBELUMNYA menggabungkan kedua pemanggilan ini lewat
+  // SATU `Promise.all` yang di-`await` bersama — kelihatannya sudah paralel, TAPI ini masih
+  // menyembunyikan hambatan: baris `const [visibleKeys, recentActivity] = await Promise.all(...)`
+  // tetap BARU selesai setelah KEDUANYA selesai (termasuk audit_log, 1 sheet penuh), padahal yang
+  // benar-benar dibutuhkan SEGERA di bawah cuma `visibleKeys` (untuk tahu `canViewTasking`, yang
+  // jadi syarat mulainya Stage 2 di bawah — pengambilan 10 sheet tasks/users/comments/timelogs,
+  // BAGIAN TERBERAT & PALING LAMA di halaman ini). Artinya Stage 2 yang berat itu jadi menunggu
+  // audit_log kelar dulu TANPA ALASAN, padahal audit_log baru benar-benar dipakai jauh di bawah
+  // (props `recentActivity` ke DashboardView). Sekarang audit_log dijadikan Promise TERPISAH yang
+  // mulai jalan di latar belakang dari baris ini juga, TAPI TIDAK di-`await` di sini — baru
+  // di-`await` di titik pemakaiannya (dekat `return` di bawah). Hasilnya: Stage 2 bisa mulai
+  // secepat `getVisibleMenuKeys` selesai saja (untuk Admin malah INSTAN, lihat
+  // `getVisibleMenuKeys` di lib/menu-access/permissions.ts — admin langsung dapat semua menu key
+  // tanpa fetch apa pun ke Google Sheets sama sekali), bukan menunggu audit_log yang tidak ada
+  // hubungannya sama sekali.
+  const recentActivityPromise: Promise<AuditLogEntry[]> = isAdmin
+    ? getAuditLog()
+        .then((rows) => rows.slice(0, 6))
+        .catch((e) => {
+          console.error('[dashboard] gagal memuat audit log:', e);
+          return [] as AuditLogEntry[];
         })
-      : Promise.resolve(new Set<string>()),
-    isAdmin
-      ? getAuditLog()
-          .then((rows) => rows.slice(0, 6))
-          .catch((e) => {
-            console.error('[dashboard] gagal memuat audit log:', e);
-            return [] as AuditLogEntry[];
-          })
-      : Promise.resolve([] as AuditLogEntry[]),
-  ]);
+    : Promise.resolve([] as AuditLogEntry[]);
+
+  const visibleKeys = session
+    ? await getVisibleMenuKeys(session).catch((e) => {
+        console.error('[dashboard] gagal memuat menu access:', e);
+        return new Set<string>();
+      })
+    : new Set<string>();
   const canViewTasking = visibleKeys.has('tasking');
   const canViewReport = visibleKeys.has('report');
 
@@ -159,6 +172,12 @@ export default async function DashboardPage() {
     }
   }
   const commentUserNames = userNames;
+
+  // Baru di-`await` di sini (lihat catatan Round 25 di atas) — pada titik ini Stage 2 di atas
+  // (tasks/users/comments/timelogs, jauh lebih berat) sudah pasti selesai duluan, jadi
+  // `recentActivityPromise` (yang sudah jalan di latar belakang sejak awal fungsi ini) HAMPIR
+  // SELALU sudah selesai sendiri saat baris ini dijalankan — praktis tidak menambah waktu tunggu.
+  const recentActivity = await recentActivityPromise;
 
   return (
     <>
