@@ -8,6 +8,7 @@ import { useLanguage } from '@/components/language-provider';
 import { useTheme } from '@/components/theme-provider';
 import NotificationBell from '@/components/notification-bell';
 import type { TranslationKey } from '@/lib/i18n/translations';
+import { useBodyScrollLock } from '@/lib/hooks/use-body-scroll-lock';
 
 export type ShellNavLink = {
   key: string;
@@ -94,6 +95,10 @@ export default function AppShell({ session, navGroups, children }: AppShellProps
   const { t, lang, setLang } = useLanguage();
   const { theme, toggleTheme } = useTheme();
   const [mobileOpen, setMobileOpen] = useState(false);
+  // Perbaikan (permintaan user): layer utama di belakang drawer navigasi mobile tidak boleh ikut
+  // ke-scroll selama drawer ini terbuka — perilaku overlay-nya sama dengan modal (menutupi konten
+  // utama di belakangnya).
+  useBodyScrollLock(mobileOpen);
   const [langOpen, setLangOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const langRef = useRef<HTMLDivElement>(null);

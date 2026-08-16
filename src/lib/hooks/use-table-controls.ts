@@ -21,7 +21,9 @@ export function useTableControls<T extends Record<string, unknown>>(
   const [sortKey, setSortKey] = useState<keyof T | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [page, setPage] = useState(1);
-  const pageSize = opts.pageSize ?? 20;
+  // Perbaikan (permintaan user): default maksimal 10 baris per halaman di SEMUA tabel data
+  // (sebelumnya 20) — sisanya harus lewat pagination, bukan langsung tampil semua.
+  const pageSize = opts.pageSize ?? 10;
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase();

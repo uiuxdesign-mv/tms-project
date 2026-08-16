@@ -7,11 +7,16 @@ import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { DonutChart } from '@/components/charts/donut-chart';
 import { VerticalBarChart } from '@/components/charts/vertical-bar-chart';
 import { LineChart, type LineChartPoint } from '@/components/charts/line-chart';
+import { PaginationBar } from '@/components/table-controls';
 import { useLanguage } from '@/components/language-provider';
 
 type Option = { value: string; label: string };
 
 const ALL = '';
+
+// Perbaikan (permintaan user): tabel detail report max 10 baris/halaman, konsisten dengan tabel
+// data lain (lihat use-table-controls.ts).
+const REPORT_PAGE_SIZE = 10;
 
 type PeriodType = 'daily' | 'weekly' | 'monthly' | 'yearly';
 
@@ -148,6 +153,12 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
     return { userId: ALL, periodType: 'monthly', ...range };
   });
 
+  // Perbaikan (permintaan user): tabel detail di bawah dulu menampilkan SEMUA baris `filtered`
+  // sekaligus tanpa batas — sekarang dibatasi max 10 baris/halaman + pagination, konsisten dengan
+  // tabel data lain. Ekspor (XLSX/PDF/CSV) TETAP memakai `filtered` penuh (lihat reportRows()),
+  // yang berubah cuma tampilan tabelnya di layar.
+  const [reportPage, setReportPage] = useState(1);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -185,6 +196,10 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
     }
     setError(null);
     setApplied({ userId: draftUserId, periodType: draftPeriodType, ...range });
+    // Filter baru diterapkan — balik ke halaman 1 supaya tidak "nyangkut" di halaman yang sudah
+    // tidak relevan. Dipanggil langsung di event handler ini (bukan useEffect terpisah) supaya
+    // tidak menabrak lint `react-hooks/set-state-in-effect`.
+    setReportPage(1);
   }
 
   const filtered = useMemo(() => {
@@ -195,6 +210,13 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
       return d >= applied.start && d <= applied.end;
     });
   }, [tasks, applied]);
+
+  const reportTotalPages = Math.max(1, Math.ceil(filtered.length / REPORT_PAGE_SIZE));
+  const reportClampedPage = Math.min(Math.max(1, reportPage), reportTotalPages);
+  const pagedFiltered = useMemo(
+    () => filtered.slice((reportClampedPage - 1) * REPORT_PAGE_SIZE, reportClampedPage * REPORT_PAGE_SIZE),
+    [filtered, reportClampedPage]
+  );
 
   const summary = useMemo(() => summarizeTasks(filtered), [filtered]);
   const pending = summary.total - summary.completed;
@@ -423,7 +445,7 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
       </div>
 
       {/* Tabel */}
-      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-card">
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
         <div className="border-b border-gray-200 px-4 py-3">
           <h2 className="text-sm font-semibold text-gray-900">
             {t('reports_table_heading')}{' '}
@@ -432,6 +454,7 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
             </span>
           </h2>
         </div>
+        <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
@@ -459,7 +482,7 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
               </tr>
             )}
             {!loading &&
-              filtered.map((tk) => (
+              pagedFiltered.map((tk) => (
                 <tr key={tk.id} className="hover:bg-gray-50">
                   <td className="px-4 py-2.5 text-gray-700">{tk.title}</td>
                   <td className="px-4 py-2.5 text-gray-700">{tk.project_name || '-'}</td>
@@ -473,6 +496,15 @@ export default function ReportsView({ canExport }: { canExport: boolean }) {
               ))}
           </tbody>
         </table>
+        </div>
+
+        <PaginationBar
+          page={reportClampedPage}
+          totalPages={reportTotalPages}
+          totalCount={filtered.length}
+          pageSize={REPORT_PAGE_SIZE}
+          onPageChange={setReportPage}
+        />
       </div>
     </div>
   );

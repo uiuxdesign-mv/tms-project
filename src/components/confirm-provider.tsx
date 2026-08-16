@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useRef, useState } from 'react';
 import { useLanguage } from '@/components/language-provider';
+import { useBodyScrollLock } from '@/lib/hooks/use-body-scroll-lock';
 
 export type ConfirmOptions = {
   title?: string;
@@ -29,6 +30,13 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage();
   const [pending, setPending] = useState<PendingConfirm | null>(null);
   const resolverRef = useRef<((value: boolean) => void) | null>(null);
+
+  // Perbaikan (permintaan user): layer utama di belakang dialog konfirmasi tidak boleh ikut
+  // ke-scroll selama dialog ini terbuka. ConfirmProvider global (root layout) — hook ini pakai
+  // counter global (lihat use-body-scroll-lock.ts) supaya kalau dialog ini muncul DI ATAS modal
+  // lain yang sudah mengunci scroll (mis. konfirmasi Hapus dari dalam modal detail task), unlock
+  // hanya terjadi setelah SEMUA modal-nya tertutup, bukan begitu dialog ini saja yang tertutup.
+  useBodyScrollLock(!!pending);
 
   const confirmFn = useCallback<ConfirmApi>((options) => {
     const opts: ConfirmOptions = typeof options === 'string' ? { message: options } : options;

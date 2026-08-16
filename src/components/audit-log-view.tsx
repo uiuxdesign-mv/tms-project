@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { buildCsv, downloadCsv } from '@/lib/csv';
 import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { Badge } from '@/components/badge';
+import { PaginationBar } from '@/components/table-controls';
 import { useLanguage } from '@/components/language-provider';
 
 type AuditLogEntry = {
@@ -24,7 +25,9 @@ const ACTION_TONE: Record<string, 'success' | 'warning' | 'danger'> = {
   delete: 'danger',
 };
 
-const PAGE_SIZE_STEP = 100;
+// Perbaikan (permintaan user): sebelumnya "load more" per 100 baris — sekarang pagination
+// sungguhan, konsisten dengan tabel data lain (max 10 baris/halaman, lihat use-table-controls.ts).
+const PAGE_SIZE = 10;
 
 function uniqueValues(entries: AuditLogEntry[], key: keyof AuditLogEntry): string[] {
   return Array.from(new Set(entries.map((e) => e[key]).filter(Boolean))).sort();
@@ -42,7 +45,7 @@ export default function AuditLogView() {
   const [actorName, setActorName] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE_STEP);
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     (async () => {
@@ -79,7 +82,39 @@ export default function AuditLogView() {
     });
   }, [entries, search, entityType, action, actorName, dateFrom, dateTo]);
 
-  const visible = filtered.slice(0, visibleCount);
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const clampedPage = Math.min(Math.max(1, page), totalPages);
+  const visible = filtered.slice((clampedPage - 1) * PAGE_SIZE, clampedPage * PAGE_SIZE);
+
+  // Perbaikan (permintaan user, pagination): setiap filter berubah, balik ke halaman 1 supaya
+  // tidak "nyangkut" di halaman yang sudah tidak relevan dengan hasil filter baru. Dipanggil
+  // LANGSUNG dari event handler tiap filter (bukan lewat useEffect terpisah) — pola yang sama
+  // dengan handleSubmit di task-activity-feed.tsx, supaya tidak menabrak lint
+  // `react-hooks/set-state-in-effect`.
+  function handleSearchChange(v: string) {
+    setSearch(v);
+    setPage(1);
+  }
+  function handleEntityTypeChange(v: string) {
+    setEntityType(v);
+    setPage(1);
+  }
+  function handleActionChange(v: string) {
+    setAction(v);
+    setPage(1);
+  }
+  function handleActorNameChange(v: string) {
+    setActorName(v);
+    setPage(1);
+  }
+  function handleDateFromChange(v: string) {
+    setDateFrom(v);
+    setPage(1);
+  }
+  function handleDateToChange(v: string) {
+    setDateTo(v);
+    setPage(1);
+  }
 
   function resetFilters() {
     setSearch('');
@@ -88,7 +123,7 @@ export default function AuditLogView() {
     setActorName('');
     setDateFrom('');
     setDateTo('');
-    setVisibleCount(PAGE_SIZE_STEP);
+    setPage(1);
   }
 
   function exportCsv() {
@@ -145,7 +180,7 @@ export default function AuditLogView() {
             <label className="mb-1.5 block text-xs font-medium text-gray-700">{t('audit_search_label')}</label>
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => handleSearchChange(e.target.value)}
               placeholder={t('audit_search_placeholder')}
               className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors focus-ring"
             />
@@ -154,7 +189,7 @@ export default function AuditLogView() {
             <label className="mb-1.5 block text-xs font-medium text-gray-700">{t('audit_type_label')}</label>
             <select
               value={entityType}
-              onChange={(e) => setEntityType(e.target.value)}
+              onChange={(e) => handleEntityTypeChange(e.target.value)}
               className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
             >
               <option value="">{t('audit_option_all')}</option>
@@ -169,7 +204,7 @@ export default function AuditLogView() {
             <label className="mb-1.5 block text-xs font-medium text-gray-700">{t('audit_action_label')}</label>
             <select
               value={action}
-              onChange={(e) => setAction(e.target.value)}
+              onChange={(e) => handleActionChange(e.target.value)}
               className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
             >
               <option value="">{t('audit_option_all')}</option>
@@ -182,7 +217,7 @@ export default function AuditLogView() {
             <label className="mb-1.5 block text-xs font-medium text-gray-700">{t('audit_actor_label')}</label>
             <select
               value={actorName}
-              onChange={(e) => setActorName(e.target.value)}
+              onChange={(e) => handleActorNameChange(e.target.value)}
               className="select-field w-full appearance-none rounded-lg border border-gray-300 bg-white py-2.5 pl-3.5 pr-9 text-sm text-gray-900 transition-colors focus-ring"
             >
               <option value="">{t('audit_option_all')}</option>
@@ -198,7 +233,7 @@ export default function AuditLogView() {
             <input
               type="date"
               value={dateFrom}
-              onChange={(e) => setDateFrom(e.target.value)}
+              onChange={(e) => handleDateFromChange(e.target.value)}
               className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
             />
           </div>
@@ -209,14 +244,15 @@ export default function AuditLogView() {
             <input
               type="date"
               value={dateTo}
-              onChange={(e) => setDateTo(e.target.value)}
+              onChange={(e) => handleDateToChange(e.target.value)}
               className="w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 transition-colors focus-ring"
             />
           </div>
         </div>
       </div>
 
-      <div className="overflow-x-auto rounded-2xl border border-gray-200 bg-white shadow-card">
+      <div className="rounded-2xl border border-gray-200 bg-white shadow-card">
+        <div className="overflow-x-auto">
         <table className="w-full text-left text-sm">
           <thead className="bg-gray-50 text-xs uppercase text-gray-500">
             <tr>
@@ -258,18 +294,16 @@ export default function AuditLogView() {
               ))}
           </tbody>
         </table>
-      </div>
-
-      {!loading && filtered.length > visible.length && (
-        <div className="flex justify-center">
-          <button
-            onClick={() => setVisibleCount((c) => c + PAGE_SIZE_STEP)}
-            className="focus-ring rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-          >
-            {t('audit_load_more_prefix')} {Math.min(PAGE_SIZE_STEP, filtered.length - visible.length)} {t('audit_load_more_suffix')} ({visible.length}/{filtered.length})
-          </button>
         </div>
-      )}
+
+        <PaginationBar
+          page={clampedPage}
+          totalPages={totalPages}
+          totalCount={filtered.length}
+          pageSize={PAGE_SIZE}
+          onPageChange={setPage}
+        />
+      </div>
     </div>
   );
 }

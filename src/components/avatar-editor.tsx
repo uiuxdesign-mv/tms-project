@@ -4,6 +4,7 @@ import { useCallback, useRef, useState } from 'react';
 import Cropper, { type Area } from 'react-easy-crop';
 import 'react-easy-crop/react-easy-crop.css';
 import { useLanguage } from '@/components/language-provider';
+import { useBodyScrollLock } from '@/lib/hooks/use-body-scroll-lock';
 
 const OUTPUT_SIZE = 320; // ukuran output foto profil persegi, cukup tajam untuk avatar 40-80px.
 
@@ -71,6 +72,9 @@ export default function AvatarEditor({
   const resolvedLabel = label === null ? null : label ?? t('avatar_default_label');
   const inputRef = useRef<HTMLInputElement>(null);
   const [rawImageSrc, setRawImageSrc] = useState<string | null>(null);
+  // Perbaikan (permintaan user): layer utama di belakang modal crop foto tidak boleh ikut ke-scroll
+  // selama modal ini terbuka (`rawImageSrc` terisi = modal crop sedang tampil).
+  useBodyScrollLock(!!rawImageSrc);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);

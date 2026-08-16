@@ -8,6 +8,7 @@ import { Badge } from '@/components/badge';
 import TaskActivityFeed from '@/components/task-activity-feed';
 import TaskTimeTrackingPanel from '@/components/task-time-tracking-panel';
 import { useLanguage } from '@/components/language-provider';
+import { useBodyScrollLock } from '@/lib/hooks/use-body-scroll-lock';
 
 type TaskRow = {
   id: string;
@@ -205,6 +206,12 @@ export default function TaskDetailModal({
   const toast = useToast();
   const { t } = useLanguage();
   const confirmDialog = useConfirm();
+
+  // Perbaikan (permintaan user): layer utama di belakang modal tidak boleh ikut ke-scroll selama
+  // modal ini terbuka. Komponen ini SELALU mewakili "modal sedang terbuka" (parent selalu
+  // conditional-mount/unmount, tidak pernah toggle open/close internal — lihat catatan di
+  // tasks-table.tsx/kanban-board.tsx/calendar-view.tsx), jadi cukup `true` di sini.
+  useBodyScrollLock(true);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);

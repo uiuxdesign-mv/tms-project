@@ -232,7 +232,7 @@ export default function TasksTable({
   // di Task; kolom lain seperti Client/Priority/Status berupa ID yang di-resolve ke label lewat
   // `opts`, jadi tidak ikut disertakan supaya pencarian tidak mencocokkan ID mentah yang tidak
   // berarti apa-apa bagi user).
-  const table = useTableControls(filteredRows, { searchFields: ['title', 'description'], pageSize: 20 });
+  const table = useTableControls(filteredRows, { searchFields: ['title', 'description'] });
 
   // Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas poin 1-3): flag izin dibaca
   // LANGSUNG dari yang sudah dihitung server (GET /api/tasks, lihat src/lib/models/tasks.ts),

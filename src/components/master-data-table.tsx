@@ -10,6 +10,7 @@ import { useTableControls } from '@/lib/hooks/use-table-controls';
 import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/table-controls';
 import { Badge, StatusBadge } from '@/components/badge';
 import { useLanguage } from '@/components/language-provider';
+import { useBodyScrollLock } from '@/lib/hooks/use-body-scroll-lock';
 import type { TranslationKey } from '@/lib/i18n/translations';
 
 type TFn = (key: TranslationKey) => string;
@@ -75,6 +76,11 @@ export default function MasterDataTable({
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importResults, setImportResults] = useState<ImportRowResult[] | null>(null);
   const [deleteBlocked, setDeleteBlocked] = useState<DeleteBlockedState | null>(null);
+
+  // Perbaikan (permintaan user): layer utama di belakang modal tidak boleh ikut ke-scroll selama
+  // salah satu dari 4 modal di komponen ini terbuka (Tambah/Edit, Detail, Hasil Impor, Hapus Diblokir).
+  useBodyScrollLock(modalOpen || !!viewingRow || !!importResults || !!deleteBlocked);
+
   const [reassignToId, setReassignToId] = useState('');
   const [reassigning, setReassigning] = useState(false);
   // Fase 15: tombol naik/turun urutan di tabel Master Status (lihat handleMoveStatus).

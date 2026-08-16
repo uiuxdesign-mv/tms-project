@@ -159,6 +159,13 @@ export const translations = {
   form_save_changes: { id: 'Simpan Perubahan', en: 'Save Changes' },
   form_create: { id: 'Buat', en: 'Create' },
 
+  // Bar pagination generik (PaginationBar) — dipakai di bawah SEMUA tabel data (Tasks, Users,
+  // Master Data, Audit Log, Report). Sebelumnya string ini di-hardcode Bahasa Indonesia langsung
+  // di komponennya (tidak ikut berganti ID/EN) — bugfix (permintaan user, konfigurasi bahasa).
+  pagination_showing: { id: 'Menampilkan {from}–{to} dari {total} data', en: 'Showing {from}–{to} of {total} entries' },
+  pagination_prev: { id: 'Sebelumnya', en: 'Previous' },
+  pagination_next: { id: 'Selanjutnya', en: 'Next' },
+
   // Modal konfirmasi global (ConfirmProvider) — dipakai di HAMPIR SEMUA tombol Hapus di seluruh
   // aplikasi (Fase 22, permintaan user item i18n), jadi dampaknya luas walau cuma 3 string.
   confirm_default_title: { id: 'Konfirmasi', en: 'Confirm' },
@@ -339,8 +346,6 @@ export const translations = {
   audit_col_data: { id: 'Data', en: 'Record' },
   audit_col_detail: { id: 'Detail', en: 'Detail' },
   audit_no_match: { id: 'Tidak ada log yang cocok dengan filter.', en: 'No log entries match the filter.' },
-  audit_load_more_prefix: { id: 'Muat', en: 'Load' },
-  audit_load_more_suffix: { id: 'lagi', en: 'more' },
   toast_audit_load_failed: { id: 'Gagal memuat audit log.', en: 'Failed to load audit log.' },
 
   // Task Detail Modal — form terbesar di aplikasi (permintaan user: sweep i18n menyeluruh).

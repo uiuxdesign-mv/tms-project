@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { useToast } from '@/components/toast-provider';
 import { useLanguage } from '@/components/language-provider';
+import { useBodyScrollLock } from '@/lib/hooks/use-body-scroll-lock';
 
 export type Option = { value: string; label: string };
 export type ClientOption = Option & { projectIds: string[] };
@@ -61,6 +62,12 @@ export default function TaskCreateModal({
 }) {
   const toast = useToast();
   const { t } = useLanguage();
+
+  // Perbaikan (permintaan user): layer utama di belakang modal tidak boleh ikut ke-scroll selama
+  // modal ini terbuka (komponen ini selalu mewakili "modal sedang terbuka" — parent selalu
+  // conditional-mount/unmount, tidak ada toggle open/close internal).
+  useBodyScrollLock(true);
+
   const [form, setForm] = useState(() => ({
     ...emptyForm,
     assigned_to: opts.canAssignOthers ? '' : currentUserId,

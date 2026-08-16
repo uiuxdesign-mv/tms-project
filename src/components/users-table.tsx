@@ -10,6 +10,7 @@ import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/tabl
 import { Badge, StatusBadge } from '@/components/badge';
 import AvatarEditor from '@/components/avatar-editor';
 import { useLanguage } from '@/components/language-provider';
+import { useBodyScrollLock } from '@/lib/hooks/use-body-scroll-lock';
 
 type UserRow = {
   id: string;
@@ -57,8 +58,8 @@ const emptyForm = {
 function UserAvatar({ userId, name, photoUrl, size = 8 }: { userId: string; name: string; photoUrl?: string; size?: 8 | 10 }) {
   const dim = size === 10 ? 'h-10 w-10' : 'h-8 w-8';
   if (photoUrl) {
-    // eslint-disable-next-line @next/next/no-img-element
     return (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         src={`/api/users/${userId}/photo?v=${encodeURIComponent(photoUrl)}`}
         alt={name}
@@ -105,6 +106,10 @@ export default function UsersTable({
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState({ current: 0, total: 0 });
   const [importResults, setImportResults] = useState<ImportRowResult[] | null>(null);
+
+  // Perbaikan (permintaan user): layer utama di belakang modal tidak boleh ikut ke-scroll selama
+  // salah satu dari 3 modal di komponen ini terbuka (Tambah/Edit, Detail, Hasil Impor).
+  useBodyScrollLock(modalOpen || !!viewingRow || !!importResults);
 
   // Bugfix (permintaan user, item loading-flicker): sama seperti komponen Task/Master Data —
   // reload setelah aksi Tambah/Edit/Import (`silent: true`) tidak lagi mengganti baris tabel
