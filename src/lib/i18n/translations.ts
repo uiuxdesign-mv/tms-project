@@ -263,6 +263,10 @@ export const translations = {
   comment_remove_attachment_aria: { id: 'Hapus lampiran', en: 'Remove attachment' },
   comment_attach_aria: { id: 'Lampirkan file', en: 'Attach file' },
   comment_emoji_aria: { id: 'Sisipkan emoji', en: 'Insert emoji' },
+  comment_attachment_will_be_removed: {
+    id: 'Lampiran akan dihapus saat disimpan',
+    en: 'Attachment will be removed when saved',
+  },
   comment_hint: {
     id: 'Maks 1 lampiran per komentar — Gambar 5MB, Video 25MB, File lain 10MB.',
     en: 'Max 1 attachment per comment — Image 5MB, Video 25MB, other files 10MB.',

@@ -125,7 +125,39 @@ export default function TaskTimeTrackingPanel({
               : t('td_tt_state_not_started')}
           </span>
         )}
-        <span className="tabular-nums text-sm font-semibold text-gray-900">{formatDuration(currentSessionSeconds)}</span>
+        {/* Perbaikan (permintaan user): angka headline di sebelah status TIDAK lagi selalu
+            "Sesi Saat Ini" (waktu sesi yang sedang berjalan, reset tiap kali mulai/lanjut lagi) —
+            sekarang tergantung fase task, dan "keterkaitan"-nya konsisten di 3 fase:
+            - Status akhir (Done dkk.): "Sesi Saat Ini" TIDAK relevan lagi (tidak ada sesi
+              berjalan) — diganti tampilan Waktu Kerja + Waktu Review sekaligus (total akumulasi).
+            - Status Review: diganti Waktu Review (akumulasi, TETAP ikut live-tick selama sesi
+              review berjalan — lihat workTimeSeconds/reviewTimeSeconds di task-detail-modal.tsx,
+              keduanya sudah include waktu sesi berjalan, bukan cuma yang sudah closed).
+            - Selain itu (mis. In Progress): diganti Waktu Kerja (akumulasi, sama alasannya) —
+              permintaan user eksplisit utk kasus ini, diperluas ke Review demi konsistensi (bukan
+              cuma "In Progress" doang yang benar, "Review" dibiarkan sesi-saat-ini akan terlihat
+              janggal/tidak konsisten). "Sesi Saat Ini" murni masih ada di drawer Detail Waktu. */}
+        {isFinalStatus ? (
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+            <span className="flex items-baseline gap-1">
+              <span className="text-gray-400">{t('tt_work_time')}:</span>
+              <span className="tabular-nums font-semibold text-gray-900">{formatDuration(workTimeSeconds)}</span>
+            </span>
+            <span className="flex items-baseline gap-1">
+              <span className="text-gray-400">{t('tt_review_time')}:</span>
+              <span className="tabular-nums font-semibold text-amber-600">{formatDuration(reviewTimeSeconds)}</span>
+            </span>
+          </span>
+        ) : (
+          <span className="flex items-baseline gap-1">
+            <span className="text-[10px] uppercase tracking-wide text-gray-400">
+              {isReviewStatus ? t('tt_review_time') : t('tt_work_time')}
+            </span>
+            <span className="tabular-nums text-sm font-semibold text-gray-900">
+              {formatDuration(isReviewStatus ? reviewTimeSeconds : workTimeSeconds)}
+            </span>
+          </span>
+        )}
 
         <button
           type="button"
@@ -207,11 +239,18 @@ export default function TaskTimeTrackingPanel({
 
       {detailOpen && (
         <div className="mt-3.5 border-t border-gray-200 pt-3">
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <div>
-              <p className="text-[10px] uppercase tracking-wide text-gray-400">{t('td_current_session')}</p>
-              <p className="tabular-nums text-base font-semibold text-gray-900">{formatDuration(currentSessionSeconds)}</p>
-            </div>
+          {/* Perbaikan (permintaan user): "Sesi Saat Ini" dihilangkan juga di sini utk status
+              akhir (bukan cuma di angka headline) — di status akhir tidak ada sesi yang sedang
+              berjalan sama sekali, jadi stat ini akan selalu 0 & membingungkan kalau dibiarkan.
+              Grid ikut menyesuaikan jadi 2 kolom (bukan 3) supaya Waktu Kerja/Waktu Review tetap
+              proporsional, bukan menyisakan slot kosong. */}
+          <div className={`grid gap-2 text-center ${isFinalStatus ? 'grid-cols-2' : 'grid-cols-3'}`}>
+            {!isFinalStatus && (
+              <div>
+                <p className="text-[10px] uppercase tracking-wide text-gray-400">{t('td_current_session')}</p>
+                <p className="tabular-nums text-base font-semibold text-gray-900">{formatDuration(currentSessionSeconds)}</p>
+              </div>
+            )}
             <div>
               <p className="text-[10px] uppercase tracking-wide text-gray-400">{t('tt_work_time')}</p>
               <p className="tabular-nums text-base font-semibold text-gray-900">{formatDuration(workTimeSeconds)}</p>

@@ -75,6 +75,54 @@ export type CreateCommentResult =
   | { ok: true; comment: CommentRow }
   | { ok: false; error: string };
 
+type UploadedAttachment = {
+  driveFileId: string;
+  category: AttachmentCategory;
+  mimeType: string;
+  originalName: string;
+  fileSize: number;
+};
+
+/** Validasi + upload 1 file lampiran ke Drive — diekstrak dari createComment supaya bisa dipakai
+ *  ulang oleh editComment juga (permintaan user: lampiran sekarang bisa diganti lewat edit,
+ *  bukan cuma saat komentar pertama kali dibuat). Aturan validasi (sniff MIME + limit ukuran per
+ *  kategori) SAMA PERSIS untuk keduanya. */
+async function validateAndUploadAttachment(
+  file: { buffer: Buffer; originalName: string }
+): Promise<{ ok: true; attachment: UploadedAttachment } | { ok: false; error: string }> {
+  const sniffed = sniffMimeType(file.buffer);
+  if (!sniffed || !ALLOWED_MIME_TYPES.has(sniffed.mime)) {
+    return { ok: false, error: 'Jenis file tidak didukung. Gunakan gambar, video, PDF, dokumen, atau file teks.' };
+  }
+  const limit = SIZE_LIMITS_BYTES[sniffed.category];
+  if (file.buffer.length > limit) {
+    const limitMb = Math.round(limit / (1024 * 1024));
+    return { ok: false, error: `Ukuran file terlalu besar. Maksimal ${limitMb}MB untuk tipe ${sniffed.category}.` };
+  }
+
+  try {
+    const uploaded = await uploadAttachment(file.buffer, sniffed.mime, file.originalName);
+    return {
+      ok: true,
+      attachment: {
+        driveFileId: uploaded.driveFileId,
+        category: sniffed.category,
+        mimeType: sniffed.mime,
+        originalName: file.originalName,
+        fileSize: uploaded.fileSize,
+      },
+    };
+  } catch (e) {
+    return {
+      ok: false,
+      error:
+        e instanceof Error && /belum diset/.test(e.message)
+          ? 'Penyimpanan lampiran (Google Drive) belum dikonfigurasi di server ini. Hubungi admin, atau kirim komentar tanpa lampiran.'
+          : 'Gagal upload lampiran ke Google Drive.',
+    };
+  }
+}
+
 /** Komentar butuh TEKS ATAU LAMPIRAN (tidak wajib keduanya, tapi tidak boleh kosong dua-duanya). */
 export async function createComment(input: CreateCommentInput): Promise<CreateCommentResult> {
   const text = input.text.trim();
@@ -82,43 +130,11 @@ export async function createComment(input: CreateCommentInput): Promise<CreateCo
     return { ok: false, error: 'Komentar harus berisi teks atau lampiran file.' };
   }
 
-  let attachment: {
-    driveFileId: string;
-    category: AttachmentCategory;
-    mimeType: string;
-    originalName: string;
-    fileSize: number;
-  } | null = null;
-
+  let attachment: UploadedAttachment | null = null;
   if (input.file) {
-    const sniffed = sniffMimeType(input.file.buffer);
-    if (!sniffed || !ALLOWED_MIME_TYPES.has(sniffed.mime)) {
-      return { ok: false, error: 'Jenis file tidak didukung. Gunakan gambar, video, PDF, dokumen, atau file teks.' };
-    }
-    const limit = SIZE_LIMITS_BYTES[sniffed.category];
-    if (input.file.buffer.length > limit) {
-      const limitMb = Math.round(limit / (1024 * 1024));
-      return { ok: false, error: `Ukuran file terlalu besar. Maksimal ${limitMb}MB untuk tipe ${sniffed.category}.` };
-    }
-
-    try {
-      const uploaded = await uploadAttachment(input.file.buffer, sniffed.mime, input.file.originalName);
-      attachment = {
-        driveFileId: uploaded.driveFileId,
-        category: sniffed.category,
-        mimeType: sniffed.mime,
-        originalName: input.file.originalName,
-        fileSize: uploaded.fileSize,
-      };
-    } catch (e) {
-      return {
-        ok: false,
-        error:
-          e instanceof Error && /belum diset/.test(e.message)
-            ? 'Penyimpanan lampiran (Google Drive) belum dikonfigurasi di server ini. Hubungi admin, atau kirim komentar tanpa lampiran.'
-            : 'Gagal upload lampiran ke Google Drive.',
-      };
-    }
+    const uploadResult = await validateAndUploadAttachment(input.file);
+    if (!uploadResult.ok) return { ok: false, error: uploadResult.error };
+    attachment = uploadResult.attachment;
   }
 
   const row = (await SheetTable.insertRow('task_comments', {
@@ -135,18 +151,71 @@ export async function createComment(input: CreateCommentInput): Promise<CreateCo
   return { ok: true, comment: row };
 }
 
+export type EditCommentInput = {
+  commentId: string;
+  newText: string;
+  /** Lampiran BARU (kalau diisi, MENGGANTI lampiran lama — lampiran lama otomatis dihapus dari
+   *  Drive). Diabaikan kalau `removeAttachment` juga true (file baru selalu menang). */
+  file?: { buffer: Buffer; originalName: string } | null;
+  /** true = hapus lampiran yang ada, TANPA menggantinya. Diabaikan kalau `file` diisi. */
+  removeAttachment?: boolean;
+};
+
 export type EditCommentResult = { ok: true; comment: CommentRow } | { ok: false; error: string };
 
-/** Edit HANYA mengubah teks (lampiran tidak bisa diganti lewat edit — meniru aplikasi lama, hapus & buat baru kalau perlu ganti lampiran). */
-export async function editCommentText(commentId: string, newText: string): Promise<EditCommentResult> {
-  const text = newText.trim();
-  const existing = (await SheetTable.findById('task_comments', commentId)) as CommentRow | undefined;
+/** Perbaikan (permintaan user): lampiran SEKARANG bisa diganti (upload file baru) atau dihapus
+ *  lewat edit komentar juga — desain awal Fase 9 sengaja membatasi edit ke teks saja (meniru
+ *  aplikasi lama: "hapus komentar & buat baru" kalau mau ganti lampiran), tapi user eksplisit
+ *  minta ini diubah. Kalau `file`/`removeAttachment` TIDAK diisi sama sekali (user cuma edit
+ *  teks), lampiran yang ada TIDAK disentuh — perilaku lama utk kasus itu tetap sama persis. */
+export async function editComment(input: EditCommentInput): Promise<EditCommentResult> {
+  const text = input.newText.trim();
+  const existing = (await SheetTable.findById('task_comments', input.commentId)) as CommentRow | undefined;
   if (!existing) return { ok: false, error: 'Komentar tidak ditemukan.' };
-  if (!text && !existing.attachment_drive_file_id) {
+
+  let attachmentPatch: Partial<CommentRow> = {};
+  let oldDriveFileIdToDelete: string | null = null;
+  let willHaveAttachment = !!existing.attachment_drive_file_id;
+
+  if (input.file) {
+    const uploadResult = await validateAndUploadAttachment(input.file);
+    if (!uploadResult.ok) return { ok: false, error: uploadResult.error };
+    if (existing.attachment_drive_file_id) oldDriveFileIdToDelete = existing.attachment_drive_file_id;
+    attachmentPatch = {
+      attachment_drive_file_id: uploadResult.attachment.driveFileId,
+      attachment_category: uploadResult.attachment.category,
+      attachment_mime_type: uploadResult.attachment.mimeType,
+      attachment_original_name: uploadResult.attachment.originalName,
+      attachment_file_size: String(uploadResult.attachment.fileSize),
+    };
+    willHaveAttachment = true;
+  } else if (input.removeAttachment && existing.attachment_drive_file_id) {
+    oldDriveFileIdToDelete = existing.attachment_drive_file_id;
+    attachmentPatch = {
+      attachment_drive_file_id: '',
+      attachment_category: '',
+      attachment_mime_type: '',
+      attachment_original_name: '',
+      attachment_file_size: '',
+    };
+    willHaveAttachment = false;
+  }
+
+  if (!text && !willHaveAttachment) {
     return { ok: false, error: 'Komentar harus berisi teks atau lampiran file.' };
   }
 
-  const updated = (await SheetTable.updateRow('task_comments', commentId, { comment: text })) as CommentRow;
+  const updated = (await SheetTable.updateRow('task_comments', input.commentId, {
+    comment: text,
+    ...attachmentPatch,
+  })) as CommentRow;
+
+  // File lama di Drive dihapus SETELAH row berhasil diupdate — best-effort (sama pola dengan
+  // deleteComment), tidak menggagalkan response edit kalau penghapusan file lama gagal.
+  if (oldDriveFileIdToDelete) {
+    await deleteAttachment(oldDriveFileIdToDelete).catch(() => {});
+  }
+
   return { ok: true, comment: updated };
 }
 

@@ -154,6 +154,12 @@ export default function TaskActivityFeed({
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
+  // Perbaikan (permintaan user): lampiran sekarang bisa diganti/dihapus lewat mode edit juga —
+  // editFile = file baru yg dipilih (menggantikan lampiran lama), editRemoveAttachment = tandai
+  // lampiran yang ADA untuk dihapus (tanpa diganti). Direset tiap kali mulai/batal edit.
+  const [editFile, setEditFile] = useState<File | null>(null);
+  const [editRemoveAttachment, setEditRemoveAttachment] = useState(false);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   // ---- Riwayat: state & logic identik dengan task-history.tsx ----
   const [history, setHistory] = useState<HistoryEntry[]>([]);
@@ -292,18 +298,44 @@ export default function TaskActivityFeed({
   function startEdit(c: Comment) {
     setEditingId(c.id);
     setEditText(c.comment);
+    setEditFile(null);
+    setEditRemoveAttachment(false);
   }
 
-  async function saveEdit(commentId: string) {
+  function cancelEdit() {
+    setEditingId(null);
+    setEditFile(null);
+    setEditRemoveAttachment(false);
+    if (editFileInputRef.current) editFileInputRef.current.value = '';
+  }
+
+  // Perbaikan (permintaan user): lampiran sekarang ikut bisa diganti/dihapus lewat edit —
+  // sebelumnya cuma teks yang dikirim (JSON) dan lampiran lama tidak pernah disentuh sama sekali.
+  // Kalau user cuma edit teks (tidak menyentuh lampiran), tetap kirim JSON polos seperti semula
+  // supaya perilaku untuk kasus paling umum ini tidak berubah.
+  async function saveEdit(c: Comment) {
     try {
-      const res = await apiFetch(`/api/tasks/${taskId}/comments/${commentId}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comment: editText }),
-      });
+      let res: Response;
+      if (editFile) {
+        const form = new FormData();
+        form.append('comment', editText);
+        form.append('file', editFile);
+        res = await apiFetch(`/api/tasks/${taskId}/comments/${c.id}`, { method: 'PATCH', body: form });
+      } else if (editRemoveAttachment && c.attachment) {
+        const form = new FormData();
+        form.append('comment', editText);
+        form.append('removeAttachment', '1');
+        res = await apiFetch(`/api/tasks/${taskId}/comments/${c.id}`, { method: 'PATCH', body: form });
+      } else {
+        res = await apiFetch(`/api/tasks/${taskId}/comments/${c.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ comment: editText }),
+        });
+      }
       const json = await parseJsonSafe(res);
       if (!res.ok) throw new Error(json.error || t('toast_comment_save_failed'));
-      setEditingId(null);
+      cancelEdit();
       await loadComments();
       toast.success(t('toast_comment_updated'));
     } catch (e) {
@@ -378,24 +410,98 @@ export default function TaskActivityFeed({
 
           {editingId === c.id ? (
             <div className="mt-1 space-y-1.5">
-              <textarea
-                value={editText}
-                onChange={(e) => setEditText(e.target.value)}
-                placeholder={t('comment_placeholder')}
-                rows={2}
-                className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
-              />
+              <div className="focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-500/20 rounded-lg border border-gray-300 bg-white transition-colors">
+                <textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  placeholder={t('comment_placeholder')}
+                  rows={2}
+                  className="w-full resize-none rounded-t-lg border-0 bg-transparent px-3 py-2 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0"
+                />
+                {/* Perbaikan (permintaan user): lampiran sekarang bisa diganti (icon attach ini)
+                    atau dihapus (tombol ✕ di chip di bawah) selama edit — sebelumnya lampiran
+                    sama sekali tidak bisa disentuh di mode edit. */}
+                <div className="flex items-center gap-1 border-t border-gray-100 px-2 py-1.5">
+                  <label
+                    className="flex cursor-pointer items-center rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-900"
+                    title={t('comment_attach_aria')}
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+                    </svg>
+                    <input
+                      ref={editFileInputRef}
+                      type="file"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] || null;
+                        setEditFile(f);
+                        if (f) setEditRemoveAttachment(false);
+                      }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {editFile ? (
+                <div className="flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-500">
+                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+                  </svg>
+                  <span className="flex-1 truncate">{editFile.name}</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditFile(null);
+                      if (editFileInputRef.current) editFileInputRef.current.value = '';
+                    }}
+                    className="shrink-0 text-gray-400 hover:text-red-600"
+                    aria-label={t('comment_remove_attachment_aria')}
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ) : c.attachment && !editRemoveAttachment ? (
+                <div className="flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-500">
+                  <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+                  </svg>
+                  <span className="flex-1 truncate">{c.attachment.originalName}</span>
+                  <span className="shrink-0 text-gray-400">({formatSize(c.attachment.fileSize)})</span>
+                  <button
+                    type="button"
+                    onClick={() => setEditRemoveAttachment(true)}
+                    className="shrink-0 text-gray-400 hover:text-red-600"
+                    aria-label={t('comment_remove_attachment_aria')}
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              ) : c.attachment && editRemoveAttachment ? (
+                <div className="flex items-center gap-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-600">
+                  <span className="flex-1">{t('comment_attachment_will_be_removed')}</span>
+                  <button
+                    type="button"
+                    onClick={() => setEditRemoveAttachment(false)}
+                    className="shrink-0 font-medium text-red-700 hover:text-red-900"
+                  >
+                    {t('action_cancel')}
+                  </button>
+                </div>
+              ) : null}
+
               <div className="flex items-center gap-2">
                 <button
-                  onClick={() => saveEdit(c.id)}
+                  onClick={() => saveEdit(c)}
                   className="rounded-lg bg-indigo-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-indigo-700"
                 >
                   {t('action_save')}
                 </button>
-                <button
-                  onClick={() => setEditingId(null)}
-                  className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-900"
-                >
+                <button onClick={cancelEdit} className="px-3 py-1.5 text-xs font-medium text-gray-500 hover:text-gray-900">
                   {t('action_cancel')}
                 </button>
               </div>
