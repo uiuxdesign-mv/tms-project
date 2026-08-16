@@ -107,6 +107,33 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/*
+ * Perbaikan (permintaan user): skala SELURUH tampilan aplikasi jadi 80%. Sengaja pakai `zoom`
+ * (bukan mengecilkan `font-size` di root `html`) setelah dicek dulu — banyak sekali tempat di
+ * aplikasi ini yang pakai ukuran piksel MENTAH lewat Tailwind arbitrary value (mis. `text-[10px]`
+ * untuk label/badge kecil, `w-[280px]` untuk kolom Kanban, `max-h-[500px]`, dst — puluhan titik
+ * tersebar di banyak file), bukan cuma unit `rem` yang ikut mengecil kalau cuma font-size root
+ * yang diubah. Kalau cuma font-size root yang dikecilkan, semua yang px MENTAH itu TIDAK ikut
+ * menyusut — hasilnya badge/label kecil itu malah kelihatan RELATIF LEBIH BESAR dibanding elemen
+ * di sekitarnya yang sudah menyusut, tampilan jadi tidak proporsional/konsisten (persis risiko
+ * "keterkaitan satu sama lain" yang diminta user untuk dipikirkan dulu).
+ *
+ * `zoom` menyisir SEMUA ukuran sekaligus (px mentah maupun rem) jadi 80% tanpa perlu menyisir satu
+ * per satu — dan sudah dicek lewat Playwright sebelum dipasang, supaya tidak menebak-nebak:
+ * - Modal/dialog `position: fixed` (dipakai di HAMPIR SEMUA modal aplikasi ini) tetap menutupi
+ *   PENUH viewport seperti biasa — `zoom` TIDAK membuat containing block baru untuk elemen fixed
+ *   (beda dari `transform: scale` yang akan merusak semua modal fixed kalau dipakai sebagai
+ *   pengganti `zoom` di sini).
+ * - Breakpoint responsif Tailwind (`md:`/`lg:` dkk, berbasis media query) TETAP dievaluasi
+ *   terhadap lebar viewport ASLI perangkat, tidak ikut bergeser gara-gara zoom — jadi kapan
+ *   sidebar mobile vs desktop muncul tidak berubah dari sebelumnya.
+ * - Koordinat pointer/klik & `getBoundingClientRect()` (dipakai al. oleh komponen crop foto
+ *   profil) tetap mengikuti ukuran VISUAL hasil zoom, konsisten dengan apa yang terlihat di layar.
+ */
+html {
+  zoom: 0.8;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
