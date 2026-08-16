@@ -234,11 +234,24 @@ export async function getAttachmentContent(comment: CommentRow): Promise<Buffer>
   return downloadAttachment(comment.attachment_drive_file_id);
 }
 
-/** Feed "Komentar Terbaru" Dashboard — beberapa komentar terbaru dari task yang visible ke session. */
-export async function getRecentCommentsForTasks(taskIds: string[], limit: number): Promise<CommentRow[]> {
+/**
+ * Feed "Komentar Terbaru" Dashboard — beberapa komentar terbaru dari task yang visible ke session.
+ *
+ * Perbaikan (Round 23 — permintaan user "klik menu dashboard masih lama"): tambah opsi
+ * `preFetchedRows` (pola sama dengan `preFetchedTask` di getTimeStateForTask, Round 22) — Dashboard
+ * sekarang mengambil sheet `task_comments` ini BERSAMAAN (Promise.all) dengan `getVisibleEnrichedTasks`
+ * alih-alih menunggu daftar task selesai dulu (lihat catatan lengkap di dashboard/page.tsx), karena
+ * fetch mentahnya sendiri TIDAK butuh tahu taskIds — hanya langkah FILTER di bawah ini yang butuh.
+ * Kalau `preFetchedRows` tidak dioper (caller lain), perilaku persis seperti sebelumnya: fetch sendiri.
+ */
+export async function getRecentCommentsForTasks(
+  taskIds: string[],
+  limit: number,
+  opts: { preFetchedRows?: CommentRow[] } = {}
+): Promise<CommentRow[]> {
   if (taskIds.length === 0) return [];
   const taskIdSet = new Set(taskIds);
-  const rows = (await SheetTable.getAll('task_comments')) as CommentRow[];
+  const rows = opts.preFetchedRows ?? ((await SheetTable.getAll('task_comments')) as CommentRow[]);
   return rows
     .filter((r) => taskIdSet.has(r.task_id))
     .sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')) // newest-first untuk feed

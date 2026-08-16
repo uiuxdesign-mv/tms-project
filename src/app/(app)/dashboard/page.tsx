@@ -2,7 +2,7 @@ import { getSession } from '@/lib/auth/get-session';
 import { getVisibleMenuKeys } from '@/lib/menu-access/permissions';
 import { getVisibleEnrichedTasks } from '@/lib/models/reports';
 import { summarizeTasks } from '@/lib/reports/summarize';
-import { getRecentCommentsForTasks } from '@/lib/models/comments';
+import { getRecentCommentsForTasks, type CommentRow } from '@/lib/models/comments';
 import { getAuditLog, type AuditLogEntry } from '@/lib/models/audit-log';
 import * as SheetTable from '@/lib/google/sheet-table';
 import { computeClosedIntervals, type TimeLogEventLike } from '@/lib/reports/time-intervals';
@@ -50,16 +50,35 @@ export default async function DashboardPage() {
   const canViewTasking = visibleKeys.has('tasking');
   const canViewReport = visibleKeys.has('report');
 
-  // Ringkasan & chart tugas di Dashboard hanya relevan kalau user memang punya akses Tasking
-  // (Fase 7) — sebelumnya selalu dihitung untuk siapa saja yang login, meski Tasking sekarang
-  // digerbang.
+  // Perbaikan (Round 23, permintaan user "klik menu dashboard masih sangat lama"): SEBELUMNYA ada
+  // 2 tahap round-trip yang SALING MENUNGGU padahal tidak perlu — (1) getVisibleEnrichedTasks
+  // (gabungan 7 sheet, paling berat di halaman ini) harus SELESAI DULU sebelum (2) baru mulai
+  // ambil users/task_comments/task_time_logs (3 sheet lagi), karena kode lama pikir langkah (2)
+  // butuh `visibleTaskIds` dari hasil (1). Padahal FETCH mentah ketiga sheet itu (SheetTable.getAll)
+  // sama sekali TIDAK butuh tahu taskIds lebih dulu — taskIds cuma dipakai untuk MENYARING hasilnya
+  // setelah data sudah di tangan (lihat getRecentCommentsForTasks & filter events di bawah).
+  // Sekarang SEMUA 4 sheet (tasks + users + task_comments + task_time_logs) diambil BERSAMAAN lewat
+  // satu Promise.all — total waktu tunggu Dashboard turun dari "waktu(1) + waktu(2)" jadi cuma
+  // waktu PALING LAMBAT di antara semuanya (potensi ~2x lebih cepat pada kondisi cache dingin).
+  // Trade-off kecil yang disengaja: 3 sheet users/task_comments/task_time_logs sekarang tetap
+  // diambil meski ternyata visibleTasks hasilnya 0 baris (kasus jarang — user dengan akses Tasking
+  // tapi belum ada task apa pun yang visible untuknya) — dibanding penghematan latensi untuk kasus
+  // NORMAL (mayoritas user yang memang punya task), ini trade-off yang sepadan, konsisten dengan
+  // pola paralelisasi lain di Round 22/23.
   let visibleTasks: Awaited<ReturnType<typeof getVisibleEnrichedTasks>> = [];
+  let usersResult: SheetTable.SheetRow[] = [];
+  let commentsRawResult: SheetTable.SheetRow[] = [];
+  let timeLogsResult: SheetTable.SheetRow[] = [];
   if (session && canViewTasking) {
-    try {
-      visibleTasks = await getVisibleEnrichedTasks(session);
-    } catch (e) {
-      console.error('[dashboard] gagal memuat tasks:', e);
-    }
+    [visibleTasks, usersResult, commentsRawResult, timeLogsResult] = await Promise.all([
+      getVisibleEnrichedTasks(session).catch((e) => {
+        console.error('[dashboard] gagal memuat tasks:', e);
+        return [] as Awaited<ReturnType<typeof getVisibleEnrichedTasks>>;
+      }),
+      SheetTable.getAll('users').catch(() => [] as SheetTable.SheetRow[]),
+      SheetTable.getAll('task_comments').catch(() => [] as SheetTable.SheetRow[]),
+      SheetTable.getAll('task_time_logs').catch(() => [] as SheetTable.SheetRow[]),
+    ]);
   }
   const summary = session && canViewTasking ? summarizeTasks(visibleTasks) : null;
 
@@ -76,16 +95,14 @@ export default async function DashboardPage() {
   const taskTitleById = new Map(visibleTasks.map((t) => [t.id, t.title]));
 
   // Perbaikan (Round 22, permintaan user poin 3 & 4 — "klik menu dashboard responya lama" &
-  // "pengambilan data ... lebih efisien"): ketiga blok data di bawah ini (nama user, komentar
-  // terbaru, interval Time Tracking) SEBELUMNYA di-fetch satu per satu secara BERURUTAN (users ->
-  // baru comments -> baru task_time_logs), padahal ketiganya SALING INDEPENDEN — sama-sama cuma
-  // butuh `visibleTasks` yang sudah tersedia di atas, tidak ada satu pun yang butuh hasil dari
-  // yang lain sebelum bisa mulai. Sekarang ketiganya dijalankan BERSAMAAN lewat Promise.all —
-  // total waktu tunggu jadi sepanjang yang PALING LAMBAT dari ketiganya, bukan jumlah ketiganya
-  // (bisa memangkas latensi bagian ini sampai ~3x pada kondisi cache dingin). Masing-masing tetap
-  // graceful-degradation sendiri-sendiri lewat `.catch()` per panggilan (persis seperti try/catch
-  // sebelumnya) — kalau salah satu gagal (mis. sheet task_time_logs belum dikonfigurasi), yang
-  // lain tetap tampil normal.
+  // "pengambilan data ... lebih efisien"): nama user, komentar terbaru, & interval Time Tracking
+  // SALING INDEPENDEN satu sama lain — tidak ada satu pun yang butuh hasil dari yang lain.
+  // Perbaikan susulan (Round 23 — permintaan user "klik menu dashboard masih sangat lama"):
+  // `usersResult`/`commentsRawResult`/`timeLogsResult` SEKARANG SUDAH di-fetch di atas, BERSAMAAN
+  // dengan `getVisibleEnrichedTasks` (lihat catatan panjang di deklarasi variabel tsb) — blok ini
+  // TIDAK fetch apa pun lagi, cuma memproses data yang sudah di tangan (filter berdasarkan
+  // visibleTaskIds, hitung interval, dst). Ini menghilangkan 1 round-trip penuh yang sebelumnya
+  // WAJIB menunggu getVisibleEnrichedTasks selesai dulu sebelum baru mulai fetch ketiga sheet ini.
   let userNames = new Map<string, string>();
   let recentComments: Awaited<ReturnType<typeof getRecentCommentsForTasks>> = [];
   let timeIntervals: ClosedTimeInterval[] = [];
@@ -95,23 +112,14 @@ export default async function DashboardPage() {
 
   if (session && canViewTasking && visibleTasks.length > 0) {
     const visibleTaskIds = visibleTasks.map((t) => t.id);
-    const [usersResult, commentsResult, timeLogsResult] = await Promise.all([
-      // Nama semua user — dipakai feed "Komentar Terbaru" & "Pelacakan Waktu Terbaru" (Fase 11).
-      SheetTable.getAll('users').catch(() => [] as SheetTable.SheetRow[]),
-      // Fase 9: feed "Komentar Terbaru" — hanya dari task yang visible ke session ini (aturan
-      // visibilitas yang sama seperti daftar Tasks). Kalau sheet task_comments belum
-      // dikonfigurasi (belum setup OAuth Drive/sheet), Dashboard tetap tampil normal tanpa card
-      // ini, bukan 500 — pola graceful-degradation yang sama seperti Time Tracking Fase 8.
-      getRecentCommentsForTasks(visibleTaskIds, 5).catch(() => []),
-      // Fase 11: event Time Tracking (Fase 8 — `task_time_logs`) dari task-task yang visible ke
-      // session ini. Kalau sheet task_time_logs belum dikonfigurasi (mis. SHEET_ID_TASK_TIME_LOGS
-      // belum diset saat deploy), fallback array kosong — metrik terkait di bawah ikut fallback
-      // ke 0/kosong, pola graceful-degradation yang sama seperti fitur lain di halaman ini.
-      SheetTable.getAll('task_time_logs').catch(() => [] as SheetTable.SheetRow[]),
-    ]);
 
     userNames = new Map(usersResult.map((u) => [u.id, u.name]));
-    recentComments = commentsResult;
+    // Fase 9: feed "Komentar Terbaru" — hanya dari task yang visible ke session ini (aturan
+    // visibilitas yang sama seperti daftar Tasks). `preFetchedRows` supaya tidak fetch ulang sheet
+    // task_comments yang sudah diambil bersamaan tasks di atas (lihat catatan Round 23 di sana).
+    recentComments = await getRecentCommentsForTasks(visibleTaskIds, 5, {
+      preFetchedRows: commentsRawResult as CommentRow[],
+    }).catch(() => []);
 
     try {
       const visibleIds = new Set(visibleTaskIds);
