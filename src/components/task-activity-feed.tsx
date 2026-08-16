@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
+import { useEffect, useLayoutEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
@@ -170,6 +170,15 @@ export default function TaskActivityFeed({
   const [filter, setFilter] = useState<ActivityFilter>('all');
   const [showOlder, setShowOlder] = useState(false);
 
+  // Perbaikan (permintaan user): scroll list aktivitas defaultnya di BAWAH (aktivitas terbaru
+  // langsung terlihat), bukan di atas seperti default browser — daftar disusun oldest-first jadi
+  // yang terbaru selalu ada di paling bawah. `scrollToLatestTick` dipakai sbg "sinyal" generik:
+  // tiap kali di-increment, layout effect di bawah men-scroll container ke paling bawah SETELAH
+  // render (bukan pas trigger-nya, supaya DOM/tinggi konten sudah pasti ter-update dulu).
+  const activityScrollRef = useRef<HTMLDivElement>(null);
+  const [scrollToLatestTick, setScrollToLatestTick] = useState(0);
+  const scrollToLatest = useCallback(() => setScrollToLatestTick((v) => v + 1), []);
+
   const toast = useToast();
   const confirmDialog = useConfirm();
   const { t, lang } = useLanguage();
@@ -285,6 +294,11 @@ export default function TaskActivityFeed({
       setFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       await loadComments();
+      // Perbaikan (permintaan user, "keterkaitan"): komentar yang baru saja dikirim otomatis
+      // ada di paling bawah (urutan oldest-first) — kalau tidak ikut di-scroll, komentar sendiri
+      // yang baru dikirim bisa jadi tidak langsung terlihat kalau posisi scroll sebelumnya lagi
+      // di atas. Konsisten dengan tujuan perbaikan ini: "default menampilkan yang terbaru".
+      scrollToLatest();
       toast.success(t('toast_comment_sent'));
     } catch (e) {
       const msg = e instanceof Error ? e.message : t('toast_comment_send_failed');
@@ -392,6 +406,29 @@ export default function TaskActivityFeed({
   // Loading gabungan hanya kalau KEDUA sumber belum ada data sama sekali — kalau salah satu sudah
   // selesai lebih dulu, feed langsung tampil (tidak menunggu yang paling lambat).
   const loading = commentsLoading && historyLoading && merged.length === 0;
+
+  // Perbaikan (permintaan user): scroll list aktivitas defaultnya di BAWAH (aktivitas terbaru
+  // langsung terlihat), bukan di atas seperti default browser. Satu useLayoutEffect ini menangani
+  // SEMUA pemicu sekaligus (langsung memanipulasi DOM ref, TANPA memanggil setState di dalam efek
+  // — supaya bersih dari lint "set-state-in-effect"), lewat 3 dependency:
+  //  - `loading`: begitu aktivitas pertama kali selesai dimuat (true -> false). Modal task selalu
+  //    dibuka sebagai instance BARU per task (lihat `{editingId && <TaskDetailModal/>}` di
+  //    tasks-table.tsx/kanban-board.tsx/calendar-view.tsx — tidak ada `key`, tapi modal SELALU
+  //    unmount total dulu sebelum task lain dibuka), jadi `loading` otomatis true->false lagi
+  //    dengan sendirinya tiap kali komponen ini di-mount ulang utk task berikutnya.
+  //  - `filter`: ganti tab (Semua/Komentar/Perubahan) juga ikut ke bawah lagi — supaya "default
+  //    menampilkan yang terbaru" konsisten utk tab manapun, bukan cuma tab "Semua" yg pertama
+  //    dimuat.
+  //  - `scrollToLatestTick`: pemicu manual dari luar efek (lihat handleSubmit — dipanggil dari
+  //    event handler biasa, BUKAN dari dalam useEffect, jadi setState di dalamnya aman/tidak
+  //    kena lint yg sama) — dipakai supaya komentar yang baru dikirim langsung ikut ke-scroll.
+  // SENGAJA TIDAK ikut bereaksi ke `showOlder` (tombol "Tampilkan N aktivitas lama") — itu
+  // menambah konten lama di ATAS; kalau ikut discroll ke bawah lagi jadi kontradiktif dgn maksud
+  // tombolnya sendiri (baru diminta lihat yg lama, tapi langsung ke-scroll balik ke paling baru).
+  useLayoutEffect(() => {
+    const el = activityScrollRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [loading, filter, scrollToLatestTick]);
 
   function renderCommentItem(c: Comment, isLast: boolean) {
     return (
@@ -629,7 +666,7 @@ export default function TaskActivityFeed({
       {commentsError && <div className="mb-2 shrink-0 rounded-lg bg-red-50 p-2 text-xs text-red-700">{commentsError}</div>}
       {historyError && <div className="mb-2 shrink-0 rounded-lg bg-red-50 p-2 text-xs text-red-700">{historyError}</div>}
 
-      <div className="max-h-80 overflow-y-auto lg:max-h-none lg:min-h-0 lg:flex-1">
+      <div ref={activityScrollRef} className="max-h-80 overflow-y-auto lg:max-h-none lg:min-h-0 lg:flex-1">
         {loading && <p className="py-2 text-sm text-gray-400">{t('activity_loading')}</p>}
         {!loading && filtered.length === 0 && <p className="py-2 text-sm text-gray-400">{t('activity_empty')}</p>}
 
