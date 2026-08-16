@@ -48,8 +48,19 @@ export default function LoginPage() {
         toast.error(data.error || t('toast_login_failed'));
         return;
       }
+      // Bugfix (Round 22, permintaan user poin 2 — "loading ketika login masih sangat lama"):
+      // sebelumnya `router.push()` DAN `router.refresh()` dipanggil berurutan — push() sendiri
+      // sudah memicu navigasi (fetch RSC payload Dashboard dari server, menjalankan AppGroupLayout
+      // + DashboardPage penuh), lalu refresh() SEGERA setelahnya memaksa Next.js membuang cache
+      // route yang baru saja diambil push() dan menge-fetch ulang route yang sama dari server dari
+      // awal — akibatnya seluruh rantai data Dashboard (session, menu access, ringkasan Task,
+      // komentar, time tracking, audit log) dikerjakan DUA KALI untuk satu kali login, membuat
+      // transisi login terasa dua kali lebih lama dari seharusnya. `refresh()` di sini tidak
+      // dibutuhkan sama sekali — /dashboard adalah navigasi ke route yang belum pernah dibuka
+      // sesi ini (tidak ada Router Cache basi untuk dibuang), dan datanya (session-dependent, lihat
+      // getSession() di setiap Server Component) selalu dihitung ulang dari cookie sesi yang baru
+      // di-set, bukan dari cache manapun.
       router.push('/dashboard');
-      router.refresh();
     } catch {
       setError(t('toast_network_error'));
       toast.error(t('toast_network_error'));

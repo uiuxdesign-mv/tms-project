@@ -31,7 +31,12 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ error: 'Anda tidak punya akses ke Time Tracking task ini.' }, { status: 403 });
     }
 
-    const { task, state, events } = await getTimeStateForTask(id, { useCache: false });
+    // Perbaikan (Round 22, permintaan user poin 5 — "membuka modal tasking sangat lama
+    // menampilkan data"): `existing` di atas SUDAH baris task ini (dibaca untuk cek izin) — oper
+    // langsung lewat `preFetchedTask` supaya getTimeStateForTask TIDAK baca ulang sheet `tasks`
+    // dari Google Sheets API (sebelumnya baca 2x untuk task yang SAMA dalam 1 request ini saja).
+    // Lihat catatan lengkap di definisi getTimeStateForTask, src/lib/models/time-tracking.ts.
+    const { task, state, events } = await getTimeStateForTask(id, { useCache: false, preFetchedTask: existing });
     return NextResponse.json({ data: { task, state, events } });
   } catch (err) {
     console.error(`GET /api/tasks/${id}/time-tracking gagal:`, err);

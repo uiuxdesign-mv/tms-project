@@ -37,23 +37,31 @@ export async function GET(_req: NextRequest, ctx: { params: Promise<{ id: string
       return NextResponse.json({ error: 'Anda tidak punya akses ke task ini.' }, { status: 403 });
     }
 
-    // Bugfix (permintaan user, item detail tasking): resolusi nama "Pemberi Tugas" (assigned_by)
-    // dilakukan di server, bukan lewat daftar opsi Assignee di client — pemberi tugas bisa saja
-    // Admin/Pemimpin, yang SENGAJA dikecualikan dari daftar opsi Assignee (mereka tidak boleh
-    // ditugaskan task), jadi namanya tidak akan ketemu kalau di-resolve dari opts.assignees di
-    // client. Field ini kosong ('') kalau task bukan hasil penunjukan tugas (self-assigned).
-    const assignedByName = existing.assigned_by
-      ? (await SheetTable.findById('users', existing.assigned_by))?.name || ''
-      : '';
-
-    const timeStates = await getTimeStatesForTasks([id], { useCache: false });
+    // Perbaikan (Round 22, permintaan user poin 5 — "membuka modal tasking sangat lama
+    // menampilkan data"): ketiga pemanggilan di bawah ini (nama "Pemberi Tugas", state Time
+    // Tracking, status default) SEBELUMNYA di-await satu per satu secara BERURUTAN, padahal
+    // ketiganya SALING INDEPENDEN — semuanya cuma butuh `existing` (task, sudah tersedia di atas),
+    // tidak ada yang butuh hasil dari yang lain. Dijalankan bersamaan lewat Promise.all supaya
+    // endpoint ini (salah satu dari 3 panggilan paralel yang dilakukan task-detail-modal.tsx saat
+    // modal dibuka) tidak menambah latensinya sendiri 3x lipat dari yang seharusnya.
+    const [assignedByRow, timeStates, defaultStatusId] = await Promise.all([
+      // Bugfix (permintaan user, item detail tasking): resolusi nama "Pemberi Tugas"
+      // (assigned_by) dilakukan di server, bukan lewat daftar opsi Assignee di client — pemberi
+      // tugas bisa saja Admin/Pemimpin, yang SENGAJA dikecualikan dari daftar opsi Assignee
+      // (mereka tidak boleh ditugaskan task), jadi namanya tidak akan ketemu kalau di-resolve
+      // dari opts.assignees di client.
+      existing.assigned_by ? SheetTable.findById('users', existing.assigned_by) : Promise.resolve(undefined),
+      getTimeStatesForTasks([id], { useCache: false }),
+      // Perbaikan (permintaan user, item optimasi loading): status default jarang berubah, cukup
+      // pakai cache (sekarang 2 menit — lihat cacheTtlFor di sheet-table.ts).
+      getDefaultStatusId(),
+    ]);
+    // Field ini kosong ('') kalau task bukan hasil penunjukan tugas (self-assigned).
+    const assignedByName = assignedByRow?.name || '';
 
     // Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas): sama seperti GET /api/tasks
     // (list) — flag izin dihitung di server & disisipkan langsung, supaya task-detail-modal.tsx
     // tidak perlu lagi menghitung ulang aturan izin sendiri secara terpisah dari list/Kanban.
-    // Perbaikan (permintaan user, item optimasi loading): sama seperti GET /api/tasks — status
-    // default jarang berubah, cukup pakai cache 30 detik.
-    const defaultStatusId = await getDefaultStatusId();
     const isDefaultStatus = !!defaultStatusId && existing.status_id === defaultStatusId;
 
     return NextResponse.json({

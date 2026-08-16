@@ -19,6 +19,29 @@ const MASTER_ENTITY_LABEL_KEYS: Record<string, TranslationKey> = {
   roles: 'nav_master_roles',
 };
 
+// Foto profil (Fase 11) — di-fetch sekali di sini (bukan dari JWT session, yang tidak menyimpan
+// photo_url) supaya avatar di topbar langsung terlihat tanpa perlu logout/login setelah admin
+// mengganti foto lewat Master User atau user sendiri lewat Profile.
+//
+// PENTING (Fase 12c — bugfix produksi): layout ini membungkus SEMUA halaman, jadi query ini
+// berjalan di SETIAP navigasi. Dibungkus try/catch — begitu Google Sheets API gagal sesaat (rate
+// limit 429, network hiccup, dsb), seluruh layout TIDAK ikut melempar error tak tertangani (yang
+// sebelumnya membuat SEMUA menu jadi "This page couldn't load", React error #441 di produksi) —
+// avatar cukup fallback ke huruf awal nama (lihat app-shell.tsx), bukan menjatuhkan seluruh
+// halaman. Dipisah jadi fungsi sendiri (Round 22) supaya bisa dijalankan BERSAMAAN dengan
+// getVisibleMenuKeys lewat Promise.all di AppGroupLayout, bukan berurutan setelahnya.
+async function loadTopbarPhotoUrl(userId: string): Promise<string | undefined> {
+  try {
+    const userRow = await SheetTable.findById('users', userId);
+    // Bugfix (Fase 18, permintaan user): sertakan `?v=` (Drive file ID) supaya avatar topbar tidak
+    // menampilkan foto LAMA dari cache browser setelah foto diganti — lihat catatan lengkap di
+    // UserAvatar (users-table.tsx).
+    return userRow?.photo_url ? `/api/users/${userId}/photo?v=${encodeURIComponent(userRow.photo_url)}` : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Layout persisten (Fase 10) untuk semua halaman setelah login — sidebar + topbar dihitung SEKALI
  * di sini dari sesi & Menu Access, lalu dikirim ke AppShell (client component) yang menangani
@@ -37,7 +60,16 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
   if (session.mustChangePassword) redirect('/change-password');
 
   const isAdmin = session.isAdmin;
-  const visibleKeys = await getVisibleMenuKeys(session);
+
+  // Perbaikan (Round 22, permintaan user poin 3 — "klik menu manapun responnya lama, cek di semua
+  // menu"): layout ini membungkus SEMUA halaman, jadi kedua panggilan Google Sheets di sini
+  // (izin menu & foto profil avatar topbar, lihat di bawah) menambah latensi tetap ke SETIAP
+  // navigasi di seluruh aplikasi. Keduanya SALING INDEPENDEN (foto profil tidak butuh tahu menu
+  // apa saja yang visible, dan sebaliknya) — sebelumnya dijalankan berurutan (foto profil baru
+  // mulai diambil SETELAH izin menu selesai), sekarang berjalan bersamaan lewat Promise.all supaya
+  // total waktu tunggu layout ini cuma sepanjang panggilan yang PALING LAMBAT dari keduanya, bukan
+  // jumlah keduanya.
+  const [visibleKeys, photoUrl] = await Promise.all([getVisibleMenuKeys(session), loadTopbarPhotoUrl(session.userId)]);
   const visibleMasterMenus = MASTER_MENU_KEYS.filter((m) => visibleKeys.has(m.key));
 
   const navGroups: ShellNavGroup[] = [
@@ -91,30 +123,6 @@ export default async function AppGroupLayout({ children }: { children: React.Rea
   // tapi rute /audit-log tetap bisa diakses langsung lewat URL untuk admin (tidak dihapus).
   // Profil Saya juga tidak ada di sidebar video — sudah bisa diakses lewat dropdown user di
   // topbar (lihat app-shell.tsx), jadi tidak perlu didobel di sini.
-
-  // Foto profil (Fase 11) — di-fetch sekali di sini (bukan dari JWT session, yang tidak menyimpan
-  // photo_url) supaya avatar di topbar langsung terlihat tanpa perlu logout/login setelah admin
-  // mengganti foto lewat Master User atau user sendiri lewat Profile.
-  //
-  // PENTING (Fase 12c — bugfix produksi): layout ini membungkus SEMUA halaman, jadi query ini
-  // berjalan di SETIAP navigasi. Sebelumnya tidak dibungkus try/catch — begitu Google Sheets API
-  // gagal sesaat (rate limit 429, network hiccup, dsb — sudah pernah terjadi saat testing berat),
-  // seluruh layout ikut melempar error tak tertangani dan SEMUA menu jadi "This page couldn't
-  // load" (React error #441 di production). Dibungkus try/catch dengan pola graceful-degradation
-  // yang sama seperti fetch lain di Dashboard — kalau gagal, avatar cukup fallback ke huruf awal
-  // nama (lihat app-shell.tsx), bukan menjatuhkan seluruh halaman.
-  let photoUrl: string | undefined;
-  try {
-    const userRow = await SheetTable.findById('users', session.userId);
-    // Bugfix (Fase 18, permintaan user): sertakan `?v=` (Drive file ID) supaya avatar topbar tidak
-    // menampilkan foto LAMA dari cache browser setelah foto diganti — lihat catatan lengkap di
-    // UserAvatar (users-table.tsx).
-    photoUrl = userRow?.photo_url
-      ? `/api/users/${session.userId}/photo?v=${encodeURIComponent(userRow.photo_url)}`
-      : undefined;
-  } catch {
-    photoUrl = undefined;
-  }
 
   return (
     <AppShell

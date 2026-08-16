@@ -3,7 +3,43 @@ import { getSheetsClient } from './client';
 import { SPREADSHEET_IDS, type SheetKey } from './spreadsheet-ids';
 import { getCached, setCached, invalidateCache } from './cache';
 
-const CACHE_TTL_MS = 30_000; // 30 detik
+const DEFAULT_CACHE_TTL_MS = 30_000; // 30 detik — data yang sering berubah (tasks, time logs, komentar, dst).
+
+/**
+ * Perbaikan (Round 22, permintaan user poin 4 — "pengambilan data juga masih sering lemot dan
+ * terkadang error. tolong perbaiki codingannya agar lebih efisien dalam mengambil data"):
+ * Master/config data (Role, Client, Project, Task Type, Priority, Status, Employment Type, Menu
+ * Access) SANGAT JARANG berubah — cuma diedit admin sesekali lewat Master Data — tapi dibaca di
+ * HAMPIR SETIAP request (opsi dropdown Task, cek permission tiap navigasi lewat
+ * requirePermission/hasMenuPermission, dst). Sebelumnya semua sheet memakai TTL cache yang SAMA
+ * (30 detik) — sama seperti data yang memang berubah tiap detik (tasks/task_time_logs) — jadi
+ * ikut menyumbang besar ke tekanan kuota Google Sheets API (300 read/menit per project, 60/menit
+ * per akun service — lihat cache.ts) tanpa manfaat kesegaran data yang nyata, dan salah satu
+ * penyebab error "Gagal memuat data" / rate-limit 429 yang sering muncul (poin 1 & 4).
+ *
+ * TTL sheet-sheet ini sekarang lebih panjang (2 menit) — halaman Master Data sendiri TIDAK
+ * terpengaruh sama sekali (route-nya selalu pakai `useCache:false`, jadi admin yang MENGEDIT
+ * tetap langsung melihat perubahannya sendiri); yang bertambah cuma waktu tunggu user LAIN (di
+ * luar Master Data) melihat perubahan itu — dari maksimal 30 detik jadi maksimal 2 menit, trade-
+ * off wajar untuk pengurangan jumlah panggilan API yang signifikan (endpoint seperti
+ * GET /api/tasks/options membaca 6 dari 8 sheet-nya dari kategori ini di SETIAP pembukaan
+ * halaman/modal Task).
+ */
+const LONG_CACHE_TTL_MS = 120_000; // 2 menit — master/config data, jarang berubah.
+const LONG_TTL_SHEETS: ReadonlySet<SheetKey> = new Set<SheetKey>([
+  'roles',
+  'clients',
+  'projects',
+  'priorities',
+  'task_types',
+  'employment_types',
+  'statuses',
+  'menu_access',
+]);
+
+function cacheTtlFor(sheetKey: SheetKey): number {
+  return LONG_TTL_SHEETS.has(sheetKey) ? LONG_CACHE_TTL_MS : DEFAULT_CACHE_TTL_MS;
+}
 
 export type SheetRow = Record<string, string>;
 
@@ -116,7 +152,7 @@ export async function getAll(
   if (!all) {
     const { header, rows } = await readHeaderAndRows(sheetKey);
     all = rowsToObjects(header, rows);
-    setCached(cacheKey, all, CACHE_TTL_MS);
+    setCached(cacheKey, all, cacheTtlFor(sheetKey));
   }
 
   if (opts.includeDeleted) return all;

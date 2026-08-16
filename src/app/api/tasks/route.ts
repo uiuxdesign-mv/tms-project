@@ -44,6 +44,21 @@ export async function GET(req: NextRequest) {
     if (statusId) rows = rows.filter((t) => t.status_id === statusId);
     if (assignee) rows = rows.filter((t) => t.assigned_to === assignee);
 
+    // Perbaikan (Round 22, permintaan user poin 4 — "pengambilan data juga masih sering lemot ...
+    // agar lebih efisien"): priorities (dipakai urutan Urgent-dulu), state Time Tracking, dan
+    // status default SEBELUMNYA di-await satu per satu secara BERURUTAN, padahal ketiganya SALING
+    // INDEPENDEN — tidak satu pun butuh hasil dari yang lain (state Time Tracking cuma butuh
+    // daftar ID task, yang sudah didapat dari `rows` di atas — urutan SORT-nya belum perlu selesai
+    // duluan). Dijalankan bersamaan lewat Promise.all — endpoint ini dipanggil sangat sering
+    // (List/Kanban/Calendar, polling 20 detik, tiap habis aksi), jadi dampaknya terasa luas.
+    const [priorities, timeStates, defaultStatusId] = await Promise.all([
+      SheetTable.getAll('priorities'),
+      getTimeStatesForTasks(rows.map((t) => t.id), { useCache: false }),
+      // Status default (is_default="Ya") sangat jarang berubah — cukup pakai cache (sekarang 2
+      // menit, lihat cacheTtlFor di sheet-table.ts), tidak perlu useCache:false di sini.
+      getDefaultStatusId(),
+    ]);
+
     // Perbaikan (permintaan user, urutan Task): default-nya task terbaru (created_at) selalu di
     // paling atas, KECUALI task ber-priority "Urgent" yang selalu didahulukan di atas semuanya
     // (tetap diurutkan terbaru-dulu di antara sesama Urgent). Priority adalah Master Data yang
@@ -51,7 +66,6 @@ export async function GET(req: NextRequest) {
     // yang di-hardcode) — cocok case-insensitive & di-trim supaya toleran spasi/kapitalisasi.
     // Dipakai bersama di List (tasks-table.tsx) & Kanban (kanban-board.tsx): keduanya cuma
     // memfilter array ini tanpa sort ulang, jadi urutan dari sini otomatis berlaku di kedua view.
-    const priorities = await SheetTable.getAll('priorities');
     const urgentPriorityIds = new Set(
       priorities.filter((p) => String(p.priority_name || '').trim().toLowerCase() === 'urgent').map((p) => p.id)
     );
@@ -64,18 +78,10 @@ export async function GET(req: NextRequest) {
       return bTime - aTime;
     });
 
-    // Fase 8 (Time Tracking): sisipkan state Start/Pause/Stop/Review yang sudah di-derive dari
-    // event log, supaya UI (tabel Task, nanti Kanban) tidak perlu 1 request terpisah per task.
-    const timeStates = await getTimeStatesForTasks(rows.map((t) => t.id), { useCache: false });
-
     // Perbaikan (permintaan user, perbaikan Leader & Pemberi Tugas): flag izin per-task dihitung
     // SEKALI di server dan disisipkan langsung ke tiap baris, supaya tasks-table.tsx & kanban-
     // board.tsx tidak perlu lagi menghitung ulang aturan izin sendiri-sendiri secara terpisah di
     // client (pola yang sebelumnya sudah pernah menyebabkan bug ketidaksesuaian antar komponen).
-    // Perbaikan (permintaan user, item optimasi loading): status default (is_default="Ya") sangat
-    // jarang berubah — cukup pakai cache 30 detik yang sudah ada, tidak perlu useCache:false di
-    // sini (mengurangi 1 panggilan Google Sheets API tambahan per request GET /api/tasks).
-    const defaultStatusId = await getDefaultStatusId();
     const rowsWithTimeTracking = rows.map((t) => {
       const isDefaultStatus = !!defaultStatusId && t.status_id === defaultStatusId;
       return {

@@ -467,13 +467,33 @@ async function finish(taskId: string, pendingHistory: PendingHistoryEntry[]): Pr
   return { ok: true, task, events, state, pendingHistory };
 }
 
-/** Dipakai UI untuk menghitung "closedSeconds" total (sudah termasuk cache tasks.actual_duration_seconds). */
+/**
+ * Dipakai UI untuk menghitung "closedSeconds" total (sudah termasuk cache
+ * tasks.actual_duration_seconds).
+ *
+ * Perbaikan (Round 22, permintaan user poin 5 — "membuka modal tasking sangat lama menampilkan
+ * data"): dua perbaikan sekaligus di sini —
+ * (1) `preFetchedTask` (opsional): caller yang KEBETULAN sudah punya baris task ini di tangan
+ *     (mis. GET /api/tasks/[id]/time-tracking, yang sudah `findById('tasks', id)` sendiri untuk
+ *     cek izin SEBELUM memanggil fungsi ini) bisa mengoper baris itu langsung supaya fungsi ini
+ *     TIDAK perlu baca ulang sheet `tasks` dari Google Sheets API — sebelumnya SELALU baca ulang
+ *     walau task-nya sudah ada di tangan caller, jadi 1 panggilan API yang benar-benar tidak
+ *     perlu di setiap pembukaan modal Task (dipanggil PARALEL dengan GET /api/tasks/[id] yang
+ *     JUGA baca sheet `tasks` yang sama — di deployment serverless multi-instance seperti
+ *     Vercel, dedup single-flight di sheet-table.ts tidak selalu bisa menyatukan 2 request HTTP
+ *     terpisah ini kalau kebetulan dilayani instance berbeda).
+ * (2) Kalau memang perlu baca task dari sheet (tidak ada preFetchedTask), pembacaan itu
+ *     dijalankan BERSAMAAN (Promise.all) dengan pembacaan event log `task_time_logs` — sebelumnya
+ *     berurutan, padahal keduanya independen.
+ */
 export async function getTimeStateForTask(
   taskId: string,
-  opts: { useCache?: boolean } = {}
+  opts: { useCache?: boolean; preFetchedTask?: SheetRow } = {}
 ): Promise<{ task: SheetRow | undefined; state: DerivedTimeState; events: TimeLogRow[] }> {
-  const task = await SheetTable.findById('tasks', taskId, opts);
-  const events = await getEventsForTask(taskId, opts);
+  const [task, events] = await Promise.all([
+    opts.preFetchedTask ? Promise.resolve(opts.preFetchedTask) : SheetTable.findById('tasks', taskId, opts),
+    getEventsForTask(taskId, opts),
+  ]);
   const state = deriveState(events);
   return { task, state, events };
 }
