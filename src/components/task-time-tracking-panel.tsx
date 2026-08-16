@@ -136,28 +136,37 @@ export default function TaskTimeTrackingPanel({
             - Selain itu (mis. In Progress): diganti Waktu Kerja (akumulasi, sama alasannya) —
               permintaan user eksplisit utk kasus ini, diperluas ke Review demi konsistensi (bukan
               cuma "In Progress" doang yang benar, "Review" dibiarkan sesi-saat-ini akan terlihat
-              janggal/tidak konsisten). "Sesi Saat Ini" murni masih ada di drawer Detail Waktu. */}
-        {isFinalStatus ? (
-          <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+              janggal/tidak konsisten). "Sesi Saat Ini" murni masih ada di drawer Detail Waktu.
+
+            Perbaikan lanjutan (permintaan user): preview waktu ini (blok di atas) sekarang
+            disembunyikan SELAMA drawer "Detail Waktu" terbuka (detailOpen), lalu muncul lagi
+            begitu drawer ditutup — berlaku utk SEMUA status/fase (final, review, maupun biasa),
+            bukan cuma salah satu, karena angka ini toh sudah terlihat lebih detail lengkap di
+            drawer-nya sendiri saat expand, jadi menampilkan keduanya sekaligus cuma duplikat.
+            State badge (Berjalan/Dijeda/Belum Dimulai) di atas TIDAK ikut disembunyikan — user
+            spesifik cuma minta "waktu"-nya (bagian ini) yang hilang, bukan seluruh baris. */}
+        {!detailOpen &&
+          (isFinalStatus ? (
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
+              <span className="flex items-baseline gap-1">
+                <span className="text-gray-400">{t('tt_work_time')}:</span>
+                <span className="tabular-nums font-semibold text-gray-900">{formatDuration(workTimeSeconds)}</span>
+              </span>
+              <span className="flex items-baseline gap-1">
+                <span className="text-gray-400">{t('tt_review_time')}:</span>
+                <span className="tabular-nums font-semibold text-amber-600">{formatDuration(reviewTimeSeconds)}</span>
+              </span>
+            </span>
+          ) : (
             <span className="flex items-baseline gap-1">
-              <span className="text-gray-400">{t('tt_work_time')}:</span>
-              <span className="tabular-nums font-semibold text-gray-900">{formatDuration(workTimeSeconds)}</span>
+              <span className="text-[10px] uppercase tracking-wide text-gray-400">
+                {isReviewStatus ? t('tt_review_time') : t('tt_work_time')}
+              </span>
+              <span className="tabular-nums text-sm font-semibold text-gray-900">
+                {formatDuration(isReviewStatus ? reviewTimeSeconds : workTimeSeconds)}
+              </span>
             </span>
-            <span className="flex items-baseline gap-1">
-              <span className="text-gray-400">{t('tt_review_time')}:</span>
-              <span className="tabular-nums font-semibold text-amber-600">{formatDuration(reviewTimeSeconds)}</span>
-            </span>
-          </span>
-        ) : (
-          <span className="flex items-baseline gap-1">
-            <span className="text-[10px] uppercase tracking-wide text-gray-400">
-              {isReviewStatus ? t('tt_review_time') : t('tt_work_time')}
-            </span>
-            <span className="tabular-nums text-sm font-semibold text-gray-900">
-              {formatDuration(isReviewStatus ? reviewTimeSeconds : workTimeSeconds)}
-            </span>
-          </span>
-        )}
+          ))}
 
         <button
           type="button"
