@@ -404,18 +404,37 @@ export default function TaskActivityFeed({
   const visibleItems = showOlder || hiddenCount === 0 ? filtered : filtered.slice(hiddenCount);
 
   // Loading gabungan hanya kalau KEDUA sumber belum ada data sama sekali — kalau salah satu sudah
-  // selesai lebih dulu, feed langsung tampil (tidak menunggu yang paling lambat).
+  // selesai lebih dulu, feed langsung tampil (tidak menunggu yang paling lambat). Dipakai HANYA
+  // untuk teks "Memuat..." / empty-state di bawah — JANGAN dipakai sebagai pemicu auto-scroll (lihat
+  // `bothSourcesLoaded` di bawah, ini sumber bug-nya).
   const loading = commentsLoading && historyLoading && merged.length === 0;
+
+  // Bugfix (permintaan user: "scroll pada aktifitas menampilkan default diatas, harusnya defaultnya
+  // berada di bawah menampilkan data terbaru"): efek auto-scroll di bawah SEBELUMNYA bereaksi ke
+  // `loading` di atas — tapi `loading` bisa jadi false LEBIH AWAL dari yang dikira: begitu SALAH
+  // SATU sumber (komentar ATAU riwayat) selesai duluan dengan data, `merged.length` sudah > 0
+  // sehingga `loading` langsung false walau sumber yang SATU LAGI (lebih lambat) belum selesai.
+  // Efek jadi keburu scroll ke bawah saat konten masih pendek (sebagian data belum masuk) — lalu
+  // saat sumber yang lambat akhirnya selesai & menambah item baru, TIDAK ADA re-trigger scroll
+  // (nilai `loading` sudah false, tidak berubah lagi walau `merged` bertambah) — hasilnya posisi
+  // scroll "nyangkut" di atas begitu konten akhirnya jadi lebih tinggi dari area yang terlihat.
+  // Fix: sinyal terpisah yang HANYA true saat KEDUA sumber benar-benar sudah selesai (bukan salah
+  // satu, dan bukan berdasar isi `merged`) — baru di titik itu `comments` & `history` dijamin sudah
+  // lengkap keduanya (masing-masing sumber men-set data-nya SEBELUM men-set loading-nya ke false,
+  // di blok `finally` yang sama), jadi scrollHeight yang dibaca efek sudah final, bukan sementara.
+  const bothSourcesLoaded = !commentsLoading && !historyLoading;
 
   // Perbaikan (permintaan user): scroll list aktivitas defaultnya di BAWAH (aktivitas terbaru
   // langsung terlihat), bukan di atas seperti default browser. Satu useLayoutEffect ini menangani
   // SEMUA pemicu sekaligus (langsung memanipulasi DOM ref, TANPA memanggil setState di dalam efek
   // — supaya bersih dari lint "set-state-in-effect"), lewat 3 dependency:
-  //  - `loading`: begitu aktivitas pertama kali selesai dimuat (true -> false). Modal task selalu
-  //    dibuka sebagai instance BARU per task (lihat `{editingId && <TaskDetailModal/>}` di
-  //    tasks-table.tsx/kanban-board.tsx/calendar-view.tsx — tidak ada `key`, tapi modal SELALU
-  //    unmount total dulu sebelum task lain dibuka), jadi `loading` otomatis true->false lagi
-  //    dengan sendirinya tiap kali komponen ini di-mount ulang utk task berikutnya.
+  //  - `bothSourcesLoaded` (BUKAN `loading` lagi — lihat komentar panjang di definisinya di atas
+  //    untuk penjelasan bug-nya): begitu KEDUA sumber (komentar & riwayat) benar-benar selesai
+  //    dimuat (false -> true, sekali per mount). Modal task selalu dibuka sebagai instance BARU
+  //    per task (lihat `{editingId && <TaskDetailModal/>}` di tasks-table.tsx/kanban-board.tsx/
+  //    calendar-view.tsx — tidak ada `key`, tapi modal SELALU unmount total dulu sebelum task lain
+  //    dibuka), jadi `bothSourcesLoaded` otomatis mulai dari false lagi tiap kali komponen ini
+  //    di-mount ulang utk task berikutnya.
   //  - `filter`: ganti tab (Semua/Komentar/Perubahan) juga ikut ke bawah lagi — supaya "default
   //    menampilkan yang terbaru" konsisten utk tab manapun, bukan cuma tab "Semua" yg pertama
   //    dimuat.
@@ -428,7 +447,7 @@ export default function TaskActivityFeed({
   useLayoutEffect(() => {
     const el = activityScrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [loading, filter, scrollToLatestTick]);
+  }, [bothSourcesLoaded, filter, scrollToLatestTick]);
 
   function renderCommentItem(c: Comment, isLast: boolean) {
     return (
