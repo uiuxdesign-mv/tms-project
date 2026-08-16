@@ -128,6 +128,7 @@ export default function TaskActivityFeed({
   canDeleteAny,
   readOnly = false,
   statuses,
+  refreshToken = 0,
 }: {
   taskId: string;
   currentUserId: string;
@@ -139,6 +140,15 @@ export default function TaskActivityFeed({
    *  (Master Status, sama seperti dipakai <Badge> di tempat lain, mis. tasks-table.tsx) — dipakai
    *  untuk mewarnai badge status lama/baru di entri riwayat perubahan status. */
   statuses: { label: string; colorCode?: string | null }[];
+  /** Perbaikan Round 21 (poin 1 & 2 — "aktivitas history nya tidak langsung muncul" & "update data
+   *  otomatis di user lain ... belum berlaku ketika user sedang membuka modal"): pemicu refetch
+   *  eksternal dari parent (task-detail-modal.tsx) — dinaikkan (increment) setiap kali modal
+   *  berhasil menjalankan aksi Time Tracking/Cancel SENDIRI, DAN tiap kali polling latar-belakang
+   *  modal mendeteksi kemungkinan perubahan dari user lain. Komponen ini sebelumnya cuma
+   *  memuat komentar & riwayat SEKALI saat mount (tidak ada cara bagi parent memintanya refetch),
+   *  jadi entri riwayat baru cuma kelihatan kalau modal ditutup-buka ulang (remount) atau halaman
+   *  di-refresh manual. */
+  refreshToken?: number;
 }) {
   // ---- Komentar: state & logic identik dengan task-comments.tsx (tidak ada yang dihapus) ----
   const [comments, setComments] = useState<Comment[]>([]);
@@ -223,6 +233,26 @@ export default function TaskActivityFeed({
   useEffect(() => {
     loadHistory();
   }, [loadHistory]);
+
+  // Perbaikan Round 21 (poin 1 & 2): refetch komentar + riwayat begitu `refreshToken` dari parent
+  // berubah — dijaga skip pada render PERTAMA (mount) supaya tidak dobel-fetch dengan 2 efek mount
+  // di atas (yang sudah menangani load awal). `taskId` ikut jadi dependency supaya guard "pertama
+  // kali" ini reset lagi tiap kali komponen dipakai untuk task baru (walau pada praktiknya modal
+  // selalu unmount/mount total per task — lihat catatan bothSourcesLoaded di atas — ini jaga-jaga
+  // ekstra kalau pola pemakaiannya berubah nanti).
+  const skipNextRefreshRef = useRef(true);
+  useEffect(() => {
+    skipNextRefreshRef.current = true;
+  }, [taskId]);
+  useEffect(() => {
+    if (skipNextRefreshRef.current) {
+      skipNextRefreshRef.current = false;
+      return;
+    }
+    loadComments();
+    loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [refreshToken]);
 
   // Reset collapse tiap kali filter diganti — supaya angka "N aktivitas lama" selalu dihitung
   // ulang sesuai daftar yang sedang aktif, bukan state basi dari filter sebelumnya.

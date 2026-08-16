@@ -11,6 +11,7 @@ import { SortableHeader, TableSearchBox, PaginationBar } from '@/components/tabl
 import { Badge, StatusBadge } from '@/components/badge';
 import { useLanguage } from '@/components/language-provider';
 import { useBodyScrollLock } from '@/lib/hooks/use-body-scroll-lock';
+import { getViewCache, setViewCache } from '@/lib/hooks/view-cache';
 import type { TranslationKey } from '@/lib/i18n/translations';
 
 type TFn = (key: TranslationKey) => string;
@@ -102,6 +103,14 @@ export default function MasterDataTable({
       if (!rowsRes.ok || !rowsJson.data) throw new Error(rowsJson.error || t('toast_load_data_failed'));
       setRows(rowsJson.data);
       setOptions(optsJson.data || {});
+      // Perbaikan Round 21 (poin 3 — "sesuaikan di halaman lain dengan kasus serupa, tolong cek
+      // ulang"): sama seperti List/Kanban/Calendar Tasking, simpan hasilnya ke cache antar-navigasi
+      // (Round 7, poin 3) supaya kunjungan BERIKUTNYA ke entity yang SAMA dalam sesi tab ini instan
+      // — lihat catatan lengkap penyebab & solusinya di useEffect di bawah (beda dari Tasking:
+      // masing-masing entity Master Data punya datanya sendiri-sendiri, jadi TIDAK ada cross-populate
+      // seperti primeAllTaskViewsCache, cuma cache per-entity biasa).
+      setViewCache(`master:${entityKey}:rows`, rowsJson.data);
+      setViewCache(`master:${entityKey}:opts`, optsJson.data || {});
     } catch (e) {
       setError(e instanceof Error ? e.message : t('toast_load_data_failed'));
     } finally {
@@ -110,9 +119,32 @@ export default function MasterDataTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [entityKey]);
 
+  // Perbaikan Round 21 (poin 3 — "ketika saya berpindah view ... tampilan muncul 'memuat' ...
+  // sesuaikan di halaman lain dengan kasus serupa"): `MasterDataTable` dipakai oleh SEMUA entity
+  // Master Data lewat 1 instance komponen yang SAMA (`entityKey` cuma prop, komponennya sendiri
+  // TIDAK di-remount tiap ganti entity — lihat `/master/[entity]/page.tsx`), jadi `loading` TIDAK
+  // otomatis reset ke awal cuma karena `entityKey` berubah. Sebelumnya `load()` (lewat efek
+  // `[load]`, yang berubah identitasnya tiap `entityKey` ganti karena `useCallback` di atas)
+  // SELALU dipanggil non-silent, jadi SETIAP kali pindah entity (Client -> Project -> Client lagi,
+  // dst) tabel mem-blank ke "Memuat..." sesaat — padahal kalau entity itu SUDAH PERNAH dibuka
+  // sebelumnya dalam sesi tab ini, datanya sudah ada di cache. Sekarang: cek cache per-entity dulu
+  // — kalau ada, langsung tampilkan (silent reload di background); kalau belum pernah (entity
+  // BENAR-BENAR baru dibuka pertama kali), baru tampilkan "Memuat..." (tidak terhindarkan — datanya
+  // memang belum pernah diambil sama sekali, beda dengan kasus Tasking yang List/Kanban/Calendar
+  // berbagi sumber data PERSIS SAMA).
   useEffect(() => {
-    load();
-  }, [load]);
+    const cachedRows = getViewCache<Row[]>(`master:${entityKey}:rows`);
+    const cachedOpts = getViewCache<Record<string, SelectOption[]>>(`master:${entityKey}:opts`);
+    if (cachedRows) {
+      setRows(cachedRows);
+      setOptions(cachedOpts || {});
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
+    load({ silent: !!cachedRows });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entityKey]);
 
   // Bugfix (Fase 13): cek status aktif satu baris, generik untuk semua entity Master Data — semua
   // entity pakai kolom `status` bernilai 'Active'/'Inactive', KECUALI `statuses` yang justru punya

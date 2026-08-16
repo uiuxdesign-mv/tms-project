@@ -8,7 +8,8 @@ import TaskCreateModal, { type TaskCreateOptionsData } from '@/components/task-c
 import TaskFilterBar from '@/components/task-filter-bar';
 import { useLanguage } from '@/components/language-provider';
 import { usePolling } from '@/lib/hooks/use-polling';
-import { getViewCache, setViewCache } from '@/lib/hooks/view-cache';
+import { getViewCache } from '@/lib/hooks/view-cache';
+import { primeAllTaskViewsCache } from '@/lib/hooks/task-view-cache';
 
 type TaskRow = {
   id: string;
@@ -117,9 +118,11 @@ export default function CalendarView({
       if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || t('toast_load_options_failed'));
       setRows(tasksJson.data);
       setOpts(optsJson.data);
-      // Simpan ke cache antar-tab (Round 7, poin 3) — lihat catatan lengkap di tasks-table.tsx.
-      setViewCache('tasks:calendar:rows', tasksJson.data);
-      setViewCache('tasks:calendar:opts', optsJson.data);
+      // Perbaikan (permintaan user poin 3 — "ini masih terjadi diawal"): dulu cuma mengisi cache
+      // milik tab Calendar sendiri — sekarang sekaligus mengisi cache List & Kanban juga (sumber
+      // datanya SAMA PERSIS, tanpa panggilan API tambahan). Lihat catatan lengkap di
+      // task-view-cache.ts.
+      primeAllTaskViewsCache(tasksJson.data, optsJson.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('toast_load_data_failed'));
     } finally {

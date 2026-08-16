@@ -8,7 +8,8 @@ import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { useTableControls } from '@/lib/hooks/use-table-controls';
 import { usePolling } from '@/lib/hooks/use-polling';
-import { getViewCache, setViewCache } from '@/lib/hooks/view-cache';
+import { getViewCache } from '@/lib/hooks/view-cache';
+import { primeAllTaskViewsCache } from '@/lib/hooks/task-view-cache';
 import { SortableHeader, PaginationBar } from '@/components/table-controls';
 import { Badge } from '@/components/badge';
 import { TasksPageHeader, TasksViewSwitcher } from '@/components/tasks-view-header';
@@ -129,10 +130,12 @@ export default function TasksTable({
       if (!optsRes.ok || !optsJson.data) throw new Error(optsJson.error || t('toast_load_options_failed'));
       setRows(tasksJson.data);
       setOpts(optsJson.data);
-      // Simpan hasil fetch terbaru ke cache antar-tab (Round 7, poin 3) — dipakai tab List
-      // berikutnya (termasuk kunjungan ulang ke tab ini sendiri) sebagai render pertama instan.
-      setViewCache('tasks:list:rows', tasksJson.data);
-      setViewCache('tasks:list:opts', optsJson.data);
+      // Perbaikan (permintaan user poin 3 — "ini masih terjadi diawal"): dulu cuma mengisi cache
+      // milik tab List sendiri (`setViewCache('tasks:list:...')`) — sekarang sekaligus mengisi
+      // cache Kanban & Calendar juga (data sumbernya SAMA PERSIS, tidak ada panggilan API
+      // tambahan), supaya perpindahan tab PERTAMA KALI ke Kanban/Calendar pun sudah instan, bukan
+      // cuma kunjungan berikutnya. Lihat catatan lengkap di task-view-cache.ts.
+      primeAllTaskViewsCache(tasksJson.data, optsJson.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('toast_load_data_failed'));
     } finally {

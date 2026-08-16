@@ -11,7 +11,8 @@ import TaskCreateModal, { type TaskCreateOptionsData } from '@/components/task-c
 import TaskFilterBar from '@/components/task-filter-bar';
 import { useLanguage } from '@/components/language-provider';
 import { usePolling } from '@/lib/hooks/use-polling';
-import { getViewCache, setViewCache } from '@/lib/hooks/view-cache';
+import { getViewCache } from '@/lib/hooks/view-cache';
+import { primeAllTaskViewsCache, primeAllTaskViewsRowsOnly } from '@/lib/hooks/task-view-cache';
 
 type TaskRow = {
   id: string;
@@ -145,9 +146,11 @@ export default function KanbanBoard({
         })),
       };
       setOpts(nextOpts);
-      // Simpan ke cache antar-tab (Round 7, poin 3) — lihat catatan lengkap di tasks-table.tsx.
-      setViewCache('tasks:kanban:rows', tasksJson.data);
-      setViewCache('tasks:kanban:opts', nextOpts);
+      // Perbaikan (permintaan user poin 3 — "ini masih terjadi diawal"): isi cache List & Calendar
+      // sekaligus dari data yang sama (raw `optsJson.data`, transformasi workflowLevel khusus
+      // Kanban ditangani sendiri oleh primeAllTaskViewsCache) — lihat catatan lengkap di
+      // task-view-cache.ts.
+      primeAllTaskViewsCache(tasksJson.data, optsJson.data);
     } catch (e) {
       setError(e instanceof Error ? e.message : t('toast_load_data_failed'));
     } finally {
@@ -183,7 +186,9 @@ export default function KanbanBoard({
       const tasksJson = await parseJsonSafe(tasksRes);
       if (!tasksRes.ok || !tasksJson.data) return;
       setRows(tasksJson.data);
-      setViewCache('tasks:kanban:rows', tasksJson.data);
+      // Ikut segarkan cache rows List & Calendar juga (data rows-nya sama persis) — lihat
+      // catatan di task-view-cache.ts. `opts` sengaja tidak disentuh di sini.
+      primeAllTaskViewsRowsOnly(tasksJson.data);
     } catch {
       // Diam-diam — lihat catatan di atas.
     }

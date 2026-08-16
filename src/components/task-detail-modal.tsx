@@ -9,6 +9,7 @@ import TaskActivityFeed from '@/components/task-activity-feed';
 import TaskTimeTrackingPanel from '@/components/task-time-tracking-panel';
 import { useLanguage } from '@/components/language-provider';
 import { useBodyScrollLock } from '@/lib/hooks/use-body-scroll-lock';
+import { usePolling } from '@/lib/hooks/use-polling';
 
 type TaskRow = {
   id: string;
@@ -227,6 +228,11 @@ export default function TaskDetailModal({
   const [busy, setBusy] = useState(false);
   const [activeTab, setActiveTab] = useState<'work' | 'review'>('work');
   const [nowMs, setNowMs] = useState<number | null>(null);
+  // Perbaikan Round 21 (poin 1 & 2): dinaikkan (increment) tiap kali modal ini berhasil menjalankan
+  // aksi Time Tracking/Cancel SENDIRI, DAN tiap kali polling latar-belakang (lihat pollReload di
+  // bawah) menyelesaikan satu putaran — diteruskan ke <TaskActivityFeed refreshToken=...> sebagai
+  // pemicu refetch komentar & riwayat. Lihat catatan panjang di task-activity-feed.tsx.
+  const [refreshToken, setRefreshToken] = useState(0);
 
   // Bugfix (permintaan user, item loading-flicker): `load()` dipanggil ulang setelah aksi Time
   // Tracking/Cancel Task (bukan cuma saat modal pertama dibuka) supaya data terbaru langsung
@@ -245,7 +251,17 @@ export default function TaskDetailModal({
   // (datanya tidak mungkin berubah dari aksi ini) sekaligus menambah beban ke kuota per-menit yang
   // ketat — salah satu penyebab utama "sering error" saat banyak user memakai Time Tracking
   // bersamaan. `opts` yang sudah ada di state cukup dipertahankan apa adanya.
-  const load = async ({ silent = false, skipOptions = false }: { silent?: boolean; skipOptions?: boolean } = {}) => {
+  // Perbaikan Round 21 (poin 2 — "update data otomatis di user lain ... belum berlaku ketika user
+  // sedang membuka modal"): parameter `skipForm` BARU — dipakai KHUSUS oleh polling latar-belakang
+  // (pollReload di bawah), supaya perubahan dari USER LAIN tetap membuat `task`/`opts`/Time
+  // Tracking ikut ter-refresh (status badge, panel Time Tracking, dsb — semuanya read-only), TANPA
+  // menimpa `form` yang sedang aktif diisi/diedit user INI sendiri (title/description/dsb) — kalau
+  // form ikut ditimpa tiap 20 detik, draft perubahan yang belum di-Save bisa hilang tanpa sadar.
+  const load = async ({
+    silent = false,
+    skipOptions = false,
+    skipForm = false,
+  }: { silent?: boolean; skipOptions?: boolean; skipForm?: boolean } = {}) => {
     if (!silent) setLoading(true);
     setError(null);
     try {
@@ -269,20 +285,22 @@ export default function TaskDetailModal({
           })),
         });
       }
-      setForm({
-        title: taskJson.data.title || '',
-        description: taskJson.data.description || '',
-        client_id: taskJson.data.client_id || '',
-        project_id: taskJson.data.project_id || '',
-        task_type_id: taskJson.data.task_type_id || '',
-        related_task_id: taskJson.data.related_task_id || '',
-        priority_id: taskJson.data.priority_id || '',
-        status_id: taskJson.data.status_id || '',
-        assigned_to: taskJson.data.assigned_to || '',
-        due_date: toDatetimeLocal(taskJson.data.due_date || ''),
-        start_date: toDatetimeLocal(taskJson.data.start_date || ''),
-        estimated_hours: taskJson.data.estimated_hours || '',
-      });
+      if (!skipForm) {
+        setForm({
+          title: taskJson.data.title || '',
+          description: taskJson.data.description || '',
+          client_id: taskJson.data.client_id || '',
+          project_id: taskJson.data.project_id || '',
+          task_type_id: taskJson.data.task_type_id || '',
+          related_task_id: taskJson.data.related_task_id || '',
+          priority_id: taskJson.data.priority_id || '',
+          status_id: taskJson.data.status_id || '',
+          assigned_to: taskJson.data.assigned_to || '',
+          due_date: toDatetimeLocal(taskJson.data.due_date || ''),
+          start_date: toDatetimeLocal(taskJson.data.start_date || ''),
+          estimated_hours: taskJson.data.estimated_hours || '',
+        });
+      }
 
       if (ttRes.ok) {
         const ttJson = await parseJsonSafe(ttRes);
@@ -313,6 +331,24 @@ export default function TaskDetailModal({
     const id = setInterval(() => setNowMs(Date.now()), 1000);
     return () => clearInterval(id);
   }, [timeState?.state]);
+
+  // Perbaikan Round 21 (poin 2 — "update data otomatis di user lain ... masih belum berlaku ketika
+  // user sedang membuka modal. tolong perbaiki"): sebelumnya polling papan Kanban/List/Kalender
+  // SENGAJA dimatikan selagi modal ini terbuka (`!detailTaskId` di usePolling masing-masing view —
+  // lihat catatan di kanban-board.tsx dkk) supaya papan tidak "melompat" di tengah interaksi user —
+  // tapi modal ITU SENDIRI tidak pernah punya polling sendiri, jadi perubahan dari user lain
+  // (mis. Leader mengubah status/assignee task yang sama dari device lain) tidak pernah kelihatan
+  // selama modal masih terbuka, walau 20 detik sekali lewat. Sekarang modal polling sendiri —
+  // `skipOptions: true` (opsi master data tidak berubah dari aksi biasa) & `skipForm: true` (JANGAN
+  // timpa draft form yang sedang diisi user ini — lihat catatan panjang di definisi load() di atas)
+  // — lalu naikkan `refreshToken` supaya Activity feed (komentar+riwayat) ikut refetch tiap putaran,
+  // sekaligus menutup celah poin 1 untuk perubahan riwayat dari AKSI USER LAIN (bukan cuma aksi
+  // modal ini sendiri, yang sudah ditangani terpisah lewat runTimeAction/handleCancelTask di bawah).
+  const pollReload = async () => {
+    await load({ silent: true, skipOptions: true, skipForm: true });
+    setRefreshToken((v) => v + 1);
+  };
+  usePolling(pollReload, 20_000, true);
 
   function toDatetimeLocal(value: string): string {
     if (!value) return '';
@@ -382,6 +418,12 @@ export default function TaskDetailModal({
       // skipOptions: true — aksi Time Tracking tidak pernah mengubah opsi master data (lihat
       // catatan panjang di definisi load()).
       await load({ silent: true, skipOptions: true });
+      // Perbaikan Round 21 (poin 1 — "aktivitas history nya tidak langsung muncul, ketika di
+      // refresh baru muncul"): naikkan refreshToken supaya <TaskActivityFeed> langsung refetch
+      // riwayat begitu response aksi ini diterima — riwayatnya SUDAH PASTI lengkap di server karena
+      // route handler sekarang meng-await penulisannya sebelum mengirim response (lihat
+      // route.ts & catatan PendingHistoryEntry di time-tracking.ts).
+      setRefreshToken((v) => v + 1);
       onChanged();
       const actionLabel: Record<typeof action, string> = {
         start: t('toast_tt_started'),
@@ -437,6 +479,8 @@ export default function TaskDetailModal({
       // skipOptions: true — sama alasannya dengan runTimeAction di atas (Cancel Task juga lewat
       // aksi Time Tracking `cancel`, tidak mengubah opsi master data sama sekali).
       await load({ silent: true, skipOptions: true });
+      // Perbaikan Round 21 (poin 1) — lihat catatan di runTimeAction di atas.
+      setRefreshToken((v) => v + 1);
       onChanged();
       toast.success(t('toast_cancel_task_success'));
     } catch {
@@ -851,6 +895,7 @@ export default function TaskDetailModal({
                   // <select> Status di Fields) supaya badge status lama/baru di Activity konsisten
                   // warnanya dengan badge Status di tempat lain.
                   statuses={(opts?.statuses ?? []).map((s) => ({ label: s.label, colorCode: s.colorCode }))}
+                  refreshToken={refreshToken}
                 />
               </div>
             </div>

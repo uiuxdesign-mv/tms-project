@@ -154,25 +154,27 @@ async function getCancelStatus(): Promise<StatusRow | undefined> {
 }
 
 /**
- * Entri riwayat yang MASIH TERTUNDA ditulis (permintaan user poin 2 — "aksi ... masih sering lama
- * merespon, bahkan sering error"): sebelumnya tiap perubahan status di runTimeAction langsung
- * `await logTaskChange(...)` di tengah alur — 1 penulisan Google Sheets TAMBAHAN (task_history)
- * SERIAL sebelum response bisa dikirim ke client, di atas penulisan-penulisan lain yang sudah wajib
- * (task_time_logs, tasks.status_id/actual_duration_seconds). Untuk aksi seperti `stop` yang
- * memindahkan ke status review, ini bisa jadi 4-5 panggilan Google Sheets API BERURUTAN dalam satu
- * request — padahal Google Sheets API punya jeda respons yang tidak murah (ratusan ms per
- * panggilan) DITAMBAH kuota per-menit yang ketat (lihat catatan withRetry di sheet-table.ts),
- * sehingga rentan lambat/kena rate-limit saat banyak user memakai Time Tracking bersamaan.
+ * Entri riwayat yang DIKUMPULKAN dulu, baru ditulis belakangan (asal-usul: permintaan user poin 2
+ * Round 20 — "aksi ... masih sering lama merespon, bahkan sering error"): tiap perubahan status/
+ * aksi Jeda-Lanjutkan di runTimeAction TIDAK langsung `await logTaskChange(...)`/
+ * `await logTimeTrackingHistory(...)` di tengah alur (yang berarti 1+ penulisan Google Sheets
+ * TAMBAHAN (task_history) SERIAL sebelum response bisa dikirim, di atas penulisan-penulisan lain
+ * yang sudah wajib seperti task_time_logs & tasks.status_id/actual_duration_seconds) — cukup
+ * `queueStatusHistory(...)`/`queuePauseResumeHistory(...)` (operasi sinkron, push ke array, TIDAK
+ * ada I/O). Array ini disisipkan ke TimeActionResult, lalu route handler
+ * (POST /api/tasks/[id]/time-tracking) yang benar-benar menuliskannya ke Google Sheets.
  *
- * Riwayat (task_history) HANYA dipakai untuk tampilan tab Aktivitas — tidak pernah dibaca ulang
- * oleh alur Time Tracking itu sendiri untuk menentukan state berikutnya — jadi AMAN ditunda:
- * setiap titik yang tadinya `await logStatusHistory(...)` sekarang cukup `queueStatusHistory(...)`
- * (operasi sinkron, push ke array, TIDAK ada I/O) supaya tidak menambah latensi respons sama
- * sekali. Array ini disisipkan ke TimeActionResult, lalu route handler
- * (POST /api/tasks/[id]/time-tracking) yang benar-benar menuliskannya ke Google Sheets — dibungkus
- * `after()` (Next.js) supaya penulisannya jalan SETELAH response dikirim ke client, tidak
- * memperlambat apa pun yang user rasakan, sekaligus tetap PASTI jalan sampai selesai (tidak seperti
- * fire-and-forget biasa yang bisa terpotong kalau proses serverless keburu mati).
+ * PERBAIKAN Round 21 (poin 1 — "aktivitas history nya tidak langsung muncul, ketika di refresh
+ * baru muncul"): di Round 20 penulisan riwayat ini sempat dibungkus `after()` (Next.js) supaya
+ * jalan SETELAH response dikirim ke client — tapi ini menciptakan race dengan Activity feed:
+ * client menerima response sukses lalu langsung refetch tab Aktivitas (lewat refreshToken/
+ * polling), padahal penulisan task_history di belakang layar belum tentu selesai duluan, sehingga
+ * entri baru cuma muncul di refetch BERIKUTNYA. Sekarang route handler-nya `await` array ini
+ * SEBELUM mengirim response (lihat route.ts) — dijamin task_history sudah lengkap begitu client
+ * menerima jawaban sukses, konsisten dengan Activity feed yang langsung ditarik ulang setelahnya.
+ * Pola "kumpulkan ke array dulu" tetap dipertahankan (bukan balik ke `await` inline di setiap call
+ * site) karena tetap menyederhanakan kode call site & tidak mengubah urutan penulisan wajib
+ * lainnya — cuma titik EKSEKUSI-nya yang dipindah dari "setelah response" jadi "sebelum response".
  */
 type PendingHistoryEntry = {
   changeType: 'status' | 'time_tracking';
