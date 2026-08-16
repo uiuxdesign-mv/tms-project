@@ -26,6 +26,33 @@ export function formatDuration(totalSeconds: number): string {
 }
 
 /**
+ * Perbaikan (permintaan user — redesign kartu Kanban, kombinasi Opsi 17+20+18): dulu perhitungan
+ * "detik berjalan sekarang" (closedSeconds + selisih waktu sejak liveSince kalau sedang running)
+ * cuma hidup di dalam <TimeTrackingControls> sendiri, tidak bisa dipakai bagian lain. Kartu Kanban
+ * yang baru butuh angka durasi ini TERPISAH dari tombol aksi (supaya bisa ditaruh berdampingan
+ * dengan Estimasi di kotak sendiri, sementara tombol aksi jadi baris sendiri yang mengisi lebar
+ * kartu) — jadi perhitungannya diekstrak ke hook independen ini, dipakai bersama oleh
+ * TimeTrackingControls sendiri (di bawah) MAUPUN kartu Kanban (kanban-board.tsx).
+ */
+export function useDisplaySeconds(timeTracking: TimeTrackingState | undefined): number {
+  const [nowMs, setNowMs] = useState<number | null>(null);
+  const tt = timeTracking;
+
+  useEffect(() => {
+    if (tt?.state !== 'running') return;
+    const id = setInterval(() => setNowMs(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, [tt?.state]);
+
+  if (!tt) return 0;
+  const liveExtra =
+    tt.state === 'running' && tt.liveSince && nowMs
+      ? Math.max(0, Math.floor((nowMs - new Date(tt.liveSince).getTime()) / 1000))
+      : 0;
+  return tt.closedSeconds + liveExtra;
+}
+
+/**
  * Kontrol Time Tracking (Fase 8) — dipakai bersama oleh tabel Task (`tasks-table.tsx`) dan papan
  * Kanban (`kanban-board.tsx`), supaya widget Start/Pause/Stop/Back/Done + badge live-ticking
  * hanya punya satu implementasi. Start/Pause/Stop untuk status non-final/non-review, Back/Done
@@ -40,6 +67,7 @@ export function TimeTrackingControls({
   canManage,
   onChanged,
   compact,
+  fillButtons,
 }: {
   taskId: string;
   timeTracking: TimeTrackingState | undefined;
@@ -48,26 +76,25 @@ export function TimeTrackingControls({
   onChanged: () => void;
   /** Kanban card lebih sempit dari baris tabel — pakai layout wrap. */
   compact?: boolean;
+  /** Perbaikan (permintaan user — redesign kartu Kanban, kombinasi Opsi 17+20+18): mode BARU khusus
+   *  kartu Kanban — kartu sekarang menampilkan durasi-nya SENDIRI (berdampingan dengan Estimasi,
+   *  lihat KanbanTaskCard di kanban-board.tsx), jadi di sini badge durasi disembunyikan (supaya
+   *  tidak dobel) dan tombol aksi yang tersisa MENGISI PENUH lebar kartu (permintaan eksplisit
+   *  user: "action button fill mengikuti ukuran card") — 1 tombol = lebar penuh, 2 tombol = dibagi
+   *  rata 2 kolom. Status final/read-only sengaja tidak menampilkan apa pun di mode ini (kartu
+   *  Kanban sudah menampilkan Waktu Kerja/Waktu Review-nya sendiri, tidak butuh baris tombol). */
+  fillButtons?: boolean;
 }) {
   const toast = useToast();
   const { t } = useLanguage();
   const [busy, setBusy] = useState(false);
-  // `nowMs` (bukan langsung Date.now() di body render, yang dianggap impure oleh React) di-refresh
-  // oleh interval di bawah setiap 1 detik selama sesi berjalan, supaya badge durasi live-ticking.
-  const [nowMs, setNowMs] = useState<number | null>(null);
   const tt = timeTracking;
+  const displaySeconds = useDisplaySeconds(tt);
 
-  useEffect(() => {
-    if (tt?.state !== 'running') return;
-    // Sengaja tidak set nowMs langsung di sini (setState sinkron di body efek dianggap impure oleh
-    // React) — interval di bawah akan mengisinya dalam <=1 detik, cukup untuk live-ticking.
-    const id = setInterval(() => setNowMs(Date.now()), 1000);
-    return () => clearInterval(id);
-  }, [tt?.state]);
-
-  if (!status || !tt) return <span className="text-gray-400">-</span>;
+  if (!status || !tt) return fillButtons ? null : <span className="text-gray-400">-</span>;
 
   if (status.isFinal) {
+    if (fillButtons) return null;
     // Kartu Kanban (compact) menampilkan Work Time & Review Time sebagai dua baris terpisah,
     // meniru tampilan kartu status Done/Canceled di aplikasi lama — bukan satu baris gabungan.
     if (compact) {
@@ -90,12 +117,6 @@ export function TimeTrackingControls({
       </span>
     );
   }
-
-  const liveExtra =
-    tt.state === 'running' && tt.liveSince && nowMs
-      ? Math.max(0, Math.floor((nowMs - new Date(tt.liveSince).getTime()) / 1000))
-      : 0;
-  const displaySeconds = tt.closedSeconds + liveExtra;
 
   async function runAction(action: 'start' | 'pause' | 'resume' | 'stop' | 'back' | 'done', e?: React.MouseEvent) {
     e?.stopPropagation(); // jangan sampai memicu drag/klik kartu Kanban di baliknya
@@ -129,19 +150,24 @@ export function TimeTrackingControls({
   }
 
   if (!canManage) {
-    return <span className="text-gray-500">{formatDuration(displaySeconds)}</span>;
+    return fillButtons ? null : <span className="text-gray-500">{formatDuration(displaySeconds)}</span>;
   }
 
   // Warna tombol meniru components/TimeTrackingWidget.php aplikasi lama: Start/Resume = filled
   // indigo (brand), Pause = outline amber, Stop = outline merah, Back = outline netral,
   // Done = filled emerald (success) — bukan flat abu-abu seperti sebelumnya.
-  const base = 'inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40';
+  // Perbaikan (permintaan user — redesign kartu Kanban): mode `fillButtons` memakai padding lebih
+  // lega (px-3 py-2, bukan px-2 py-1) DAN `flex-1` supaya tiap tombol otomatis membagi rata &
+  // mengisi penuh lebar kartu — sesuai permintaan eksplisit user.
+  const base = `inline-flex items-center justify-center gap-1 rounded-lg text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${
+    fillButtons ? 'flex-1 px-3 py-2' : 'px-2 py-1'
+  }`;
   const startClass = `${base} bg-indigo-600 text-white hover:bg-indigo-700`;
   const pauseClass = `${base} border border-amber-500/40 text-amber-600 hover:bg-amber-50`;
   const stopClass = `${base} border border-red-500/40 text-red-600 hover:bg-red-50`;
   const backClass = `${base} border border-gray-300 text-gray-900 hover:bg-gray-100`;
   const doneClass = `${base} bg-emerald-600 text-white hover:bg-emerald-700`;
-  const wrapClass = compact ? 'flex flex-wrap items-center gap-1.5' : 'flex items-center gap-1.5';
+  const wrapClass = fillButtons ? 'flex gap-2' : compact ? 'flex flex-wrap items-center gap-1.5' : 'flex items-center gap-1.5';
 
   const IconPlay = (
     <svg className="h-3 w-3" fill="currentColor" viewBox="0 0 24 24">
@@ -172,7 +198,7 @@ export function TimeTrackingControls({
   if (status.isReview) {
     return (
       <div className={wrapClass}>
-        <span className="tabular-nums text-gray-600">{formatDuration(displaySeconds)}</span>
+        {!fillButtons && <span className="tabular-nums text-gray-600">{formatDuration(displaySeconds)}</span>}
         <button disabled={busy} onClick={(e) => runAction('back', e)} className={backClass}>
           {IconBack}
           {t('tt_btn_back')}
@@ -187,7 +213,7 @@ export function TimeTrackingControls({
 
   return (
     <div className={wrapClass}>
-      <span className="tabular-nums text-gray-600">{formatDuration(displaySeconds)}</span>
+      {!fillButtons && <span className="tabular-nums text-gray-600">{formatDuration(displaySeconds)}</span>}
       {tt.state === 'idle' && (
         <>
           <button disabled={busy} onClick={(e) => runAction('start', e)} className={startClass}>

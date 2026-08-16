@@ -78,7 +78,14 @@ export async function GET() {
         taskTypes: taskTypes
           .filter((t) => t.status === 'Active')
           .map((t) => ({ value: t.id, label: t.type_name, requiresRelatedTask: t.requires_related_task === 'Ya' })),
-        priorities: priorities.filter((p) => p.status === 'Active').map((p) => ({ value: p.id, label: p.priority_name })),
+        // Perbaikan (permintaan user — redesign kartu Kanban, kombinasi Opsi 17+20+18): sertakan
+        // colorCode Priority (Master Data-nya sudah lama punya field ini, lihat
+        // src/lib/master-data/config.ts) supaya label Priority di kartu Kanban bisa diwarnai sesuai
+        // konfigurasi admin — sebelumnya field ini tidak pernah dikirim ke client sama sekali,
+        // pola yang sama dengan `colorCode` milik statuses tepat di bawah ini.
+        priorities: priorities
+          .filter((p) => p.status === 'Active')
+          .map((p) => ({ value: p.id, label: p.priority_name, colorCode: p.color_code || null })),
         statuses: statuses
           .filter((s) => s.is_active === 'Ya')
           .map((s) => ({

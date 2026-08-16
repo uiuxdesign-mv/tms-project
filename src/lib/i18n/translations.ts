@@ -471,6 +471,13 @@ export const translations = {
   kanban_no_tasks: { id: 'Tidak ada task', en: 'No tasks' },
   kanban_due_prefix: { id: 'Jatuh tempo', en: 'Due' },
   kanban_est_prefix: { id: 'Estimasi', en: 'Est' },
+  // Redesign kartu Kanban (permintaan user — kombinasi Opsi 17 + 20 + 18 dari eksplorasi desain):
+  // label baris tabel Klien/Proyek/Tipe Tasking, dan label generik "Time Tracker" untuk status
+  // non-final (menggantikan tampilan durasi polos tanpa label sebelumnya).
+  kanban_client_label: { id: 'Klien', en: 'Client' },
+  kanban_project_label: { id: 'Proyek', en: 'Project' },
+  kanban_type_label: { id: 'Tipe Tasking', en: 'Task Type' },
+  tt_time_tracker_label: { id: 'Time Tracker', en: 'Time Tracker' },
 
   // Calendar View.
   calendar_due_this_month_suffix: { id: 'jatuh tempo bulan ini', en: 'due this month' },

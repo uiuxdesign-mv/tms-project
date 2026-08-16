@@ -2,14 +2,14 @@
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
-import { TimeTrackingControls, type TimeTrackingState } from '@/components/time-tracking-controls';
+import { TimeTrackingControls, formatDuration, useDisplaySeconds, type TimeTrackingState } from '@/components/time-tracking-controls';
 import { useToast } from '@/components/toast-provider';
-import { Badge } from '@/components/badge';
 import { TasksPageHeader, TasksViewSwitcher } from '@/components/tasks-view-header';
 import TaskDetailModal from '@/components/task-detail-modal';
 import TaskCreateModal, { type TaskCreateOptionsData } from '@/components/task-create-modal';
 import TaskFilterBar from '@/components/task-filter-bar';
 import { useLanguage } from '@/components/language-provider';
+import type { TranslationKey } from '@/lib/i18n/translations';
 import { usePolling } from '@/lib/hooks/use-polling';
 import { getViewCache } from '@/lib/hooks/view-cache';
 import { primeAllTaskViewsCache, primeAllTaskViewsRowsOnly } from '@/lib/hooks/task-view-cache';
@@ -24,6 +24,12 @@ type TaskRow = {
   priority_id: string;
   status_id: string;
   assigned_to: string;
+  // Perbaikan (permintaan user — redesign kartu Kanban, kombinasi Opsi 17+20+18): field ini SUDAH
+  // SELALU dikirim oleh GET /api/tasks (lihat body `...t` di route.ts yang menyebarkan seluruh
+  // kolom sheet, termasuk `start_date`, sama seperti dipakai task-detail-modal.tsx &
+  // task-create-modal.tsx) — cuma belum pernah ditipekan/dipakai di sini karena kartu Kanban lama
+  // tidak menampilkan tanggal mulai, cuma jatuh tempo.
+  start_date?: string;
   due_date: string;
   estimated_hours?: string;
   actual_duration_seconds?: string;
@@ -42,14 +48,23 @@ type StatusOption = Option & {
   workflowLevel: number | null;
   colorCode?: string | null;
 };
+// Perbaikan (permintaan user — redesign kartu Kanban): Priority sekarang bisa punya `colorCode`
+// (Master Data-nya sudah lama punya field ini, lihat src/lib/master-data/config.ts) — dikirim oleh
+// GET /api/tasks/options (lihat perbaikan di route.ts-nya), dipakai untuk mewarnai label Priority
+// di kartu sesuai konfigurasi admin, bukan warna hardcode per nama.
+type PriorityOption = Option & { colorCode?: string | null };
 
 // Perbaikan (permintaan user Round 6, poin 1): sekarang berbasis `TaskCreateOptionsData` (bukan
 // lagi tipe lokal yang lebih sempit) supaya `opts` di sini bisa langsung dioper ke
 // `TaskCreateModal` tanpa fetch/tipe terpisah — datanya memang sudah selalu dikirim lengkap oleh
 // GET /api/tasks/options, cuma sebelumnya tidak semuanya ditipekan di sini karena belum dipakai.
 // `statuses` di-override ke varian lokal yang punya `workflowLevel` (angka, hasil parse dari
-// `workflow_level` string) khusus dipakai logika urutan kolom & aturan drag Kanban.
-type OptionsData = Omit<TaskCreateOptionsData, 'statuses'> & { statuses: StatusOption[] };
+// `workflow_level` string) khusus dipakai logika urutan kolom & aturan drag Kanban. `priorities`
+// di-override ke varian yang punya `colorCode` (lihat PriorityOption di atas).
+type OptionsData = Omit<TaskCreateOptionsData, 'statuses' | 'priorities'> & {
+  statuses: StatusOption[];
+  priorities: PriorityOption[];
+};
 
 // Format tanggal "Jul 14" seperti video (kartu Kanban lebih sempit dari List, jadi tidak pakai
 // tahun supaya tetap muat satu baris).
@@ -69,6 +84,201 @@ function isOverdue(row: TaskRow, statuses: StatusOption[] | undefined): boolean 
   const status = statuses?.find((s) => s.value === row.status_id);
   if (status?.isFinal) return false;
   return new Date(row.due_date) < new Date(new Date().toDateString());
+}
+
+/** Ikon segitiga-seru kecil di sebelah label Priority — dipakai kartu Kanban (redesign, kombinasi
+ *  Opsi 17+20+18) supaya Priority "menonjol" lewat warna teks + ikon, TANPA garis/rail warna di
+ *  tepi kartu (permintaan eksplisit user: "hapus garis warna untuk prioritynya"). */
+function PriorityIcon() {
+  return (
+    <svg className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z"
+      />
+    </svg>
+  );
+}
+
+/**
+ * Kartu task Kanban (redesign — permintaan user, kombinasi 3 opsi dari eksplorasi desain yang
+ * sudah disetujui):
+ *  - Dari Opsi 17 ("Bold Left Rail"): label Priority (warna + ikon) & avatar assignee di baris
+ *    atas, judul tasking tepat di bawahnya. Rail warna kirinya SENGAJA TIDAK dipakai di sini —
+ *    permintaan user eksplisit "hapus garis warna untuk prioritynya", jadi Priority hanya
+ *    ditonjolkan lewat warna teks + ikon, bukan lewat garis di tepi kartu.
+ *  - Dari Opsi 20 ("Spec Sheet Banner"): Klien/Proyek/Tipe Tasking sebagai blok tabel rapi
+ *    (label kiri, nilai rata kanan).
+ *  - Dari Opsi 18 ("Corner Flag + Timeline"): tanggal Mulai → Jatuh Tempo divisualisasikan sebagai
+ *    garis timeline, dan tombol aksi ada di baris sendiri di bagian bawah — sekarang MENGISI PENUH
+ *    lebar kartu (permintaan eksplisit user "action button fill mengikuti ukuran card"), lewat
+ *    prop `fillButtons` baru di <TimeTrackingControls> (lihat time-tracking-controls.tsx).
+ * Deskripsi task SENGAJA TIDAK ditampilkan (konsisten dengan spesifikasi eksplorasi desain
+ * sebelumnya yang sudah disetujui user — kanban-card-redesign-options-round4.html).
+ * Dipisah jadi komponen sendiri (bukan inline di dalam .map() KanbanBoard) supaya bisa memanggil
+ * hook `useDisplaySeconds` (butuh interval per-detik sendiri untuk live-ticking) tanpa melanggar
+ * Rules of Hooks — tiap kartu adalah instance komponen sendiri.
+ */
+function KanbanTaskCard({
+  row,
+  opts,
+  status,
+  manageable,
+  overdue,
+  isDragging,
+  onDragStart,
+  onDragEnd,
+  onClick,
+  onChanged,
+  t,
+}: {
+  row: TaskRow;
+  opts: OptionsData;
+  status: StatusOption;
+  manageable: boolean;
+  overdue: boolean;
+  isDragging: boolean;
+  onDragStart: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDragEnd: () => void;
+  onClick: () => void;
+  onChanged: () => void;
+  t: (key: TranslationKey) => string;
+}) {
+  function label(list: Option[] | undefined, value: string) {
+    return list?.find((o) => o.value === value)?.label || '-';
+  }
+
+  const priority = opts.priorities.find((p) => p.value === row.priority_id);
+  const client = row.client_id ? label(opts.clients, row.client_id) : '';
+  const project = row.project_id ? label(opts.projects, row.project_id) : '';
+  const taskType = row.task_type_id ? label(opts.taskTypes, row.task_type_id) : '';
+  const assigneeName = label(opts.assignees, row.assigned_to);
+  const hasSpecRows = !!(client || project || taskType);
+  const hasTimeline = !!(row.start_date || row.due_date);
+
+  // Perbaikan: durasi live-ticking sekarang dihitung DI SINI (lewat hook bersama, lihat
+  // time-tracking-controls.tsx) supaya bisa ditampilkan berdampingan dengan Estimasi — sebelumnya
+  // angka ini cuma muncul menempel di sebelah tombol aksi di dalam <TimeTrackingControls>.
+  const displaySeconds = useDisplaySeconds(row.timeTracking);
+  const tt = row.timeTracking;
+  const isLiveRunning = !status.isFinal && tt?.state === 'running';
+
+  return (
+    <div
+      draggable={manageable}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onClick={onClick}
+      className={`cursor-pointer rounded-xl border border-gray-200 bg-white p-3 shadow-card transition-colors hover:border-indigo-300 ${
+        manageable ? 'active:cursor-grabbing' : ''
+      } ${isDragging ? 'opacity-50' : ''}`}
+    >
+      {/* Tier 1 (Opsi 17): Priority (warna + ikon, tanpa rail) + avatar assignee */}
+      <div className="flex items-center justify-between gap-2">
+        {priority ? (
+          <span
+            className="inline-flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-wide text-gray-600"
+            style={priority.colorCode ? { color: priority.colorCode } : undefined}
+          >
+            <PriorityIcon />
+            {priority.label}
+          </span>
+        ) : (
+          <span />
+        )}
+        <span
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[0.6875rem] font-medium text-white"
+          title={assigneeName}
+        >
+          {initialOf(assigneeName)}
+        </span>
+      </div>
+
+      {/* Tier 2 (Opsi 17): judul tasking */}
+      <p className="mt-2 line-clamp-2 text-sm font-bold text-gray-900">{row.title}</p>
+
+      {/* Tier 3 (Opsi 20): tabel Klien / Proyek / Tipe Tasking */}
+      {hasSpecRows && (
+        <div className="mt-2.5 space-y-1 rounded-lg bg-gray-50 px-2.5 py-2 text-[11px]">
+          {client && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-400">{t('kanban_client_label')}</span>
+              <span className="truncate font-medium text-gray-700">{client}</span>
+            </div>
+          )}
+          {project && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-400">{t('kanban_project_label')}</span>
+              <span className="truncate font-medium text-gray-700">{project}</span>
+            </div>
+          )}
+          {taskType && (
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-400">{t('kanban_type_label')}</span>
+              <span className="truncate font-medium text-gray-700">{taskType}</span>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Tier 4 (Opsi 18): timeline Mulai -> Jatuh Tempo */}
+      {hasTimeline && (
+        <div className="mt-2.5 flex items-center gap-2">
+          <span className="shrink-0 text-[10px] font-semibold text-gray-500" title={t('td_field_start_date')}>
+            {row.start_date ? formatShortDate(row.start_date) : '-'}
+          </span>
+          <div className="h-0.5 flex-1 rounded-full bg-gray-200">
+            <div className={`h-full rounded-full ${overdue ? 'bg-red-400' : 'bg-indigo-400'}`} style={{ width: '60%' }} />
+          </div>
+          <span
+            className={`shrink-0 text-[10px] font-semibold ${overdue ? 'text-red-600' : 'text-gray-500'}`}
+            title={t('td_field_due_date')}
+          >
+            {row.due_date ? formatShortDate(row.due_date) : '-'}
+          </span>
+        </div>
+      )}
+
+      {/* Tier 5: Time Tracker + Estimasi berdampingan (spesifikasi dasar eksplorasi desain) */}
+      <div className="mt-2.5 flex items-stretch gap-3 rounded-lg border border-gray-200 px-2.5 py-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-semibold uppercase tracking-wide text-gray-400">
+            {status.isFinal ? t('tt_work_time') : t('tt_time_tracker_label')}
+          </p>
+          <p className="flex items-center gap-1.5 text-sm font-bold tabular-nums text-gray-700">
+            {isLiveRunning && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500 animate-pulse" />}
+            {formatDuration(status.isFinal ? tt?.closedWorkSeconds || 0 : displaySeconds)}
+          </p>
+        </div>
+        <div className="w-px shrink-0 bg-gray-200" />
+        <div className="min-w-0 flex-1">
+          <p className="text-[9px] font-semibold uppercase tracking-wide text-gray-400">{t('kanban_est_prefix')}</p>
+          <p className="text-sm font-bold text-gray-700">
+            {row.estimated_hours ? `${Number(row.estimated_hours).toFixed(2)} h` : '-'}
+          </p>
+        </div>
+      </div>
+      {status.isFinal && (
+        <p className="mt-1 text-[10px] text-gray-400">
+          {t('tt_review_time')}: <span className="font-semibold tabular-nums text-gray-500">{formatDuration(tt?.closedReviewSeconds || 0)}</span>
+        </p>
+      )}
+
+      {/* Tier 6 (Opsi 18): tombol aksi, mengisi penuh lebar kartu (permintaan user) */}
+      <div className="mt-2.5" onClick={(e) => e.stopPropagation()}>
+        <TimeTrackingControls
+          taskId={row.id}
+          timeTracking={row.timeTracking}
+          status={status}
+          canManage={manageable}
+          onChanged={onChanged}
+          compact
+          fillButtons
+        />
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -199,9 +409,9 @@ export default function KanbanBoard({
   // Detail terbuka, supaya papan tidak "melompat" di tengah interaksi user.
   usePolling(silentReload, 20_000, !detailTaskId && !dragTaskId && !createOpen);
 
-  function label(list: Option[] | undefined, value: string) {
-    return list?.find((o) => o.value === value)?.label || '-';
-  }
+  // Perbaikan (permintaan user — redesign kartu Kanban): fungsi `label()` lokal yang dulu di sini
+  // sudah dipindah ke dalam <KanbanTaskCard> (satu-satunya pemakainya sekarang, dulu juga dipakai
+  // baris kartu inline yang sekarang sudah diekstrak jadi komponen sendiri).
 
   const visibleRows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -427,18 +637,15 @@ export default function KanbanBoard({
                     // kembali").
                     const manageable = canOperate(row) && !status.isFinal;
                     const overdue = isOverdue(row, opts.statuses);
-                    // Meta line "Project · Task Type · Client" seperti video — bagian yang kosong
-                    // (mis. Client opsional tidak diisi) dilewati, bukan ditampilkan sebagai "-".
-                    const metaParts = [
-                      row.project_id ? label(opts.projects, row.project_id) : null,
-                      row.task_type_id ? label(opts.taskTypes, row.task_type_id) : null,
-                      row.client_id ? label(opts.clients, row.client_id) : null,
-                    ].filter(Boolean);
-                    const assigneeName = label(opts.assignees, row.assigned_to);
                     return (
-                      <div
+                      <KanbanTaskCard
                         key={row.id}
-                        draggable={manageable}
+                        row={row}
+                        opts={opts}
+                        status={status}
+                        manageable={manageable}
+                        overdue={overdue}
+                        isDragging={dragTaskId === row.id}
                         onDragStart={(e) => {
                           setDragTaskId(row.id);
                           // Perbaikan (permintaan user poin 3 — "ketika card saya geser, maka card
@@ -462,56 +669,9 @@ export default function KanbanBoard({
                           setDragOverStatusId(null);
                         }}
                         onClick={() => setDetailTaskId(row.id)}
-                        className={`cursor-pointer rounded-xl border border-gray-200 bg-white p-2.5 shadow-card transition-colors hover:border-indigo-300 ${
-                          manageable ? 'active:cursor-grabbing' : ''
-                        } ${dragTaskId === row.id ? 'opacity-50' : ''}`}
-                      >
-                        <p className="text-sm font-medium text-gray-900">{row.title}</p>
-                        {metaParts.length > 0 && (
-                          <p className="mt-1 truncate text-xs text-gray-500" title={metaParts.join(' · ')}>
-                            {metaParts.join(' · ')}
-                          </p>
-                        )}
-                        {row.description && (
-                          <p className="mt-1 line-clamp-2 text-xs text-gray-500">{row.description}</p>
-                        )}
-
-                        <div className="mt-2 flex items-center justify-between gap-2">
-                          {row.priority_id ? (
-                            <Badge label={label(opts.priorities, row.priority_id)} tone="neutral" />
-                          ) : (
-                            <span />
-                          )}
-                          <span
-                            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-indigo-600 text-[0.6875rem] font-medium text-white"
-                            title={assigneeName}
-                          >
-                            {initialOf(assigneeName)}
-                          </span>
-                        </div>
-
-                        {(row.due_date || row.estimated_hours) && (
-                          <div className="mt-1.5 flex items-center justify-between text-xs">
-                            <span className={overdue ? 'font-medium text-red-600' : 'text-gray-400'}>
-                              {row.due_date ? `${t('kanban_due_prefix')} ${formatShortDate(row.due_date)}` : ''}
-                            </span>
-                            <span className="text-gray-400">
-                              {row.estimated_hours ? `${t('kanban_est_prefix')} ${Number(row.estimated_hours).toFixed(2)} h` : ''}
-                            </span>
-                          </div>
-                        )}
-
-                        <div className="mt-1.5 border-t border-gray-100 pt-1.5">
-                          <TimeTrackingControls
-                            taskId={row.id}
-                            timeTracking={row.timeTracking}
-                            status={status}
-                            canManage={manageable}
-                            onChanged={silentReloadTasksOnly}
-                            compact
-                          />
-                        </div>
-                      </div>
+                        onChanged={silentReloadTasksOnly}
+                        t={t}
+                      />
                     );
                   })}
                 </div>
