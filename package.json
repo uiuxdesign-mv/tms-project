@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@upstash/redis": "^1.38.2",
     "bcryptjs": "^3.0.3",
     "google-auth-library": "^10.5.0",
     "googleapis": "^174.0.1",

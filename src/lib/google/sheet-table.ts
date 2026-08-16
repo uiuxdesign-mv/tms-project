@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { getSheetsClient } from './client';
 import { SPREADSHEET_IDS, type SheetKey } from './spreadsheet-ids';
-import { getCached, setCached, invalidateCache } from './cache';
+import { getCached, invalidateCache, scheduleCacheWrite } from './cache';
 
 const DEFAULT_CACHE_TTL_MS = 30_000; // 30 detik — data yang sering berubah (tasks, time logs, komentar, dst).
 
@@ -147,12 +147,18 @@ export async function getAll(
   opts: { useCache?: boolean; includeDeleted?: boolean } = {}
 ): Promise<SheetRow[]> {
   const cacheKey = `sheet:${sheetKey}`;
-  let all: SheetRow[] | undefined = opts.useCache !== false ? getCached<SheetRow[]>(cacheKey) : undefined;
+  // Perbaikan (Round 24 — implementasi Upstash Redis): `getCached` sekarang async (bisa jadi
+  // panggilan jaringan ke Upstash, bukan cuma baca Map di memori lagi) — lihat catatan lengkap di
+  // cache.ts. Penulisan cache-nya (di bawah) SENGAJA dijadwalkan lewat `scheduleCacheWrite` (jalan
+  // di latar belakang via `after()`), bukan di-`await` di sini, supaya menulis ke cache tidak ikut
+  // menambah waktu tunggu respons yang sedang dikirim ke user — data yang mau ditampilkan sudah di
+  // tangan, cache-nya cuma untuk permintaan BERIKUTNYA.
+  let all: SheetRow[] | undefined = opts.useCache !== false ? await getCached<SheetRow[]>(cacheKey) : undefined;
 
   if (!all) {
     const { header, rows } = await readHeaderAndRows(sheetKey);
     all = rowsToObjects(header, rows);
-    setCached(cacheKey, all, cacheTtlFor(sheetKey));
+    scheduleCacheWrite(cacheKey, all, cacheTtlFor(sheetKey));
   }
 
   if (opts.includeDeleted) return all;
@@ -218,7 +224,10 @@ export async function insertRow(sheetKey: SheetKey, data: Record<string, string>
     })
   );
 
-  invalidateCache(`sheet:${sheetKey}`);
+  // Perbaikan (Round 24 — implementasi Upstash Redis): `invalidateCache` sekarang async, dan
+  // SENGAJA di-`await` di sini (bukan fire-and-forget) — lihat penjelasan lengkap soal race
+  // condition kalau ini ditunda, di definisi invalidateCache (cache.ts).
+  await invalidateCache(`sheet:${sheetKey}`);
 
   const obj: SheetRow = {};
   header.forEach((col, i) => {
@@ -305,7 +314,7 @@ export async function updateRow(
     })
   );
 
-  invalidateCache(`sheet:${sheetKey}`);
+  await invalidateCache(`sheet:${sheetKey}`);
   return merged;
 }
 
