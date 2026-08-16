@@ -823,6 +823,11 @@ export default function TaskDetailModal({
                   // MELIHAT task-nya (canAddComment=canViewTask di server) — modal ini hanya
                   // pernah dibuka untuk task yang lolos canViewTask, jadi selalu boleh berkomentar.
                   readOnly={false}
+                  // Perbaikan (permintaan user, badge status berwarna di riwayat perubahan): kirim
+                  // daftar status + warnanya (sudah dimuat lewat opts di atas, sumber sama dengan
+                  // <select> Status di Fields) supaya badge status lama/baru di Activity konsisten
+                  // warnanya dengan badge Status di tempat lain.
+                  statuses={(opts?.statuses ?? []).map((s) => ({ label: s.label, colorCode: s.colorCode }))}
                 />
               </div>
             </div>

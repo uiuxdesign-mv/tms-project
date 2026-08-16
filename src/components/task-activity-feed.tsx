@@ -5,7 +5,8 @@ import { apiFetch, parseJsonSafe } from '@/lib/csrf-client';
 import { useToast } from '@/components/toast-provider';
 import { useConfirm } from '@/components/confirm-provider';
 import { useLanguage } from '@/components/language-provider';
-import type { TranslationKey } from '@/lib/i18n/translations';
+import { Badge } from '@/components/badge';
+import type { TranslationKey, Lang } from '@/lib/i18n/translations';
 
 /**
  * Activity Feed Terpadu (Redesign Modal Task Detail — Round 10, "Saran 4": Activity dengan Filter
@@ -73,16 +74,46 @@ const FIELD_LABEL_KEYS: Record<string, TranslationKey> = {
 // tautan "Tampilkan N aktivitas lama" — inti dari Saran 4.
 const VISIBLE_TAIL = 8;
 
+// Perbaikan (permintaan user): picker emoji ringkas untuk kolom komentar — daftar tetap (tidak
+// perlu library eksternal/koneksi internet), cukup untuk kebutuhan reaksi komentar sehari-hari.
+const EMOJI_LIST = [
+  '👍', '👎', '🙏', '😀', '😄', '😊',
+  '😉', '😍', '🎉', '🙌', '👏', '🔥',
+  '✅', '❌', '⚠️', '💯', '🚀', '👀',
+  '💡', '❤️', '🤔', '⏰', '💪', '🎯',
+];
+
+/** Perbaikan (permintaan user): kolom avatar + garis penghubung yang dipakai SAMA di komentar
+ *  maupun aktivitas perubahan, supaya feed-nya terlihat sebagai satu timeline yang menyambung
+ *  (avatar item ini ke avatar item berikutnya) — bukan cuma di komentar seperti sebelumnya. Garis
+ *  tidak dirender untuk item TERAKHIR (tidak ada lagi yang perlu disambung ke bawah). */
+function ActivityAvatar({ initial, title, isLast }: { initial: string; title: string; isLast: boolean }) {
+  return (
+    <div className="flex shrink-0 flex-col items-center self-stretch">
+      <span
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700"
+        title={title}
+      >
+        {initial}
+      </span>
+      {!isLast && <div className="mt-1 w-px flex-1 bg-gray-200" aria-hidden="true" />}
+    </div>
+  );
+}
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function formatDate(iso: string): string {
+// Bugfix (permintaan user, "sesuaikan dengan konfigurasi bahasa"): sebelumnya locale format
+// tanggal di sini SELALU 'id-ID' walau toggle bahasa aplikasi sudah di-set ke English — sekarang
+// ikut parameter `lang` dari useLanguage(), konsisten dengan seluruh teks lain di feed ini.
+function formatDate(iso: string, lang: Lang): string {
   if (!iso) return '-';
   try {
-    return new Date(iso).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' });
+    return new Date(iso).toLocaleString(lang === 'en' ? 'en-US' : 'id-ID', { dateStyle: 'medium', timeStyle: 'short' });
   } catch {
     return iso;
   }
@@ -93,6 +124,7 @@ export default function TaskActivityFeed({
   currentUserId,
   canDeleteAny,
   readOnly = false,
+  statuses,
 }: {
   taskId: string;
   currentUserId: string;
@@ -100,6 +132,10 @@ export default function TaskActivityFeed({
   /** Sama seperti task-comments.tsx: task yang cuma boleh DILIHAT (view-only) tidak boleh
    *  berkomentar sama sekali — form tambah komentar disembunyikan total. */
   readOnly?: boolean;
+  /** Perbaikan (permintaan user, badge status di aktivitas perubahan): daftar status + warnanya
+   *  (Master Status, sama seperti dipakai <Badge> di tempat lain, mis. tasks-table.tsx) — dipakai
+   *  untuk mewarnai badge status lama/baru di entri riwayat perubahan status. */
+  statuses: { label: string; colorCode?: string | null }[];
 }) {
   // ---- Komentar: state & logic identik dengan task-comments.tsx (tidak ada yang dihapus) ----
   const [comments, setComments] = useState<Comment[]>([]);
@@ -110,6 +146,11 @@ export default function TaskActivityFeed({
   const [file, setFile] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Perbaikan (permintaan user): toggle picker emoji + ref untuk deteksi klik di luar (auto-close).
+  const [emojiOpen, setEmojiOpen] = useState(false);
+  const emojiWrapRef = useRef<HTMLDivElement>(null);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editText, setEditText] = useState('');
@@ -125,7 +166,7 @@ export default function TaskActivityFeed({
 
   const toast = useToast();
   const confirmDialog = useConfirm();
-  const { t } = useLanguage();
+  const { t, lang } = useLanguage();
 
   const loadComments = useCallback(async () => {
     setCommentsLoading(true);
@@ -170,6 +211,45 @@ export default function TaskActivityFeed({
   useEffect(() => {
     setShowOlder(false);
   }, [filter]);
+
+  // Perbaikan (permintaan user, picker emoji): tutup popover emoji kalau klik di luar area-nya.
+  useEffect(() => {
+    if (!emojiOpen) return;
+    function onDocClick(e: MouseEvent) {
+      if (emojiWrapRef.current && !emojiWrapRef.current.contains(e.target as Node)) {
+        setEmojiOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [emojiOpen]);
+
+  // Perbaikan (permintaan user, badge status di aktivitas perubahan): peta label status -> warna
+  // (Master Status) supaya badge status lama/baru di riwayat perubahan pakai warna yang sama
+  // dengan badge Status di tempat lain (mis. tabel task, field Status di modal ini sendiri).
+  const statusColorByLabel = useMemo(() => {
+    const map: Record<string, string | null | undefined> = {};
+    for (const s of statuses) map[s.label] = s.colorCode;
+    return map;
+  }, [statuses]);
+
+  function insertEmoji(emoji: string) {
+    const el = textareaRef.current;
+    if (!el) {
+      setText((prev) => prev + emoji);
+      setEmojiOpen(false);
+      return;
+    }
+    const start = el.selectionStart ?? text.length;
+    const end = el.selectionEnd ?? text.length;
+    setText(text.slice(0, start) + emoji + text.slice(end));
+    setEmojiOpen(false);
+    requestAnimationFrame(() => {
+      el.focus();
+      const pos = start + emoji.length;
+      el.setSelectionRange(pos, pos);
+    });
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -281,20 +361,19 @@ export default function TaskActivityFeed({
   // selesai lebih dulu, feed langsung tampil (tidak menunggu yang paling lambat).
   const loading = commentsLoading && historyLoading && merged.length === 0;
 
-  function renderCommentItem(c: Comment) {
+  function renderCommentItem(c: Comment, isLast: boolean) {
     return (
       <li key={`c-${c.id}`} className="flex gap-3">
-        <span
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700"
-          title={c.user_name}
-        >
-          {initialOf(c.user_name)}
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-medium text-gray-900">{c.user_name}</span>
-            <span className="text-xs text-gray-400">{formatDate(c.created_at)}</span>
-            {c.edited && <span className="text-xs italic text-gray-400">{t('comments_edited_badge')}</span>}
+        <ActivityAvatar initial={initialOf(c.user_name)} title={c.user_name} isLast={isLast} />
+        <div className="min-w-0 flex-1 pb-4">
+          {/* Perbaikan (permintaan user): tanggal dipindah mentok kanan (justify-between),
+              sebelumnya menempel langsung di sebelah nama. */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm font-medium text-gray-900">{c.user_name}</span>
+              {c.edited && <span className="text-xs italic text-gray-400">{t('comments_edited_badge')}</span>}
+            </div>
+            <span className="shrink-0 text-xs text-gray-400">{formatDate(c.created_at, lang)}</span>
           </div>
 
           {editingId === c.id ? (
@@ -378,23 +457,38 @@ export default function TaskActivityFeed({
     );
   }
 
-  function renderHistoryItem(h: HistoryEntry) {
+  function renderHistoryItem(h: HistoryEntry, isLast: boolean) {
     return (
-      <li key={`h-${h.id}`} className="text-sm">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-medium text-gray-900">{h.changed_by_name}</span>
-          <span className="text-xs text-gray-400">{formatDate(h.created_at)}</span>
-          {h.change_type === 'status' && (
-            <span className="rounded-full bg-indigo-50 px-2 py-0.5 text-[10px] font-medium text-indigo-700">
-              {t('col_status')}
-            </span>
+      <li key={`h-${h.id}`} className="flex gap-3">
+        <ActivityAvatar initial={initialOf(h.changed_by_name)} title={h.changed_by_name} isLast={isLast} />
+        <div className="min-w-0 flex-1 pb-4 text-sm">
+          {/* Perbaikan (permintaan user): tanggal dipindah mentok kanan, dan badge bulat "Status"
+              (cuma label kategori, bukan nilainya) DIHAPUS — sudah tidak perlu karena nilai status
+              lama/baru sekarang tampil sendiri sebagai badge berwarna di kalimat di bawah. */}
+          <div className="flex items-start justify-between gap-2">
+            <span className="font-medium text-gray-900">{h.changed_by_name}</span>
+            <span className="shrink-0 text-xs text-gray-400">{formatDate(h.created_at, lang)}</span>
+          </div>
+
+          {h.change_type === 'status' ? (
+            // Perbaikan (permintaan user): nama status lama/baru ditampilkan sebagai badge
+            // berwarna (pakai <Badge>, warna dari Master Status — sama seperti badge Status di
+            // tempat lain), bukan lagi teks polos dalam tanda kutip.
+            <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-gray-700">
+              <span className="font-medium">{fieldLabel(h.field_key)}</span>
+              <span>{t('history_changed_from')}</span>
+              <Badge label={valueLabel(h.old_value_label)} color={statusColorByLabel[h.old_value_label]} />
+              <span>{t('history_changed_to')}</span>
+              <Badge label={valueLabel(h.new_value_label)} color={statusColorByLabel[h.new_value_label]} />
+            </div>
+          ) : (
+            <p className="mt-0.5 text-gray-700">
+              <span className="font-medium">{fieldLabel(h.field_key)}</span>{' '}
+              {t('history_changed_from')} &quot;{valueLabel(h.old_value_label)}&quot; {t('history_changed_to')} &quot;
+              {valueLabel(h.new_value_label)}&quot;
+            </p>
           )}
         </div>
-        <p className="mt-0.5 text-gray-700">
-          <span className="font-medium">{fieldLabel(h.field_key)}</span>{' '}
-          {t('history_changed_from')} &quot;{valueLabel(h.old_value_label)}&quot; {t('history_changed_to')} &quot;
-          {valueLabel(h.new_value_label)}&quot;
-        </p>
       </li>
     );
   }
@@ -434,9 +528,13 @@ export default function TaskActivityFeed({
         {!loading && filtered.length === 0 && <p className="py-2 text-sm text-gray-400">{t('activity_empty')}</p>}
 
         {!loading && filtered.length > 0 && (
-          <ul className="space-y-4">
+          // Perbaikan (permintaan user, garis penghubung avatar): spacing antar item sebelumnya
+          // pakai "space-y-4" di <ul> — sekarang dipindah jadi "pb-4" di masing-masing item (lihat
+          // ActivityAvatar) supaya kolom avatar tiap <li> stretch pas 1 baris penuh (avatar+garis),
+          // dan garisnya menyambung mulus ke avatar item berikutnya tanpa celah.
+          <ul>
             {hiddenCount > 0 && (
-              <li>
+              <li className="pb-3">
                 {showOlder ? (
                   <button
                     type="button"
@@ -457,23 +555,18 @@ export default function TaskActivityFeed({
               </li>
             )}
 
-            {visibleItems.map((item) => (item.kind === 'comment' ? renderCommentItem(item.comment) : renderHistoryItem(item.history)))}
+            {visibleItems.map((item, idx) => {
+              const isLast = idx === visibleItems.length - 1;
+              return item.kind === 'comment' ? renderCommentItem(item.comment, isLast) : renderHistoryItem(item.history, isLast);
+            })}
           </ul>
         )}
       </div>
 
       {!readOnly && (
         <form onSubmit={handleSubmit} className="mt-3 shrink-0 border-t border-gray-100 pt-3">
-          <textarea
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            rows={2}
-            placeholder={t('comment_placeholder')}
-            className="focus-ring w-full rounded-lg border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 transition-colors"
-          />
-
           {file && (
-            <div className="mt-2 flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-500">
+            <div className="mb-2 flex items-center gap-2 rounded-lg bg-gray-100 px-3 py-2 text-xs text-gray-500">
               <svg className="h-4 w-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
               </svg>
@@ -494,22 +587,76 @@ export default function TaskActivityFeed({
             </div>
           )}
 
-          <div className="mt-2 flex items-center justify-between">
-            <label className="flex cursor-pointer items-center gap-1.5 rounded-lg p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-900">
-              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
-              </svg>
-              <input
-                ref={fileInputRef}
-                type="file"
-                onChange={(e) => setFile(e.target.files?.[0] || null)}
-                className="hidden"
+          {/* Perbaikan (permintaan user): tombol Kirim dipindah ke SAMPING KANAN field komentar
+              (bukan lagi di bawah). Icon attachment + emoji sekarang MASUK ke dalam "field" —
+              wrapper bordered ini yang jadi field-nya (textarea di dalamnya tanpa border sendiri),
+              icon-icon ditaruh di baris toolbar bawah tapi masih di DALAM garis border yang sama,
+              supaya secara visual keduanya kelihatan menyatu dengan field, bukan terpisah. */}
+          <div className="flex items-end gap-2">
+            <div className="focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-500/20 flex-1 rounded-lg border border-gray-300 bg-white transition-colors">
+              <textarea
+                ref={textareaRef}
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                rows={2}
+                placeholder={t('comment_placeholder')}
+                className="w-full resize-none rounded-t-lg border-0 bg-transparent px-3.5 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-0"
               />
-            </label>
+              <div className="relative flex items-center gap-1 border-t border-gray-100 px-2 py-1.5">
+                <label
+                  className="flex cursor-pointer items-center rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-900"
+                  title={t('comment_attach_aria')}
+                >
+                  <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M18.375 12.739l-7.693 7.693a4.5 4.5 0 01-6.364-6.364l10.94-10.94A3 3 0 1119.5 7.372L8.552 18.32m.009-.01l-.01.01m5.699-9.941l-7.81 7.81a1.5 1.5 0 002.112 2.13" />
+                  </svg>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    onChange={(e) => setFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                  />
+                </label>
+
+                <div ref={emojiWrapRef} className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setEmojiOpen((v) => !v)}
+                    className="flex items-center rounded-md p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-900"
+                    title={t('comment_emoji_aria')}
+                    aria-label={t('comment_emoji_aria')}
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M15.182 15.182a4.5 4.5 0 01-6.364 0M21 12a9 9 0 11-18 0 9 9 0 0118 0zM9.75 9.75c0 .414-.168.75-.375.75S9 10.164 9 9.75 9.168 9 9.375 9s.375.336.375.75zm-.375 0h.008v.015h-.008V9.75zm5.625 0c0 .414-.168.75-.375.75s-.375-.336-.375-.75.168-.75.375-.75.375.336.375.75zm-.375 0h.008v.015h-.008V9.75z"
+                      />
+                    </svg>
+                  </button>
+
+                  {emojiOpen && (
+                    <div className="absolute bottom-full left-0 z-10 mb-2 grid w-56 grid-cols-6 gap-1 rounded-lg border border-gray-200 bg-white p-2 shadow-lg">
+                      {EMOJI_LIST.map((em) => (
+                        <button
+                          key={em}
+                          type="button"
+                          onClick={() => insertEmoji(em)}
+                          className="rounded-md p-1 text-lg leading-none hover:bg-gray-100"
+                        >
+                          {em}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-lg bg-indigo-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+              className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
             >
               {submitting ? t('comment_sending') : t('comment_send')}
             </button>
